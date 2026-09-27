@@ -90,6 +90,11 @@ All notable changes to Isis are documented here. This project adheres to
   `tools/call`. MCP clients that called the removed tools or read `"pong"` need updating. New MCP suite cases cover
   the exact tool list, the `ping` result on both revisions, rejection of the removed tools and of bare tool calls,
   and unauthenticated `tools/call`.
+- **Voltaic 2.1.13.** The MCP server follows the current MCP specification more strictly: `ping` now requires the
+  credential like every other request (401 without one), needs an initialized session on the session transport, and
+  is not a method of the stateless `2026-07-28` revision (`-32601`); use `GET /` to probe connectivity. Browser
+  requests from foreign origins are refused (403), and a server bound to `localhost` accepts loopback clients only (the
+  Docker image binds `*`). MCP clients that pinged without a credential or before `initialize` need updating.
 - **Dependencies.** Microsoft.Data.SqlClient 7.1.0, Microsoft.Data.Sqlite.Core 10.0.12, MySqlConnector 2.6.2,
   Watson 7.2.0, and OpenTelemetry 1.19.x.
 - **RecallDb.Sdk 0.2.2.** Exposes RecallDB's single-call hybrid search, per-leg ranks, stored vectors on request, and

@@ -1,6 +1,6 @@
 # Mnemosyne — Agent Memory Service — Scaffold Plan
 
-> **Current state.** This is a historical plan: the versions and surfaces it describes are as planned, not as built. For the current state see [README.md](../README.md), [docs/REST_API.md](REST_API.md), [docs/MCP_API.md](MCP_API.md), and [SEARCH_PIPELINE.md](../SEARCH_PIPELINE.md). Current versions: Voltaic 2.0.0, Watson 7.2.0, RecallDb.Sdk 0.2.2.
+> **Current state.** This is a historical plan: the versions and surfaces it describes are as planned, not as built. For the current state see [README.md](../README.md), [docs/REST_API.md](REST_API.md), [docs/MCP_API.md](MCP_API.md), and [SEARCH_PIPELINE.md](../SEARCH_PIPELINE.md). Current versions: Voltaic 2.1.13, Watson 7.2.0, RecallDb.Sdk 0.2.2.
 
 > **Status:** Hypothesis / pre-implementation scaffold.
 > **Product name:** `Mnemosyne` (placeholder; server prefix `mnemo`). Chosen to fit the existing single-evocative-name convention (Chronos, Armada, Verbex, Lattice, LiteGraph, Pneuma, Auralytic).

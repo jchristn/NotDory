@@ -149,7 +149,7 @@ in [`docs/CONNECTING_AGENTS.md`](docs/CONNECTING_AGENTS.md) and [`docs/MCP_API.m
 ## Architecture
 
 ```
-Agent harness ──MCP──▶ nginx ─▶ Isis.McpServer (Voltaic 2.0.0) ─proxy─┐
+Agent harness ──MCP──▶ nginx ─▶ Isis.McpServer (Voltaic 2.1.13) ─proxy─┐
 Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀────────────┘
                                      │                 │
                         Isis metadata│                 │memory content + vectors
@@ -234,7 +234,7 @@ with the cross-encoder, and beats the published BM25 and dense-model baselines o
 |---|---|
 | `src/Isis.Core` | Models, enums, PrettyId, database providers (Sqlite/Mysql/Postgresql/SqlServer), memory stores, services |
 | `src/Isis.Server` | REST API (Watson 7.2) + dashboard host + OpenAPI |
-| `src/Isis.McpServer` | MCP server (Voltaic 2.0.0), agent-facing tools |
+| `src/Isis.McpServer` | MCP server (Voltaic 2.1.13), agent-facing tools |
 | `dashboard` | React 19 / Vite 6 management dashboard |
 | `docker` | Compose stack, per-service Dockerfiles, factory/demo seed |
 | `docs` | REST API reference, MCP API, agent-connection guides, product plan |

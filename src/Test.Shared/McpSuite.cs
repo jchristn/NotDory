@@ -61,8 +61,8 @@ namespace Test.Shared
                     TestCase.Async("mcp2", "tools-parity", "tools/list exposes exactly the REST-parity tool set and nothing else", ToolsParityAsync),
                     TestCase.Async("mcp2", "tools-list-stateless-exact", "stateless tools/list carries only the Isis tools (no Voltaic demo tools)", StatelessToolsListExactAsync),
                     TestCase.Async("mcp2", "ping-handshake-empty", "protocol ping returns an empty result, not \"pong\"", PingHandshakeEmptyAsync),
-                    TestCase.Async("mcp2", "ping-stateless-complete", "stateless ping returns only resultType complete", PingStatelessCompleteAsync),
-                    TestCase.Async("mcp2", "ping-unauthenticated", "protocol ping succeeds without credentials", PingUnauthenticatedAsync),
+                    TestCase.Async("mcp2", "ping-stateless-removed", "stateless ping is not a 2026-07-28 method and gets -32601", PingStatelessRemovedAsync),
+                    TestCase.Async("mcp2", "ping-unauthenticated", "protocol ping without credentials is rejected with 401", PingUnauthenticatedAsync),
                     TestCase.Async("mcp2", "removed-tools-rejected", "tools/call to the removed Voltaic demo tools (ping, echo, getTime, getSessions) fails", RemovedToolsRejectedAsync),
                     TestCase.Async("mcp2", "bare-tool-method-rejected", "calling a tool as a bare JSON-RPC method returns -32601", BareToolMethodRejectedAsync),
                     TestCase.Async("mcp2", "tools-call-unauthorized", "tools/call without credentials is rejected with 401", ToolsCallUnauthorizedAsync),
@@ -572,31 +572,23 @@ namespace Test.Shared
             foreach (JsonProperty property in result.EnumerateObject()) throw new InvalidOperationException("ping must return an empty object under a handshake revision: " + ping.Text);
         }
 
-        private static async Task PingStatelessCompleteAsync()
+        private static async Task PingStatelessRemovedAsync()
         {
+            // The stateless 2026-07-28 revision removed ping; Voltaic answers it with method-not-found.
             using McpContext ctx = await McpContext.StartAsync().ConfigureAwait(false);
             using HttpClient client = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + ctx.McpPort) };
 
-            using JsonDocument ping = await SendStatelessAsync(client, ctx.Harness.AccessKey, "ping", 1, null, null, HttpStatusCode.OK).ConfigureAwait(false)
-                ?? throw new InvalidOperationException("Stateless request returned no body.");
-            JsonElement result = ping.RootElement.GetProperty("result");
-            if (result.ValueKind != JsonValueKind.Object) throw new InvalidOperationException("stateless ping must return an object result: " + ping.RootElement.GetRawText());
-            RequireResultType(result, "ping");
-            foreach (JsonProperty property in result.EnumerateObject())
-            {
-                if (property.Name != "resultType") throw new InvalidOperationException("stateless ping must carry only resultType: " + result.GetRawText());
-            }
+            await SendStatelessAsync(client, ctx.Harness.AccessKey, "ping", 1, null, null, HttpStatusCode.NotFound).ConfigureAwait(false);
         }
 
         private static async Task PingUnauthenticatedAsync()
         {
-            // The ping bypass reaches only Voltaic's protocol handler, which runs no Isis code, so it needs no credential.
+            // The MCP authorization specification requires 401 for a missing credential on every request, ping included.
             using McpContext ctx = await McpContext.StartAsync().ConfigureAwait(false);
             using HttpClient client = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + ctx.McpPort) };
 
             RawResponse ping = await SendRawAsync(client, null, null, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}").ConfigureAwait(false);
-            if (ping.StatusCode != HttpStatusCode.OK) throw new InvalidOperationException("An unauthenticated ping should succeed, got " + (int)ping.StatusCode + ": " + ping.Text);
-            if (ping.Text.Contains("pong", StringComparison.Ordinal)) throw new InvalidOperationException("ping must no longer return \"pong\": " + ping.Text);
+            if (ping.StatusCode != HttpStatusCode.Unauthorized) throw new InvalidOperationException("An unauthenticated ping should be rejected with 401, got " + (int)ping.StatusCode + ": " + ping.Text);
             if (ping.Text.Contains("ten_default", StringComparison.Ordinal)) throw new InvalidOperationException("An unauthenticated ping must not reach Isis: " + ping.Text);
         }
 

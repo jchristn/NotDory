@@ -16,7 +16,7 @@ Memory is organized into **scopes** (a project, a book, or "global"), **categori
 | Image | Purpose |
 |---|---|
 | [`jchristn77/isis-server`](https://hub.docker.com/r/jchristn77/isis-server) | REST API (Watson 7.2) + OpenAPI. Listens on `8700`. |
-| [`jchristn77/isis-mcp`](https://hub.docker.com/r/jchristn77/isis-mcp) | MCP server (Voltaic 2.0.0), agent-facing tools. Streamable HTTP on `8720`. |
+| [`jchristn77/isis-mcp`](https://hub.docker.com/r/jchristn77/isis-mcp) | MCP server (Voltaic 2.1.13), agent-facing tools. Streamable HTTP on `8720`. |
 | [`jchristn77/isis-dashboard`](https://hub.docker.com/r/jchristn77/isis-dashboard) | React 19 / Vite 6 management dashboard (nginx). |
 
 All three are published for `linux/amd64` and `linux/arm64`, tagged `v0.1.0` and `latest`. Pin to `v0.1.0`.
@@ -47,7 +47,7 @@ On a RecallDB scope, a search runs hybrid vector + full-text search, fuses the t
 ## Architecture
 
 ```
-Agent harness ──MCP──▶ nginx ─▶ Isis.McpServer (Voltaic 2.0.0) ─proxy─┐
+Agent harness ──MCP──▶ nginx ─▶ Isis.McpServer (Voltaic 2.1.13) ─proxy─┐
 Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀────────────┘
                                      │                 │
                         Isis metadata│                 │memory content + vectors

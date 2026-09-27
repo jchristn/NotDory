@@ -91,7 +91,9 @@ When the REST call fails, `success` is `false`, `statusCode` carries the upstrea
 Isis exposes **32** MCP tools at parity with the tenant-scoped REST surface. Each tool proxies the
 REST route shown, forwarding the caller's credential; the write/CRUD tools accept the same fields as
 the corresponding REST request body. `tools/list` returns only these tools; the MCP protocol `ping`
-method is answered with an empty result (`{}`) and needs no credentials.
+method is answered with an empty result (`{}`) on the handshake-era revisions. Like every other request it needs the
+credential (a missing one gets 401) and, on the session transport, an initialized session. The stateless `2026-07-28`
+revision removed `ping` (it gets `-32601`); probe connectivity with `GET /` instead.
 
 | Tool | REST route proxied | Purpose |
 |------|--------------------|---------|
