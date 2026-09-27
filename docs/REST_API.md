@@ -282,7 +282,7 @@ writer can reuse that slug or supersede it instead of keeping a duplicate. The f
 The threshold is the server setting `retrieval.duplicateSimilarityThreshold` (default 0.85). The threshold depends on the embedding model: with all-minilm, a memory and its replacement typically score 0.55 to 0.88, while distinct but closely related memories can reach 0.89, so treat the list as candidates to review.
 
 A search body is
-`{ "queryText": "…", "mode": "Hybrid", "topK": 10, "categoryFilter": "…", "tokenBudget": 240, "minScore": null, "recencyWeight": 0.1, "superseded": "Demote", "linkExpansion": 0, "diversity": 0, "rerank": null, "minRerankScore": null, "textWeight": null, "rrfK": null, "additionalQueries": null, "decompose": false }`.
+`{ "queryText": "…", "mode": "Hybrid", "topK": 10, "categoryFilter": "…", "tokenBudget": 240, "minScore": null, "recencyWeight": 0.1, "superseded": "Demote", "linkExpansion": 0, "diversity": 0, "rerank": null, "minRerankScore": null, "textWeight": null, "rrfK": null, "additionalQueries": null, "additionalQueryWeight": null, "subQueries": null, "decompose": false, "expand": false, "expansionWeight": null }`.
 `queryText` is required (an empty or missing query returns 400). `categoryFilter` accepts a category name or
 its `cat_` id; an unknown category returns 400. `minScore` (optional) drops hits scoring below it.
 `recencyWeight` (hybrid only, 0 to 1, default 0.1, 0 disables) adds a signal that favors more recently written
@@ -318,6 +318,21 @@ first active one) split the question into sub-queries first; the reply is parsed
 keeps whole, or a reply it cannot read, searches the question as given. When more than one query ran, the response's
 `queries` lists them. Chat can split multi-part questions this way before retrieval (`retrieval.chatQueryDecomposition`, default false; in
 benchmarks it lowered retrieval and answer accuracy).
+
+Extra queries are fused by weighted reciprocal rank, with `queryText` at weight 1.0, so an extra query weighted lower
+adds memories without displacing the ones the question already ranks well. The fusion constant is the server setting
+`retrieval.queryFusionRrfK` (default 5); a small constant keeps the original query's own ranking intact, so extra
+queries mostly re-rank its candidates. `additionalQueryWeight` (0 to 1; null uses
+the server's `retrieval.additionalQueryWeight`, default 1.0) weights `additionalQueries` and decomposed parts.
+`subQueries` (up to 4) are extra queries with their own `weight` (0 to 1, default 1.0) and optional `mode`, for
+example `[{ "text": "…", "weight": 0.5, "mode": "Semantic" }]`.
+
+`expand: true` has the inference endpoint draft two forms of the query: a short hypothetical answer, searched by vector
+because it reads like a stored memory, and keywords a relevant memory would contain (with any identifiers from the
+question), searched as text. Both are added as sub-queries at `expansionWeight` (0 to 1; null uses the server's
+`retrieval.expansionWeight`, default 0.5). In Semantic mode only the answer is used, and in Keyword mode only the
+keywords. A reply the endpoint cannot give or the server cannot read adds nothing. Chat can expand questions the same
+way (`retrieval.chatQueryExpansion`, default false). The reranker, when one runs, always scores against `queryText`.
 
 Each hit has `storeKey`, `slug`, `title`, `snippet`, and `score`, plus the evidence behind the score: `vectorScore`
 and `textScore` (the raw leg scores, null when that leg did not return the hit), and in hybrid mode `vectorRank`
@@ -433,5 +448,41 @@ the node is relaunched automatically with the persisted settings.
 | 403 | Forbidden (authorization denied) |
 | 404 | Not found |
 | 409 | Conflict (already exists) |
+| 413 | Request body larger than the server accepts (`rest.maxRequestBodyBytes`, default 16 MB) |
+| 501 | Not implemented (for example a store operation the scope's provider does not support) |
+| 503 | A backing service (memory store, database, or model endpoint) is unavailable or at capacity; retry later |
 
 Error bodies are shaped `{ "error": "<code>", "message": "<human readable>" }`.
+
+## Input limits
+
+Request values are checked before they are used. Numbers that are merely out of range are clamped to the nearest valid
+value, and NaN or infinity falls back to the default. Text and lists over a limit are rejected with 400 and a message
+naming the field, rather than silently cut. Null lists become empty, and an undefined enum value falls back to the
+field's default.
+
+| Input | Limit |
+| --- | --- |
+| Request body | 16 MB (`rest.maxRequestBodyBytes`, 1 KB to 256 MB); larger is 413 |
+| Any query-string value | 2,048 characters |
+| Search `queryText`, `additionalQueries` and `subQueries` text | 4,000 characters each; at most 8 additional queries and 8 sub-queries |
+| Search `categoryFilter` | 256 characters |
+| Search `tokenBudget` | clamped to 16 to 20,000 characters |
+| Search `minScore`, `minRerankScore` | NaN or infinity ignored; `minRerankScore` clamped to 0 to 1 |
+| Search weights (`textWeight`, `recencyWeight`, `diversity`, `additionalQueryWeight`, `expansionWeight`, sub-query `weight`) | clamped to 0 to 1 |
+| Chat `question` | 8,000 characters |
+| Chat `history` | at most 100 messages of 20,000 characters; null and empty messages are dropped |
+| Chat `topK` | clamped to 0 to 100 |
+| Memory `slug`, `title`, `summary`, `resource` | 256, 1,024, 8,192, and 4,096 characters |
+| Memory `body` | 4 MB |
+| Memory `tags`, `links`, `supersedes` | 256, 256, and 64 entries of 256 characters |
+| Memory `metadata` | 128 entries; keys 256 and values 8,192 characters |
+| Category `description`, `instructions` | 4,096 and 65,536 characters |
+| Instruction `content` | 65,536 characters |
+| Batch `ids` | 1,000; batch `items` 100 |
+| Scope `chunkMaxTokens`, `chunkOverlapTokens` | clamped to 8,192 and 1,024 (overlap is also kept below half a chunk) |
+| Endpoint `baseUrl` | an absolute http or https URL (create, update, and batch create) |
+| Endpoint `timeoutMs`, health-check interval and timeout | 1 s to 1 h (0 means 60 s); 1 s to 1 h; 0.1 to 60 s |
+
+Server settings are clamped the same way when the settings file is read, so an out-of-range value never stops the
+server from starting; a missing or null settings section takes its defaults.

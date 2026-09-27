@@ -78,12 +78,32 @@ namespace Isis.Core.Models
         /// <summary>
         /// A one-line description of what this category holds.
         /// </summary>
-        public string? Description { get; set; } = null;
+        public string? Description
+        {
+            get
+            {
+                return _Description;
+            }
+            set
+            {
+                _Description = InputGuard.MaxLength(value, 4096, nameof(Description));
+            }
+        }
 
         /// <summary>
         /// Usage instructions telling the agent when and how to write memories in this category.
         /// </summary>
-        public string? Instructions { get; set; } = null;
+        public string? Instructions
+        {
+            get
+            {
+                return _Instructions;
+            }
+            set
+            {
+                _Instructions = InputGuard.MaxLength(value, 65536, nameof(Instructions));
+            }
+        }
 
         /// <summary>
         /// Indicates whether the category is active.
@@ -104,6 +124,8 @@ namespace Isis.Core.Models
 
         #region Private-Members
 
+        private string? _Instructions = null;
+        private string? _Description = null;
         private string _Id = IdGenerator.Category();
         private string _TenantId = String.Empty;
         private string _ScopeId = String.Empty;

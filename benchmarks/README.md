@@ -113,6 +113,13 @@ $B chat --dataset benchmarks/datasets/isis-live.json --rerank --scope-min-rerank
 # retried with backoff.
 $B retrieval --dataset benchmarks/datasets/atlas.json --embedding-model nomic-embed-text --dim 768 --embedding-label nomic-embed-text --label nomic
 
+# Fusion and extra queries: --text-weight and --rrf-k set hybrid fusion per query; --expand drafts a hypothetical answer
+# and keywords (--expansion-weight), --decompose splits multi-part questions (--additional-query-weight); both need an
+# inference endpoint (--inference-model/--inference-url). The multi-query fusion constant is the server setting
+# retrieval.queryFusionRrfK.
+$B retrieval --dataset benchmarks/datasets/atlas.json --modes Hybrid --text-weight 0.5 --rrf-k 20 --label fusion
+$B retrieval --dataset benchmarks/datasets/atlas.json --modes Hybrid --inference-model gemma3:4b --expand --expansion-weight 0.5 --label expand
+
 # Chunking sweep: a suffix keeps the variants in separate scopes
 $B retrieval --dataset benchmarks/data/longmemeval-s-60.json --chunk-overlap 0   --scope-suffix ov0
 $B retrieval --dataset benchmarks/data/longmemeval-s-60.json --chunk-overlap 128 --scope-suffix ov128
@@ -121,6 +128,8 @@ $B retrieval --dataset benchmarks/data/longmemeval-s-60.json --chunk-overlap 128
 # depth unless --k is given. Use a non-reasoning model: Isis does not disable thinking, so a reasoning model spends
 # minutes per answer on a laptop GPU.
 $B chat --dataset benchmarks/datasets/isis-live.json --inference-model gemma3:4b --judge-model gemma3:4b
+# Follow-up questions: each carries the earlier exchange as history, which chat sends with the question
+$B chat --dataset benchmarks/datasets/isis-live-followups.json --inference-model gemma3:4b --judge-model gemma3:4b
 
 # Agent-in-the-loop (spends real API credits; uses the claude CLI's own authentication)
 $B agent --tasks benchmarks/agent/tasks-isis.json --model haiku

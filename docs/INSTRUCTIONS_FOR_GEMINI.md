@@ -23,7 +23,7 @@ The Gemini CLI reads its MCP servers from `~/.gemini/settings.json` (global) or 
 }
 ```
 
-Only the access-key header is required; the secret key is never sent. Restart the Gemini CLI after saving; run `/mcp` in a session to confirm the `isis` server is connected and the Isis memory tools are listed (thirteen, plus a few built-ins).
+Only the access-key header is required; the secret key is never sent. Restart the Gemini CLI after saving; run `/mcp` in a session to confirm the `isis` server is connected and the 32 Isis tools are listed.
 
 ---
 
@@ -36,16 +36,16 @@ You have access to the Isis agent-memory platform via MCP tools. Isis is **not**
 | Term | What it is | ID prefix |
 |------|-----------|-----------|
 | **Tenant** | An isolated memory account; everything you read and write lives under one tenant | `ten_` |
-| **Scope** | A memory space -- a project, a book, or a shared "global" space -- backed by a store (RecallDb, Verbex, or Filesystem) | `scp_` |
+| **Scope** | A memory space -- a project, a book, or a shared "global" space -- backed by a store (RecallDb or Filesystem) | `scp_` |
 | **Category** | A labeled bucket within a scope that carries usage instructions for what to write and how | `cat_` |
-| **Memory** | One atomic note: `slug`, `title`, `body`, `summary`, `tags` | `mem_` |
+| **Memory** | One atomic note: `slug`, `title`, `body`, `summary`, `tags`, `links` | `mem_` |
 | **Credential** | The access key your connection authenticates with; maps to a tenant | `crd_` |
 
-**Tenant instructions** are the tenant's standing "memory manual" -- always-on guidance the operator wants every agent to honor. Read them with the `instructions` tool early in a session; they apply across every scope in the tenant.
+**Tenant instructions** are the tenant's standing "memory manual" -- always-on guidance the operator wants every agent to honor. Read them with the `instructions` tool early in a session; they apply across every scope in the tenant. Pass a `scopeId` to get the scope's effective instructions (the tenant-wide set merged with the scope's own).
 
-**Chat-with-Memory** is retrieval-augmented reasoning over a whole scope. It is a separate REST surface (**not** one of the MCP tools below): it uses the same retrieval as `memory_search`, then adds an inference step to synthesize a grounded, cited answer.
+**Chat-with-Memory** is retrieval-augmented reasoning over a whole scope, available as the `chat` tool: it uses the same retrieval as `memory_search`, then adds an inference step to synthesize a grounded answer that cites the memory ids it used. Chat keeps no conversation state, so for a follow-up question pass the earlier messages in `history` (oldest first, each `{ role, content }` with `role` = `user` or `assistant`); the server rewrites the follow-up into a standalone question before searching.
 
-The store behind a scope determines search power: `RecallDb` supports `Semantic` and `Hybrid` search; `Verbex` and `Filesystem` are `Keyword`-only.
+The store behind a scope determines search power: `RecallDb` supports `Semantic` and `Hybrid` search (vector plus full-text, with optional cross-encoder reranking when the scope has a rerank endpoint); `Filesystem` is `Keyword`-only. `Verbex` is listed as a store provider but is not wired yet (its searches fail), so do not create Verbex scopes.
 
 ## Core Workflow
 
@@ -72,19 +72,22 @@ Before you do work, check whether the answer is already remembered:
 memory_search({ tenantId, scopeId, queryText, mode: "Hybrid", topK: 5 })
 memory_enumerate({ tenantId, scopeId, category })   -> token-cheap summaries by category
 memory_read({ tenantId, scopeId, memoryId })        -> the full body of one memory
+chat({ tenantId, scopeId, question, history })      -> a synthesized, cited answer instead of a list of hits
 ```
 
-Search first (`Hybrid` or `Semantic` on a RecallDb scope; `Keyword` works anywhere). Enumerate when you want a list rather than a query. Only call `memory_read` for the specific memories you actually need -- it is the only tool that returns full bodies.
+Search first (`Hybrid` or `Semantic` on a RecallDb scope; `Keyword` works anywhere). For a question about several distinct things, pass each part in `additionalQueries` so every part's memories are found. A hit that carries `supersededBy` is outdated: prefer the memory it names. Enumerate when you want a list rather than a query. Only call `memory_read` for the specific memories you actually need -- it is the only tool that returns full bodies.
 
 ### 3. Record
 
 When you learn something durable, write it:
 
 ```
-memory_upsert({ tenantId, scopeId, categoryId, slug, title, summary, body, type })
+memory_upsert({ tenantId, scopeId, categoryId, slug, title, summary, body, type, links, supersedes })
 ```
 
-`memory_upsert` is **idempotent on `(scope, category, slug)`** -- re-writing the same slug updates the memory in place instead of duplicating it. Choose a stable, descriptive slug. Provide a crisp one-line `summary`; it is the recall hook shown in enumerate and search results.
+`memory_upsert` is **idempotent on `(scope, category, slug)`** -- re-writing the same slug updates the memory in place instead of duplicating it. Choose a stable, descriptive slug. Provide a crisp one-line `summary`; it is the recall hook shown in enumerate and search results. Put the slugs of related memories in `links`. When the new memory replaces an older one (a changed decision, a corrected fact), pass the old slug in `supersedes`: search then ranks the old memory after the new one and marks it outdated.
+
+The upsert response can include `similarMemories`: existing memories that look like duplicates of the one you just wrote. If one says the same thing, reuse its slug (update it) instead of keeping both, or supersede it.
 
 Create a category only when no existing one fits:
 
@@ -96,7 +99,7 @@ Always supply `instructions` so future agents know when and how to write into it
 
 ### 4. Curate
 
-Keep memory trustworthy. Delete what is proven wrong or obsolete rather than leaving stale guidance behind:
+Keep memory trustworthy. Delete what is proven wrong or obsolete rather than leaving stale guidance behind (when the old version is worth keeping for history, supersede it instead):
 
 ```
 memory_delete({ tenantId, scopeId, memoryId })
@@ -124,27 +127,31 @@ Match every write to a category and follow that category's `instructions`. When 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
 | `whoami` | -- | Resolve the tenant and principal your credential maps to. Call first; its response carries the `tenantId` every other tool needs. |
-| `instructions` | `tenantId` (required) | Read the tenant's standing memory manual. Call right after `whoami`. |
+| `instructions` | `tenantId` (required); `scopeId` | Read the tenant's standing memory manual (or a scope's effective instructions). Call right after `whoami`. |
 | `scope_enumerate` | `tenantId` (required) | List the memory scopes in a tenant. |
 | `scope_create` | `tenantId`, `name` (required); `description`, `storeProvider`, `embeddingEndpointId`, `dimensionality`, `filesystemLayout`, `targetPath` | Create a scope when none fits (typically once per project). |
-| `endpoint_enumerate` | `tenantId` (required); `kind` | List model endpoints (`Embedding`/`Inference`) -- e.g. to choose an `embeddingEndpointId`, or to confirm whether semantic (RecallDb) scopes are possible. |
+| `endpoint_enumerate` | `tenantId` (required); `kind` | List model endpoints (`Embedding`/`Inference`/`Rerank`) -- e.g. to choose an `embeddingEndpointId`, or to confirm whether semantic (RecallDb) scopes are possible. |
 | `guide` | `tenantId`, `scopeId` (required) | The scope's categories, their usage instructions, and store capabilities. Call before writing. |
 | `category_enumerate` | `tenantId`, `scopeId` (required) | List categories in a scope, including usage instructions. |
 | `category_create` | `tenantId`, `scopeId`, `name` (required); `description`, `instructions` | Create a category. Supply `instructions`. |
 | `memory_enumerate` | `tenantId`, `scopeId` (required); `category`, `maxResults` | List token-cheap memory summaries (no bodies). `category` filters by category **id**. |
 | `memory_read` | `tenantId`, `scopeId`, `memoryId` (required) | Read one memory's full body. |
-| `memory_upsert` | `tenantId`, `scopeId`, `categoryId`, `slug`, `body` (required); `title`, `summary`, `type` | Create or update a memory. Idempotent on `(scope, category, slug)`. |
-| `memory_search` | `tenantId`, `scopeId`, `queryText` (required); `mode`, `topK`, `categoryName` | Search a scope. `mode` = `Keyword`/`Semantic`/`Hybrid`. `categoryName` filters by category name (or `cat_` id). |
+| `memory_upsert` | `tenantId`, `scopeId`, `categoryId`, `slug`, `body` (required); `title`, `summary`, `type`, `links`, `supersedes` | Create or update a memory. Idempotent on `(scope, category, slug)`. Pass `supersedes` (old slugs) when this memory replaces older ones. The response may list `similarMemories`. |
+| `memory_search` | `tenantId`, `scopeId`, `queryText` (required); `mode`, `topK`, `categoryName`, `superseded`, `additionalQueries`, `rerank` | Search a scope. `mode` = `Keyword`/`Semantic`/`Hybrid`. `categoryName` filters by category name (or `cat_` id). `superseded` = `Demote` (default)/`Hide`/`Include`. `additionalQueries` holds up to 4 extra queries (the parts of a multi-part question). `rerank` defaults to on when the scope has a rerank endpoint. More tuning options are in `docs/MCP_API.md`. |
 | `memory_delete` | `tenantId`, `scopeId`, `memoryId` (required) | Delete a memory by id. |
+| `chat` | `tenantId`, `scopeId`, `question` (required); `topK`, `inferenceEndpointId`, `history` | Ask a question answered from the scope's memory; returns the answer plus cited memory ids. `history` holds the earlier `{ role, content }` messages so a follow-up question is understood in context. |
 
 `type` on upsert is one of `User`, `Feedback`, `Project`, `Reference`. `Semantic` and `Hybrid` search require a RecallDb-backed scope; `Keyword` works on any store.
+
+The server exposes 32 tools in all. The rest are management tools: `scope_read`/`scope_update`/`scope_delete`, `category_read`/`category_update`/`category_delete`, `endpoint_read`/`endpoint_create`/`endpoint_update`/`endpoint_delete`/`endpoint_health`, `collection_enumerate`/`collection_read`/`collection_create`/`collection_delete`, and `instruction_create`/`instruction_update`/`instruction_delete`. Endpoint and instruction writes require tenant administration. See `docs/MCP_API.md` for every tool's arguments.
 
 ## Decision-Making Guidance
 
 - **Always start with `whoami`** and cache the `tenantId` -- nearly every other tool requires it. `scopeId` comes from `scope_enumerate` (or `scope_create` when none fits).
 - **Read the tenant `instructions` and the scope `guide` before writing.** Category `instructions` and the tenant's standing instructions are the contract; honor them.
 - **Prefer summaries to bodies.** Enumerate and search return token-cheap summaries; only `memory_read` pulls a full body. Pull bodies deliberately.
-- **Search before you write** to avoid creating a duplicate under a new slug. If a memory exists, update it by re-using its slug.
+- **Search before you write** to avoid creating a duplicate under a new slug. If a memory exists, update it by re-using its slug. If an upsert returns `similarMemories`, resolve the duplicate.
+- **Supersede instead of contradicting.** When a fact changes, write the new memory with `supersedes` naming the old slug so search prefers the current one.
 - **Keep slugs stable and descriptive** so repeated writes converge on one memory instead of scattering.
 - **Curate as you go.** A wrong memory is worse than a missing one -- delete or overwrite stale guidance.
 

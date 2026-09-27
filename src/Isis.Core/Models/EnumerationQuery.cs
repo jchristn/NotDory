@@ -1,6 +1,7 @@
 namespace Isis.Core.Models
 {
     using System;
+    using Isis.Core.Helpers;
 
     /// <summary>
     /// Query parameters for paginated enumeration of records.
@@ -38,6 +39,7 @@ namespace Isis.Core.Models
             set
             {
                 if (value < 0) value = 0;
+                if (value > 10000000) value = 10000000;
                 _Skip = value;
             }
         }
@@ -45,17 +47,39 @@ namespace Isis.Core.Models
         /// <summary>
         /// Optional case-insensitive search term applied to the primary text column(s).
         /// </summary>
-        public string? SearchTerm { get; set; } = null;
+        public string? SearchTerm
+        {
+            get
+            {
+                return _SearchTerm;
+            }
+            set
+            {
+                _SearchTerm = InputGuard.MaxLength(value, 256, nameof(SearchTerm));
+            }
+        }
 
         /// <summary>
         /// Optional continuation token from a prior enumeration.
         /// </summary>
-        public string? ContinuationToken { get; set; } = null;
+        public string? ContinuationToken
+        {
+            get
+            {
+                return _ContinuationToken;
+            }
+            set
+            {
+                _ContinuationToken = InputGuard.MaxLength(value, 1024, nameof(ContinuationToken));
+            }
+        }
 
         #endregion
 
         #region Private-Members
 
+        private string? _ContinuationToken = null;
+        private string? _SearchTerm = null;
         private int _MaxResults = 100;
         private int _Skip = 0;
 

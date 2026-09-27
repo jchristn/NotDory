@@ -210,6 +210,31 @@ namespace Isis.McpServer
             return Uri.EscapeDataString(value);
         }
 
+        private static List<Dictionary<string, object>>? SubQueries(RpcParameters? parameters)
+        {
+            // Accept a JSON array of { text, weight?, mode? } objects; entries without text are skipped.
+            string? raw = parameters?.RawJson;
+            if (string.IsNullOrEmpty(raw)) return null;
+
+            using JsonDocument document = JsonDocument.Parse(raw);
+            if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("subQueries", out JsonElement value)) return null;
+            if (value.ValueKind != JsonValueKind.Array) return null;
+
+            List<Dictionary<string, object>> result = new List<Dictionary<string, object>>();
+            foreach (JsonElement item in value.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                string text = item.TryGetProperty("text", out JsonElement t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? string.Empty) : string.Empty;
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                Dictionary<string, object> entry = new Dictionary<string, object> { { "text", text } };
+                if (item.TryGetProperty("weight", out JsonElement w) && w.ValueKind == JsonValueKind.Number) entry["weight"] = w.GetDouble();
+                if (item.TryGetProperty("mode", out JsonElement m) && m.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(m.GetString())) entry["mode"] = m.GetString()!;
+                result.Add(entry);
+            }
+
+            return result;
+        }
+
         private static List<Dictionary<string, string>>? ChatHistory(RpcParameters? parameters)
         {
             // Accept a JSON array of { role, content } objects; entries without content are skipped.
@@ -353,9 +378,9 @@ namespace Isis.McpServer
             _Server.RegisterTool(
                 "scope_create",
                 "Create a memory scope for a project when one does not already exist (check first with scope_enumerate). "
-                + "Required: tenantId, name. Optional: description; storeProvider — RecallDb (default: semantic + keyword, needs an embedding endpoint), Verbex (keyword-only), or Filesystem (keyword-only, git-trackable files). "
+                + "Required: tenantId, name. Optional: description; storeProvider: RecallDb (default: semantic + keyword, needs an embedding endpoint) or Filesystem (keyword-only, git-trackable files). "
                 + "For RecallDb you may pass embeddingEndpointId and dimensionality, but if you omit them the tenant's embedding endpoint and its dimensionality are selected AUTOMATICALLY (list options with endpoint_enumerate). "
-                + "If the tenant has NO embedding endpoint, RecallDb is rejected with guidance — use storeProvider Filesystem or Verbex instead. Filesystem also accepts filesystemLayout (SingleFile|Hierarchy|OkfBundle — OkfBundle writes a git-trackable Open Knowledge Format bundle: one markdown file per memory with YAML frontmatter plus a generated index.md) and targetPath.",
+                + "If the tenant has NO embedding endpoint, RecallDb is rejected with guidance; use storeProvider Filesystem instead. Filesystem also accepts filesystemLayout (SingleFile|Hierarchy|OkfBundle; OkfBundle writes a git-trackable Open Knowledge Format bundle: one markdown file per memory with YAML frontmatter plus a generated index.md) and targetPath.",
                 new
                 {
                     type = "object",
@@ -364,7 +389,7 @@ namespace Isis.McpServer
                         tenantId = new { type = "string" },
                         name = new { type = "string", description = "Unique scope name within the tenant (e.g. the project name)." },
                         description = new { type = "string" },
-                        storeProvider = new { type = "string", description = "RecallDb, Verbex, or Filesystem. Defaults to RecallDb." },
+                        storeProvider = new { type = "string", description = "RecallDb or Filesystem (Verbex is not available yet). Defaults to RecallDb." },
                         embeddingEndpointId = new { type = "string", description = "Embedding endpoint id for RecallDb semantic scopes." },
                         dimensionality = new { type = "integer", description = "Embedding vector dimension for RecallDb scopes." },
                         filesystemLayout = new { type = "string", description = "SingleFile, Hierarchy, or OkfBundle (Open Knowledge Format), for Filesystem scopes." },
@@ -403,7 +428,7 @@ namespace Isis.McpServer
 
             _Server.RegisterTool(
                 "endpoint_enumerate",
-                "List the tenant's configured model endpoints (embedding, inference, and rerank), each with its id, kind, model, and embedding dimensionality. Use this to find an embeddingEndpointId (and its dimensionality) BEFORE creating a RecallDb semantic scope. If no embedding endpoint is listed, create Filesystem or Verbex (keyword-only) scopes instead. Required: tenantId. Optional: kind (Embedding, Inference, or Rerank).",
+                "List the tenant's configured model endpoints (embedding, inference, and rerank), each with its id, kind, model, and embedding dimensionality. Use this to find an embeddingEndpointId (and its dimensionality) BEFORE creating a RecallDb semantic scope. If no embedding endpoint is listed, create a Filesystem (keyword-only) scope instead. Required: tenantId. Optional: kind (Embedding, Inference, or Rerank).",
                 new { type = "object", properties = new { tenantId = new { type = "string" }, kind = new { type = "string", description = "Optional filter: Embedding, Inference, or Rerank." } }, required = new[] { "tenantId" } },
                 async (RpcParameters? p, CancellationToken ct) =>
                 {
@@ -529,7 +554,7 @@ namespace Isis.McpServer
 
             _Server.RegisterTool(
                 "memory_search",
-                "Search a scope's memory. Required: tenantId, scopeId, queryText. Optional: mode (Keyword|Semantic|Hybrid), topK, categoryName, minScore, recencyWeight, superseded, linkExpansion, diversity, rerank, minRerankScore, additionalQueries, decompose. For a question about several distinct things, pass each part in additionalQueries (or set decompose) so every part's memories are found. "
+                "Search a scope's memory. Required: tenantId, scopeId, queryText. Optional: mode (Keyword|Semantic|Hybrid), topK, categoryName, minScore, recencyWeight, superseded, linkExpansion, diversity, rerank, minRerankScore, additionalQueries, additionalQueryWeight, subQueries, decompose, expand, expansionWeight. For a question about several distinct things, pass each part in additionalQueries (or set decompose) so every part's memories are found. "
                 + "Hits replaced by a newer memory carry supersededBy (prefer the replacement); hits added by following links carry linkedFrom.",
                 new
                 {
@@ -550,7 +575,16 @@ namespace Isis.McpServer
                         rerank = new { type = "boolean", description = "Rerank with the scope's rerank endpoint. Default: rerank when the scope has one." },
                         minRerankScore = new { type = "number", description = "Drop reranked hits scoring below this (0..1). Defaults to the scope's rerankMinScore." },
                         additionalQueries = new { type = "array", items = new { type = "string" }, description = "Up to 4 extra queries searched alongside queryText and fused, for example the parts of a multi-part question." },
-                        decompose = new { type = "boolean", description = "Have the tenant's inference model split a multi-part question into sub-queries before searching (default false)." }
+                        additionalQueryWeight = new { type = "number", description = "Fusion weight of each additional query relative to queryText's 1.0, 0 to 1 (default: the server's setting)." },
+                        subQueries = new
+                        {
+                            type = "array",
+                            description = "Up to 4 extra queries with their own fusion weight (0 to 1, default 1) and optional mode (Keyword|Semantic|Hybrid).",
+                            items = new { type = "object", properties = new { text = new { type = "string" }, weight = new { type = "number" }, mode = new { type = "string", @enum = new[] { "Keyword", "Semantic", "Hybrid" } } }, required = new[] { "text" } }
+                        },
+                        decompose = new { type = "boolean", description = "Have the tenant's inference model split a multi-part question into sub-queries before searching (default false)." },
+                        expand = new { type = "boolean", description = "Have the tenant's inference model draft a hypothetical answer (searched by vector) and keywords (searched as text), fused below queryText (default false)." },
+                        expansionWeight = new { type = "number", description = "Fusion weight of the expand forms relative to queryText's 1.0, 0 to 1 (default: the server's setting)." }
                     },
                     required = new[] { "tenantId", "scopeId", "queryText" }
                 },
@@ -579,6 +613,14 @@ namespace Isis.McpServer
                     if (additionalQueries != null && additionalQueries.Count > 0) body["additionalQueries"] = additionalQueries;
                     bool? decompose = p?.GetBoolean("decompose");
                     if (decompose.HasValue) body["decompose"] = decompose.Value;
+                    List<Dictionary<string, object>>? subQueries = SubQueries(p);
+                    if (subQueries != null && subQueries.Count > 0) body["subQueries"] = subQueries;
+                    bool? expand = p?.GetBoolean("expand");
+                    if (expand.HasValue) body["expand"] = expand.Value;
+                    double? additionalQueryWeight = p?.GetDouble("additionalQueryWeight");
+                    if (additionalQueryWeight.HasValue) body["additionalQueryWeight"] = additionalQueryWeight.Value;
+                    double? expansionWeight = p?.GetDouble("expansionWeight");
+                    if (expansionWeight.HasValue) body["expansionWeight"] = expansionWeight.Value;
                     string path = "/v1.0/api/tenants/" + Encode(Require(p, "tenantId")) + "/scopes/" + Encode(Require(p, "scopeId")) + "/memories/search";
                     return await ProxyAsync(HttpMethod.Post, path, JsonSerializer.Serialize(body), "memory_search", CurrentCredentials(), ct).ConfigureAwait(false);
                 });

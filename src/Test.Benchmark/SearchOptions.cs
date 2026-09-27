@@ -58,6 +58,21 @@ namespace Test.Benchmark
         public bool Decompose { get; set; } = false;
 
         /// <summary>
+        /// Expand each query with a drafted answer and keywords (needs an inference endpoint).
+        /// </summary>
+        public bool Expand { get; set; } = false;
+
+        /// <summary>
+        /// Fusion weight of the expansion forms; null uses the server's setting.
+        /// </summary>
+        public double? ExpansionWeight { get; set; } = null;
+
+        /// <summary>
+        /// Fusion weight of additional (for example decomposed) queries; null uses the server's setting.
+        /// </summary>
+        public double? AdditionalQueryWeight { get; set; } = null;
+
+        /// <summary>
         /// Inference endpoint the server uses for decomposition.
         /// </summary>
         public string? InferenceEndpointId { get; set; } = null;
@@ -84,6 +99,9 @@ namespace Test.Benchmark
             if (args.GetOptional("text-weight") != null) options.TextWeight = args.GetDouble("text-weight", 0.5);
             if (args.GetOptional("rrf-k") != null) options.RrfK = args.GetInt("rrf-k", 60);
             options.Decompose = args.GetFlag("decompose");
+            options.Expand = args.GetFlag("expand");
+            if (args.GetOptional("expansion-weight") != null) options.ExpansionWeight = args.GetDouble("expansion-weight", 0.5);
+            if (args.GetOptional("additional-query-weight") != null) options.AdditionalQueryWeight = args.GetDouble("additional-query-weight", 1.0);
             return options;
         }
 

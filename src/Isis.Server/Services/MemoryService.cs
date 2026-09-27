@@ -44,7 +44,7 @@ namespace Isis.Server.Services
             }
             set
             {
-                if (value < 0.0 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(DuplicateSimilarityThreshold), "DuplicateSimilarityThreshold must be in [0, 1].");
+                if (!double.IsFinite(value) || value < 0.0 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(DuplicateSimilarityThreshold), "DuplicateSimilarityThreshold must be in [0, 1].");
                 _DuplicateSimilarityThreshold = value;
             }
         }
@@ -84,9 +84,47 @@ namespace Isis.Server.Services
         }
 
         /// <summary>
-        /// RRF constant used to fuse the rankings of several queries (additional queries or decomposed parts), at least 1.
-        /// Default 60. This fuses whole ranked hit lists, not the two legs of one hybrid search, whose constant is
-        /// <see cref="HybridFusion.DefaultRrfK"/>.
+        /// Fusion weight of each extra query a search names in <c>additionalQueries</c> (for example decomposed parts),
+        /// relative to the main query's 1.0, when the search does not set one. 0.0 to 1.0, default 1.0.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when set outside [0, 1].</exception>
+        public double AdditionalQueryWeight
+        {
+            get
+            {
+                return _AdditionalQueryWeight;
+            }
+            set
+            {
+                if (!double.IsFinite(value) || value < 0.0 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(AdditionalQueryWeight), "AdditionalQueryWeight must be between 0 and 1.");
+                _AdditionalQueryWeight = value;
+            }
+        }
+
+        /// <summary>
+        /// Fusion weight of query-expansion forms (a drafted answer and keywords) relative to the main query's 1.0, when
+        /// the search does not set one. 0.0 to 1.0, default 0.5.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when set outside [0, 1].</exception>
+        public double ExpansionWeight
+        {
+            get
+            {
+                return _ExpansionWeight;
+            }
+            set
+            {
+                if (!double.IsFinite(value) || value < 0.0 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(ExpansionWeight), "ExpansionWeight must be between 0 and 1.");
+                _ExpansionWeight = value;
+            }
+        }
+
+        /// <summary>
+        /// RRF constant used to fuse the rankings of several queries (additional, decomposed, expanded, or rewritten),
+        /// at least 1. Default 5: a small constant keeps the main query's own ranking intact, so a lower-weighted query
+        /// mostly re-ranks the main query's candidates rather than displacing them (at 60, one top hit from a 0.3-weight
+        /// query outscored the main query's second to tenth hits). This fuses whole ranked hit lists, not the two legs
+        /// of one hybrid search, whose constant is <see cref="HybridFusion.DefaultRrfK"/>.
         /// </summary>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when set below 1.</exception>
         public static int QueryFusionRrfK
@@ -97,7 +135,7 @@ namespace Isis.Server.Services
             }
             set
             {
-                if (value < 1) throw new ArgumentOutOfRangeException(nameof(QueryFusionRrfK), "QueryFusionRrfK must be at least 1.");
+                if (value < 1 || value > 1000) throw new ArgumentOutOfRangeException(nameof(QueryFusionRrfK), "QueryFusionRrfK must be between 1 and 1000.");
                 _QueryFusionRrfK = value;
             }
         }
@@ -116,7 +154,7 @@ namespace Isis.Server.Services
             }
             set
             {
-                if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(RerankCooldown), "RerankCooldown may not be negative.");
+                if (value < TimeSpan.Zero || value > TimeSpan.FromHours(1)) throw new ArgumentOutOfRangeException(nameof(RerankCooldown), "RerankCooldown must be between zero and one hour.");
                 _RerankCooldown = value;
             }
         }
@@ -133,7 +171,7 @@ namespace Isis.Server.Services
             }
             set
             {
-                if (value < 100) throw new ArgumentOutOfRangeException(nameof(RerankPassageChars), "RerankPassageChars must be at least 100.");
+                if (value < 100 || value > 20000) throw new ArgumentOutOfRangeException(nameof(RerankPassageChars), "RerankPassageChars must be between 100 and 20000.");
                 _RerankPassageChars = value;
             }
         }
@@ -153,7 +191,10 @@ namespace Isis.Server.Services
         private readonly SearchRefiner _Refiner;
         private const int _DefaultSnippetChars = 240;
         private const int _MaxAdditionalQueries = 4;
-        private static int _QueryFusionRrfK = 60;
+        private static int _QueryFusionRrfK = 5;
+        private const int _MaxSubQueries = 4;
+        private double _AdditionalQueryWeight = 1.0;
+        private double _ExpansionWeight = 0.5;
         private double _DuplicateSimilarityThreshold = 0.85;
         private int _DuplicateMaxResults = 3;
         private int _RerankPassageChars = 1200;
@@ -538,7 +579,7 @@ namespace Isis.Server.Services
                     if (!storeQuery.RrfK.HasValue) storeQuery.RrfK = modelProfile?.RrfK;
                 }
 
-                List<string> queries = QueryTexts(query);
+                List<MemorySubQuery> queries = WeightedQueries(query);
                 MemorySearchResult result;
                 if (queries.Count == 1)
                 {
@@ -547,13 +588,14 @@ namespace Isis.Server.Services
                 }
                 else
                 {
-                    // Search each part on its own, then fuse the rankings, so a memory that answers one part of a
-                    // multi-part question is not crowded out by memories that answer another.
+                    // Search each query on its own, then fuse the rankings by weight, so a memory that answers one
+                    // part of a multi-part question is not crowded out by memories that answer another, while extra
+                    // queries weighted below the main one cannot displace what it already ranks well.
                     List<Task<MemorySearchResult>> searches = new List<Task<MemorySearchResult>>(queries.Count);
-                    foreach (string text in queries) searches.Add(SearchOneAsync(store, scope, storeQuery, text, embed, token));
+                    foreach (MemorySubQuery part in queries) searches.Add(SearchOneAsync(store, scope, storeQuery, part, token));
                     MemorySearchResult[] results = await Task.WhenAll(searches).ConfigureAwait(false);
                     result = results[0];
-                    result.Hits = FuseQueryResults(results.Select(r => r.Hits ?? new List<MemorySearchHit>()).ToList());
+                    result.Hits = FuseQueryResults(results.Select(r => r.Hits ?? new List<MemorySearchHit>()).ToList(), queries.Select(q => q.Weight).ToList());
                 }
 
                 List<MemorySearchHit> hits = result.Hits ?? new List<MemorySearchHit>();
@@ -733,48 +775,90 @@ namespace Isis.Server.Services
             throw new InvalidOperationException("Category '" + filter + "' was not found in this scope (pass a category name or cat_ id).");
         }
 
-        private async Task<MemorySearchResult> SearchOneAsync(IMemoryStore store, Scope scope, MemorySearchQuery storeQuery, string text, bool embed, CancellationToken token)
+        private async Task<MemorySearchResult> SearchOneAsync(IMemoryStore store, Scope scope, MemorySearchQuery storeQuery, MemorySubQuery sub, CancellationToken token)
         {
             MemorySearchQuery part = storeQuery.Clone();
-            part.QueryText = text;
+            part.QueryText = sub.Text;
             part.AdditionalQueries = null;
-            float[]? embedding = embed ? await EmbedAsync(scope, text, token, EmbeddingPurposeEnum.Query).ConfigureAwait(false) : null;
+            part.SubQueries = null;
+            if (sub.Mode.HasValue && store.Capabilities.RequiresEmbedding) part.Mode = sub.Mode.Value;
+            bool embed = store.Capabilities.RequiresEmbedding && part.Mode != SearchModeEnum.Keyword;
+            float[]? embedding = embed ? await EmbedAsync(scope, sub.Text, token, EmbeddingPurposeEnum.Query).ConfigureAwait(false) : null;
             return await store.SearchAsync(scope, part, embedding, token).ConfigureAwait(false);
         }
 
-        private static List<string> QueryTexts(MemorySearchQuery query)
+        /// <summary>
+        /// The queries a search runs: the main query at weight 1.0 in the search's mode, then each distinct additional
+        /// query at the additional-query weight, then each sub-query at its own weight and mode. Zero-weight and
+        /// duplicate queries are dropped.
+        /// </summary>
+        private List<MemorySubQuery> WeightedQueries(MemorySearchQuery query)
         {
-            List<string> texts = new List<string> { query.QueryText };
+            List<MemorySubQuery> result = new List<MemorySubQuery> { new MemorySubQuery { Text = query.QueryText, Weight = 1.0 } };
+            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { query.QueryText.Trim() + "|" };
+
+            double additionalWeight = query.AdditionalQueryWeight ?? _AdditionalQueryWeight;
+            int added = 0;
             foreach (string extra in query.AdditionalQueries ?? new List<string>())
             {
                 string trimmed = (extra ?? string.Empty).Trim();
-                if (trimmed.Length == 0 || texts.Contains(trimmed, StringComparer.OrdinalIgnoreCase)) continue;
-                texts.Add(trimmed);
-                if (texts.Count > _MaxAdditionalQueries) break;
+                if (trimmed.Length == 0 || additionalWeight <= 0.0 || !seen.Add(trimmed + "|")) continue;
+                result.Add(new MemorySubQuery { Text = trimmed, Weight = additionalWeight });
+                if (++added >= _MaxAdditionalQueries) break;
             }
 
-            return texts;
+            added = 0;
+            foreach (MemorySubQuery sub in query.SubQueries ?? new List<MemorySubQuery>())
+            {
+                string trimmed = (sub?.Text ?? string.Empty).Trim();
+                if (sub == null || trimmed.Length == 0 || sub.Weight <= 0.0 || !seen.Add(trimmed + "|" + sub.Mode)) continue;
+                result.Add(new MemorySubQuery { Text = trimmed, Weight = sub.Weight, Mode = sub.Mode });
+                if (++added >= _MaxSubQueries) break;
+            }
+
+            return result;
         }
 
         /// <summary>
-        /// Fuse the ranked hits of several queries by reciprocal rank (k = <see cref="QueryFusionRrfK"/>), normalized so a memory ranked first by
-        /// every query scores 1.0. Each memory keeps the hit (snippet and evidence) from the query that ranked it best.
+        /// Fuse the ranked hits of several queries by reciprocal rank (k = <see cref="QueryFusionRrfK"/>), every query
+        /// weighted equally, normalized so a memory ranked first by every query scores 1.0. Each memory keeps the hit
+        /// (snippet and evidence) from the query that ranked it best.
         /// </summary>
         /// <param name="rankings">One ranked hit list per query.</param>
         /// <returns>The fused hits, best first.</returns>
         public static List<MemorySearchHit> FuseQueryResults(List<List<MemorySearchHit>> rankings)
         {
+            return FuseQueryResults(rankings, rankings.Select(r => 1.0).ToList());
+        }
+
+        /// <summary>
+        /// Fuse the ranked hits of several queries by weighted reciprocal rank (k = <see cref="QueryFusionRrfK"/>): a hit
+        /// at rank r in a ranking of weight w adds w / (k + r). Scores are normalized so a memory ranked first by every
+        /// query scores 1.0. Each memory keeps the hit (snippet and evidence) from the query that ranked it best, the
+        /// earlier query winning a tie (the main query comes first).
+        /// </summary>
+        /// <param name="rankings">One ranked hit list per query.</param>
+        /// <param name="weights">One weight per ranking, 0.0 to 1.0.</param>
+        /// <returns>The fused hits, best first.</returns>
+        /// <exception cref="ArgumentException">Thrown when the counts differ.</exception>
+        public static List<MemorySearchHit> FuseQueryResults(List<List<MemorySearchHit>> rankings, List<double> weights)
+        {
+            if (rankings == null) throw new ArgumentNullException(nameof(rankings));
+            if (weights == null || weights.Count != rankings.Count) throw new ArgumentException("There must be one weight per ranking.", nameof(weights));
             int k = QueryFusionRrfK;
             Dictionary<string, double> scores = new Dictionary<string, double>(StringComparer.Ordinal);
             Dictionary<string, MemorySearchHit> best = new Dictionary<string, MemorySearchHit>(StringComparer.Ordinal);
             Dictionary<string, int> bestRank = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (List<MemorySearchHit> ranking in rankings)
+            for (int r = 0; r < rankings.Count; r++)
             {
+                List<MemorySearchHit> ranking = rankings[r];
+                double weight = Math.Clamp(weights[r], 0.0, 1.0);
+                if (weight <= 0.0) continue;
                 for (int i = 0; i < ranking.Count; i++)
                 {
                     MemorySearchHit hit = ranking[i];
                     string key = hit.StoreKey + "|" + hit.Slug;
-                    scores[key] = (scores.TryGetValue(key, out double score) ? score : 0.0) + 1.0 / (k + i + 1);
+                    scores[key] = (scores.TryGetValue(key, out double score) ? score : 0.0) + weight / (k + i + 1);
                     if (!bestRank.TryGetValue(key, out int rank) || i < rank)
                     {
                         bestRank[key] = i;
@@ -783,7 +867,7 @@ namespace Isis.Server.Services
                 }
             }
 
-            double top = rankings.Count / (double)(k + 1);
+            double top = weights.Where(w => w > 0.0).Sum(w => Math.Min(w, 1.0)) / (k + 1);
             return scores
                 .OrderByDescending(e => e.Value)
                 .ThenBy(e => e.Key, StringComparer.Ordinal)

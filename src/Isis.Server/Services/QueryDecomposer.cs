@@ -48,7 +48,7 @@ namespace Isis.Server.Services
             }
             set
             {
-                if (value < 1) throw new ArgumentOutOfRangeException(nameof(MinWords), "MinWords must be at least 1.");
+                if (value < 1 || value > 100) throw new ArgumentOutOfRangeException(nameof(MinWords), "MinWords must be between 1 and 100.");
                 _MinWords = value;
             }
         }
@@ -65,7 +65,7 @@ namespace Isis.Server.Services
             }
             set
             {
-                if (value < TimeSpan.FromSeconds(1)) throw new ArgumentOutOfRangeException(nameof(Timeout), "Timeout must be at least 1 second.");
+                if (value < TimeSpan.FromSeconds(1) || value > TimeSpan.FromMinutes(5)) throw new ArgumentOutOfRangeException(nameof(Timeout), "Timeout must be between 1 second and 5 minutes.");
                 _Timeout = value;
             }
         }

@@ -1,6 +1,8 @@
 namespace Isis.Server.Models
 {
     using System.Collections.Generic;
+    using System.Linq;
+    using Isis.Core.Helpers;
     using Isis.Core.Models;
 
     /// <summary>
@@ -13,7 +15,23 @@ namespace Isis.Server.Models
         /// <summary>
         /// The instructions to create.
         /// </summary>
-        public List<Instruction> Items { get; set; } = new List<Instruction>();
+        public List<Instruction> Items
+        {
+            get
+            {
+                return _Items;
+            }
+            set
+            {
+                _Items = InputGuard.MaxCount((value ?? new List<Instruction>()).Where(i => i != null).ToList(), 100, nameof(Items))!;
+            }
+        }
+
+        #endregion
+
+        #region Private-Members
+
+        private List<Instruction> _Items = new List<Instruction>();
 
         #endregion
 

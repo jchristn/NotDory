@@ -15,8 +15,8 @@ Memory is organized into **scopes** (a project, a book, or "global"), **categori
 
 | Image | Purpose |
 |---|---|
-| [`jchristn77/isis-server`](https://hub.docker.com/r/jchristn77/isis-server) | REST API (Watson 7.1) + OpenAPI. Listens on `8700`. |
-| [`jchristn77/isis-mcp`](https://hub.docker.com/r/jchristn77/isis-mcp) | MCP server (Voltaic 0.6.1), agent-facing tools. Streamable HTTP on `8720`. |
+| [`jchristn77/isis-server`](https://hub.docker.com/r/jchristn77/isis-server) | REST API (Watson 7.2) + OpenAPI. Listens on `8700`. |
+| [`jchristn77/isis-mcp`](https://hub.docker.com/r/jchristn77/isis-mcp) | MCP server (Voltaic 2.0.0), agent-facing tools. Streamable HTTP on `8720`. |
 | [`jchristn77/isis-dashboard`](https://hub.docker.com/r/jchristn77/isis-dashboard) | React 19 / Vite 6 management dashboard (nginx). |
 
 All three are published for `linux/amd64` and `linux/arm64`, tagged `v0.1.0` and `latest`. Pin to `v0.1.0`.
@@ -32,21 +32,23 @@ The dominant cost in agentic work is **re-acquiring context** — re-scanning a 
 - **Code:** remember what lives where, what a function does, and what was already done — so an agent skips the cold re-scan every session.
 - **Writing / email / calendar:** Isis is domain-agnostic; the same scope/category/memory model holds notes about a book, an inbox, or a schedule.
 - **Cross-cutting guidance:** write a house style, commit rules, or review checklists once as **policies** and recall them across every project.
-- **Chat with memory:** ask a scope's memory questions in natural language and get a synthesized answer with citations (RAG over stored memories).
+- **Chat with memory:** ask a scope's memory questions in natural language and get a synthesized answer with citations (RAG over stored memories), from the dashboard, the REST API, or the `chat` MCP tool, including follow-up questions.
 
 ## Backing stores
 
 Isis stores memory through a pluggable `IMemoryStore`, chosen **per scope**:
 
 - **RecallDB** (default) — Postgres-backed; the only provider offering **semantic** and **hybrid** (vector + lexical) search. Isis computes the embedding vector via a configured, health-checked embedding endpoint and passes it to RecallDB (bring-your-own-vector). Embedding dimension is fixed per scope.
-- **Verbex** — TF-IDF keyword search, no embeddings.
+- **Verbex** (not wired yet): planned TF-IDF keyword search without embeddings. Searches on a Verbex scope currently fail with `NotSupported`; use RecallDB or Filesystem.
 - **Filesystem** — flat files (single file or a reviewable markdown hierarchy) that travel inside the target repository; keyword/metadata search only.
+
+On a RecallDB scope, a search runs hybrid vector + full-text search, fuses the two rankings, and can rerank the candidates with a cross-encoder when the scope has a Rerank endpoint (start the stack with `--profile rerank` or `--profile rerank-gpu`).
 
 ## Architecture
 
 ```
-Agent harness ──MCP──▶ nginx ─▶ Isis.McpServer (Voltaic 0.6.1) ─proxy─┐
-Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.1) ◀────────────┘
+Agent harness ──MCP──▶ nginx ─▶ Isis.McpServer (Voltaic 2.0.0) ─proxy─┐
+Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀────────────┘
                                      │                 │
                         Isis metadata│                 │memory content + vectors
                           (Postgres  │                 │(RecallDb.Sdk over HTTP)
@@ -57,6 +59,7 @@ Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.1) ◀──
                                 └───────────┘    └──────────────┘
    Embedding endpoint ◀─ Isis computes vectors
    Inference endpoint ◀─ Isis summarizes / compacts   (health-checked, dedup by method+URL+auth)
+   Rerank endpoint    ◀─ Isis reorders search candidates (cross-encoder, optional)
 ```
 
 - **RecallDB** is the system of record for memory content, embeddings, and retrieval, on a shared Postgres instance.
@@ -85,7 +88,7 @@ docker compose -f compose.yaml -f factory/compose.factory.yaml up -d --build
 | Service | URL | Default credentials |
 |---|---|---|
 | Isis dashboard | http://localhost:8701 | login `admin@isis.local` / `isisadmin` (tenant `ten_default`) |
-| Isis REST (direct) | http://localhost:8700/v1.0/api/health | `x-access-key: isisdefaultkey` + `x-secret-key: isisdefaultsecret` |
+| Isis REST (direct) | http://localhost:8700/v1.0/api/health | `x-access-key: isisdefaultkey` (the secret key is optional) |
 | Isis REST (via nginx) | http://localhost:8080 | — |
 | Isis MCP (via nginx) | http://localhost:8090/mcp | — |
 | Isis MCP (direct) | http://localhost:8720/mcp | — |
@@ -103,7 +106,7 @@ Isis reads `isis.json` and honors environment overrides. Key variables (see `doc
 | Variable | Meaning |
 |---|---|
 | `ISIS_AUTH_SEED_ADMIN_EMAIL` / `ISIS_AUTH_SEED_ADMIN_PASSWORD` | Email and password of the seeded bootstrap admin user (defaults `admin@isis.local` / `isisadmin`). Log in for a session token via `POST /v1.0/api/token`. |
-| `ISIS_AUTH_DEFAULT_ACCESS_KEY` / `ISIS_AUTH_DEFAULT_SECRET_KEY` | Access key and secret key seeded on the default tenant credential (`x-access-key` + `x-secret-key`; defaults `isisdefaultkey` / `isisdefaultsecret`). |
+| `ISIS_AUTH_DEFAULT_ACCESS_KEY` / `ISIS_AUTH_DEFAULT_SECRET_KEY` | Access key and secret key seeded on the default tenant credential (defaults `isisdefaultkey` / `isisdefaultsecret`). The access key (`x-access-key` or `Authorization: Bearer`) authenticates on its own; an `x-secret-key` is validated only when sent. |
 | `ISIS_DB_TYPE` / `ISIS_DB_SERVER` / `ISIS_DB_DATABASE` / `ISIS_DB_USERNAME` / `ISIS_DB_PASSWORD` | Isis metadata database (Postgresql in Docker). |
 | `ISIS_REST_PORT` | REST listener port (default `8700`). |
 | `ISIS_MCP_PORT` / `ISIS_MCP_REST_HOSTNAME` / `ISIS_MCP_REST_PORT` | MCP transport port and the REST server it proxies. |
@@ -112,7 +115,7 @@ Isis reads `isis.json` and honors environment overrides. Key variables (see `doc
 
 ## Observability
 
-Watson 7.1 emits the full HTTP surface as metrics and traces; Isis extends it with application meters (memory read/write/search, tokens-served estimate, recall hit-rate, embedding/inference latency, endpoint health gauges). Prometheus scrapes Isis and RecallDB, Tempo ingests traces, Loki aggregates container logs via Alloy, and Grafana is provisioned as code with an **Isis** dashboard folder (starting with an Overview dashboard). Grafana starts only after Prometheus and Tempo are healthy.
+Watson 7.2 emits the full HTTP surface as metrics and traces; Isis extends it with application meters (memory read/write/search, tokens-served estimate, recall hit-rate, embedding/inference latency, endpoint health gauges). Prometheus scrapes Isis and RecallDB, Tempo ingests traces, Loki aggregates container logs via Alloy, and Grafana is provisioned as code with an **Isis** dashboard folder (starting with an Overview dashboard). Grafana starts only after Prometheus and Tempo are healthy.
 
 ## License
 

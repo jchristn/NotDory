@@ -89,6 +89,9 @@ namespace Isis.Server
             memoryService.DuplicateSimilarityThreshold = settings.Retrieval.DuplicateSimilarityThreshold;
             memoryService.RerankPassageChars = settings.Retrieval.RerankPassageChars;
             memoryService.EmbeddingParallelism = settings.Retrieval.EmbeddingParallelism;
+            memoryService.AdditionalQueryWeight = settings.Retrieval.AdditionalQueryWeight;
+            memoryService.ExpansionWeight = settings.Retrieval.ExpansionWeight;
+            MemoryService.QueryFusionRrfK = settings.Retrieval.QueryFusionRrfK;
 
             // Start the observability pipeline before the server so Watson's instrumentation is collected from
             // the first request. A telemetry failure never prevents startup (Start returns null and logs).

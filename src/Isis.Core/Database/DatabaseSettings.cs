@@ -2,6 +2,7 @@ namespace Isis.Core.Database
 {
     using System;
     using Isis.Core.Enums;
+    using Isis.Core.Helpers;
 
     /// <summary>
     /// Connection settings for the Isis relational metadata store.
@@ -13,7 +14,17 @@ namespace Isis.Core.Database
         /// <summary>
         /// The database provider type. Default is <see cref="DatabaseTypeEnum.Sqlite"/>.
         /// </summary>
-        public DatabaseTypeEnum Type { get; set; } = DatabaseTypeEnum.Sqlite;
+        public DatabaseTypeEnum Type
+        {
+            get
+            {
+                return _Type;
+            }
+            set
+            {
+                _Type = InputGuard.Defined(value, DatabaseTypeEnum.Sqlite);
+            }
+        }
 
         /// <summary>
         /// The SQLite database filename. Used only when <see cref="Type"/> is Sqlite.
@@ -80,6 +91,7 @@ namespace Isis.Core.Database
 
         #region Private-Members
 
+        private DatabaseTypeEnum _Type = DatabaseTypeEnum.Sqlite;
         private int _Port = 0;
 
         #endregion

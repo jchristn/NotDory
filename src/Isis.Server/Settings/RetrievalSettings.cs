@@ -29,7 +29,7 @@ namespace Isis.Server.Settings
             }
             set
             {
-                if (value < 0.0 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(DuplicateSimilarityThreshold), "DuplicateSimilarityThreshold must be in [0, 1].");
+                if (!double.IsFinite(value) || value < 0.0 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(DuplicateSimilarityThreshold), "DuplicateSimilarityThreshold must be in [0, 1].");
                 _DuplicateSimilarityThreshold = value;
             }
         }
@@ -47,7 +47,7 @@ namespace Isis.Server.Settings
             set
             {
                 if (value < 100) throw new ArgumentOutOfRangeException(nameof(RerankPassageChars), "RerankPassageChars must be at least 100.");
-                _RerankPassageChars = value;
+                _RerankPassageChars = Math.Min(value, 20000);
             }
         }
 
@@ -62,6 +62,65 @@ namespace Isis.Server.Settings
         /// Default true.
         /// </summary>
         public bool ChatConversationRewrite { get; set; } = true;
+
+        /// <summary>
+        /// Whether chat expands each question with a drafted answer and keywords before retrieval. Default false.
+        /// </summary>
+        public bool ChatQueryExpansion { get; set; } = false;
+
+        /// <summary>
+        /// Fusion weight of a search's additional queries (for example decomposed parts) relative to the main query's
+        /// 1.0. 0.0 to 1.0, default 1.0.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when set outside [0, 1].</exception>
+        public double AdditionalQueryWeight
+        {
+            get
+            {
+                return _AdditionalQueryWeight;
+            }
+            set
+            {
+                if (!double.IsFinite(value) || value < 0.0 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(AdditionalQueryWeight), "AdditionalQueryWeight must be between 0 and 1.");
+                _AdditionalQueryWeight = value;
+            }
+        }
+
+        /// <summary>
+        /// Reciprocal-rank-fusion constant used to fuse the rankings of several queries (extra, decomposed, expanded,
+        /// or rewritten). Smaller values keep the main query's ranking more intact against lower-weighted queries.
+        /// Minimum 1, maximum 1000, default 5.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when set outside [1, 1000].</exception>
+        public int QueryFusionRrfK
+        {
+            get
+            {
+                return _QueryFusionRrfK;
+            }
+            set
+            {
+                if (value < 1 || value > 1000) throw new ArgumentOutOfRangeException(nameof(QueryFusionRrfK), "QueryFusionRrfK must be between 1 and 1000.");
+                _QueryFusionRrfK = value;
+            }
+        }
+
+        /// <summary>
+        /// Fusion weight of query-expansion forms relative to the main query's 1.0. 0.0 to 1.0, default 0.5.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when set outside [0, 1].</exception>
+        public double ExpansionWeight
+        {
+            get
+            {
+                return _ExpansionWeight;
+            }
+            set
+            {
+                if (!double.IsFinite(value) || value < 0.0 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(ExpansionWeight), "ExpansionWeight must be between 0 and 1.");
+                _ExpansionWeight = value;
+            }
+        }
 
         /// <summary>
         /// How many of the most recent earlier messages chat uses to understand a follow-up. Minimum 1, maximum 20,
@@ -125,6 +184,9 @@ namespace Isis.Server.Settings
         private int _RerankPassageChars = 1200;
         private int _ChatLinkExpansion = 2;
         private int _ChatHistoryTurns = 6;
+        private double _AdditionalQueryWeight = 1.0;
+        private int _QueryFusionRrfK = 5;
+        private double _ExpansionWeight = 0.5;
         private int _EmbeddingParallelism = 4;
 
         #endregion

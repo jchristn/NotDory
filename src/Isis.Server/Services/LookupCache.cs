@@ -47,6 +47,7 @@ namespace Isis.Server.Services
         public LookupCache(DatabaseDriverBase database, bool enabled, TimeSpan timeToLive)
         {
             _Database = database ?? throw new ArgumentNullException(nameof(database));
+            if (timeToLive < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeToLive), "The time to live may not be negative.");
             Enabled = enabled;
             TimeSpan ttl = enabled ? timeToLive : TimeSpan.Zero;
             _Credentials.TimeToLive = ttl;

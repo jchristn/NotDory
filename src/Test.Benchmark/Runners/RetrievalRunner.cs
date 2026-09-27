@@ -60,7 +60,7 @@ namespace Test.Benchmark.Runners
             int concurrency = Math.Max(1, args.GetInt("concurrency", 1));
             bool useCategory = !args.GetFlag("no-category");
             SearchOptions options = SearchOptions.FromArguments(args);
-            if (options.Decompose) options.InferenceEndpointId = await _Context.PrepareInferenceAsync(token).ConfigureAwait(false);
+            if (options.Decompose || options.Expand) options.InferenceEndpointId = await _Context.PrepareInferenceAsync(token).ConfigureAwait(false);
 
             RetrievalReport report = new RetrievalReport
             {
@@ -76,7 +76,7 @@ namespace Test.Benchmark.Runners
             report.Config["recencyWeight"] = options.RecencyWeight.HasValue ? options.RecencyWeight.Value.ToString("0.###") : "server default";
             if (options.MinScore.HasValue) report.Config["minScore"] = options.MinScore.Value.ToString("0.###");
             report.Config["rerank"] = args.GetFlag("rerank") ? "on" : "off";
-            foreach (string name in new string[] { "chunking-mode", "chunk-strategy", "chunk-max-tokens", "chunk-overlap", "scope-suffix", "superseded", "link-expansion", "diversity", "min-rerank-score", "rerank-candidates", "text-weight", "rrf-k", "decompose" })
+            foreach (string name in new string[] { "chunking-mode", "chunk-strategy", "chunk-max-tokens", "chunk-overlap", "scope-suffix", "superseded", "link-expansion", "diversity", "min-rerank-score", "rerank-candidates", "text-weight", "rrf-k", "decompose", "expand", "expansion-weight", "additional-query-weight" })
             {
                 string? value = args.GetOptional(name);
                 if (value != null) report.Config[name] = value;

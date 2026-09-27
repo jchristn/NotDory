@@ -17,6 +17,26 @@ All notable changes to Isis are documented here. This project adheres to
   `decompose: true` has an inference endpoint split the question first, and the response lists the `queries` run
   (REST and MCP `memory_search`). Chat can decompose questions too (`retrieval.chatQueryDecomposition`), off by
   default because equal-weight decomposition lowered retrieval and answer accuracy on the benchmarks.
+- **Weighted multi-query search.** Extra queries are fused by weighted reciprocal rank with the original query at 1.0:
+  `additionalQueryWeight` weights `additionalQueries` and decomposed parts (server default
+  `retrieval.additionalQueryWeight`, 1.0), and new `subQueries` carry their own `weight` and optional `mode`. The
+  multi-query fusion constant is now a setting, `retrieval.queryFusionRrfK`, and defaults to 5 instead of 60: at 60 a
+  single top hit from a 0.3-weight query outranked most of the original query's top ten, so weights had little effect.
+  At 5, decomposition went from lowering every dataset to roughly neutral (mean nDCG@10 0.804 to 0.826 at weight 0.5).
+- **Query expansion.** `expand: true` on search (REST and MCP) has the inference endpoint draft a short hypothetical
+  answer, searched by vector, and keywords, searched as text, fused at `expansionWeight` (default 0.5,
+  `retrieval.expansionWeight`). It is better than or equal to plain hybrid search on every benchmark dataset (SciFact
+  +0.033, LongMemEval +0.027, Atlas +0.007, isis-live +0.001 nDCG@10) but costs a model call per search (about 2 s)
+  and trails the cross-encoder on memory-style data, so it is off by default; it suits scopes with an inference
+  endpoint and no reranker. Chat can use it (`retrieval.chatQueryExpansion`, default false).
+- **Input validation.** Every request value and setting is checked where it enters (`InputGuard`): numbers clamp to a
+  valid range and NaN or infinity falls back to the default; oversized text and lists are rejected with 400 naming the
+  field; null lists become empty and undefined enum values fall back. Request bodies over `rest.maxRequestBodyBytes`
+  (default 16 MB) are rejected with 413, and query-string values are limited to 2,048 characters. Settings files are
+  clamped rather than rejected, so an out-of-range value never stops the server from starting, and a null settings
+  section takes its defaults. The limits are listed in `docs/REST_API.md`.
+- **SEARCH_PIPELINE.md** describes every stage of the write and read paths with its rationale, implementation, settings,
+  and measured effect.
 - **Follow-up questions in chat.** Chat accepts `history`, the earlier messages of a conversation (REST, the MCP
   `chat` tool, and the dashboard, which sends the last 6). The inference endpoint rewrites a follow-up into a
   standalone query, retrieval searches both the question and the rewrite, the answer prompt shows the recent
@@ -109,6 +129,17 @@ All notable changes to Isis are documented here. This project adheres to
   retrieval order with a notice.
 
 ### Fixed
+
+- **Crashes and runaway work on bad input:** a null entry in `subQueries` returned 500; a huge `tokenBudget` overflowed
+  while trimming snippets; a null memory `metadata` threw partway through an upsert; a null settings section saved
+  through the settings route broke the next start; a retention sweep interval over about 24 days stopped the retention
+  loop; batch requests, chat history, and memory tags, links, and metadata had no size limits.
+- **User delete orphaned records.** Deleting a user removed only the first 1,000 of the tenant's credentials, sessions,
+  and permissions it scanned; it now pages through all of them.
+- **Endpoint base URLs are validated** as absolute http or https URLs on create, update, and batch create (batch create
+  previously skipped even the non-empty check).
+- **Verbex scopes are rejected at creation** (400) instead of being created and failing on first use, and agent-facing
+  text (MCP tool descriptions, default instructions, error messages) no longer recommends Verbex.
 
 - **`endpoint_create` and `endpoint_update` MCP schemas** now declare `tenantId` and `endpointId`, which they
   required but did not list as properties.

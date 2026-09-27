@@ -185,6 +185,7 @@ namespace Isis.Server.Settings
             }
             set
             {
+                if (!double.IsFinite(value)) value = 1.0;
                 if (value < 0.0) value = 0.0;
                 if (value > 1.0) value = 1.0;
                 _SamplingRatio = value;

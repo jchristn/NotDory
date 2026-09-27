@@ -1,5 +1,7 @@
 # Isis — Agent Memory Platform — Product Plan
 
+> **Current state.** This is a historical plan: the versions and surfaces it describes are as planned, not as built. For the current state see [README.md](../README.md), [docs/REST_API.md](REST_API.md), [docs/MCP_API.md](MCP_API.md), and [SEARCH_PIPELINE.md](../SEARCH_PIPELINE.md). Current versions: Voltaic 2.0.0, Watson 7.2.0, RecallDb.Sdk 0.2.2.
+
 > **Status:** Actionable product plan. Supersedes `docs/SCAFFOLD_PLAN.md` (early hypothesis under the placeholder name "Mnemosyne").
 > **Product name:** `Isis`. Server prefix `isis`, MCP tool prefix ``, PrettyId prefixes below.
 > **Governing requirements:** everything here complies with `C:\code\agents\requirements` — `BACKEND_ARCHITECTURE.md`, `AUTHENTICATION.md`, `FRONTEND_ARCHITECTURE.md`, `DASHBOARD_STYLE_AND_USABILITY.md`, `TELEMETRY_REQUIREMENTS.md`, `BACKEND_TEST_ARCHITECTURE.md`, `REPOSITORY_REQUIREMENTS.md`, `CODE_STYLE.md`, `I18N.md`. Where a requirement doc conflicts with a reference implementation, the requirement doc wins.

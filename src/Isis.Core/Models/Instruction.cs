@@ -74,17 +74,47 @@ namespace Isis.Core.Models
         /// append a new instruction, replace a same-named global one, or hide a same-named global one. Ignored
         /// for tenant-global instructions (<see cref="ScopeId"/> null).
         /// </summary>
-        public InstructionMergeModeEnum MergeMode { get; set; } = InstructionMergeModeEnum.Append;
+        public InstructionMergeModeEnum MergeMode
+        {
+            get
+            {
+                return _MergeMode;
+            }
+            set
+            {
+                _MergeMode = InputGuard.Defined(value, InstructionMergeModeEnum.Append);
+            }
+        }
 
         /// <summary>
         /// The instruction content conveyed to the agent.
         /// </summary>
-        public string Content { get; set; } = String.Empty;
+        public string Content
+        {
+            get
+            {
+                return _Content;
+            }
+            set
+            {
+                _Content = InputGuard.MaxLength(value ?? String.Empty, 65536, nameof(Content))!;
+            }
+        }
 
         /// <summary>
         /// Ordering position; instructions are returned to agents in ascending order.
         /// </summary>
-        public int Position { get; set; } = 0;
+        public int Position
+        {
+            get
+            {
+                return _Position;
+            }
+            set
+            {
+                _Position = InputGuard.Clamp(value, -100000, 100000);
+            }
+        }
 
         /// <summary>
         /// Indicates whether the instruction is active. Only active instructions are surfaced to agents.
@@ -110,6 +140,9 @@ namespace Isis.Core.Models
 
         #region Private-Members
 
+        private InstructionMergeModeEnum _MergeMode = InstructionMergeModeEnum.Append;
+        private int _Position = 0;
+        private string _Content = String.Empty;
         private string _Id = IdGenerator.Instruction();
         private string _TenantId = String.Empty;
         private string _Name = String.Empty;

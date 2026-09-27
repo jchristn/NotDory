@@ -16,67 +16,199 @@ namespace Isis.Server.Settings
         /// <summary>
         /// The node identifier for this server instance.
         /// </summary>
-        public string NodeId { get; set; } = "isis-1";
+        public string NodeId
+        {
+            get
+            {
+                return _NodeId;
+            }
+            set
+            {
+                _NodeId = string.IsNullOrWhiteSpace(value) ? "isis-1" : value.Trim();
+            }
+        }
 
         /// <summary>
         /// REST listener settings.
         /// </summary>
-        public RestSettings Rest { get; set; } = new RestSettings();
+        public RestSettings Rest
+        {
+            get
+            {
+                return _Rest;
+            }
+            set
+            {
+                _Rest = value ?? new RestSettings();
+            }
+        }
 
         /// <summary>
         /// Relational metadata store settings.
         /// </summary>
-        public DatabaseSettings Database { get; set; } = new DatabaseSettings();
+        public DatabaseSettings Database
+        {
+            get
+            {
+                return _Database;
+            }
+            set
+            {
+                _Database = value ?? new DatabaseSettings();
+            }
+        }
 
         /// <summary>
         /// RecallDB integration settings.
         /// </summary>
-        public RecallDbSettings RecallDb { get; set; } = new RecallDbSettings();
+        public RecallDbSettings RecallDb
+        {
+            get
+            {
+                return _RecallDb;
+            }
+            set
+            {
+                _RecallDb = value ?? new RecallDbSettings();
+            }
+        }
 
         /// <summary>
         /// Verbex integration settings.
         /// </summary>
-        public VerbexSettings Verbex { get; set; } = new VerbexSettings();
+        public VerbexSettings Verbex
+        {
+            get
+            {
+                return _Verbex;
+            }
+            set
+            {
+                _Verbex = value ?? new VerbexSettings();
+            }
+        }
 
         /// <summary>
         /// Authentication settings.
         /// </summary>
-        public AuthSettings Auth { get; set; } = new AuthSettings();
+        public AuthSettings Auth
+        {
+            get
+            {
+                return _Auth;
+            }
+            set
+            {
+                _Auth = value ?? new AuthSettings();
+            }
+        }
 
         /// <summary>
         /// Logging settings.
         /// </summary>
-        public LoggingSettings Logging { get; set; } = new LoggingSettings();
+        public LoggingSettings Logging
+        {
+            get
+            {
+                return _Logging;
+            }
+            set
+            {
+                _Logging = value ?? new LoggingSettings();
+            }
+        }
 
         /// <summary>
         /// Request history capture settings.
         /// </summary>
-        public RequestHistorySettings RequestHistory { get; set; } = new RequestHistorySettings();
+        public RequestHistorySettings RequestHistory
+        {
+            get
+            {
+                return _RequestHistory;
+            }
+            set
+            {
+                _RequestHistory = value ?? new RequestHistorySettings();
+            }
+        }
 
         /// <summary>
         /// Lookup cache settings (credentials, users, scopes, and endpoints read on every request).
         /// </summary>
-        public CacheSettings Cache { get; set; } = new CacheSettings();
+        public CacheSettings Cache
+        {
+            get
+            {
+                return _Cache;
+            }
+            set
+            {
+                _Cache = value ?? new CacheSettings();
+            }
+        }
 
         /// <summary>
         /// Retrieval settings (similarity check on upsert, reranker input size, chat link expansion).
         /// </summary>
-        public RetrievalSettings Retrieval { get; set; } = new RetrievalSettings();
+        public RetrievalSettings Retrieval
+        {
+            get
+            {
+                return _Retrieval;
+            }
+            set
+            {
+                _Retrieval = value ?? new RetrievalSettings();
+            }
+        }
 
         /// <summary>
         /// Retention settings for observability history tables (request history and operation events).
         /// </summary>
-        public RetentionSettings Retention { get; set; } = new RetentionSettings();
+        public RetentionSettings Retention
+        {
+            get
+            {
+                return _Retention;
+            }
+            set
+            {
+                _Retention = value ?? new RetentionSettings();
+            }
+        }
 
         /// <summary>
         /// Observability (metrics and tracing) settings.
         /// </summary>
-        public ObservabilitySettings Observability { get; set; } = new ObservabilitySettings();
+        public ObservabilitySettings Observability
+        {
+            get
+            {
+                return _Observability;
+            }
+            set
+            {
+                _Observability = value ?? new ObservabilitySettings();
+            }
+        }
 
         #endregion
 
         #region Private-Members
 
+        private string _NodeId = "isis-1";
+        private ObservabilitySettings _Observability = new ObservabilitySettings();
+        private RetentionSettings _Retention = new RetentionSettings();
+        private RetrievalSettings _Retrieval = new RetrievalSettings();
+        private CacheSettings _Cache = new CacheSettings();
+        private RequestHistorySettings _RequestHistory = new RequestHistorySettings();
+        private LoggingSettings _Logging = new LoggingSettings();
+        private AuthSettings _Auth = new AuthSettings();
+        private VerbexSettings _Verbex = new VerbexSettings();
+        private RecallDbSettings _RecallDb = new RecallDbSettings();
+        private DatabaseSettings _Database = new DatabaseSettings();
+        private RestSettings _Rest = new RestSettings();
         private static readonly JsonSerializerOptions _Options = BuildOptions();
 
         #endregion

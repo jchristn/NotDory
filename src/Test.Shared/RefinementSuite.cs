@@ -98,7 +98,12 @@ namespace Test.Shared
                     TestCase.Sync("refinement", "conversation-rewrite-parse", "ConversationRewriter.Parse reads one query line and rejects echoes and answers", ConversationRewriteParse),
                     TestCase.Sync("refinement", "conversation-format", "ConversationRewriter.FormatConversation keeps the newest turns, truncates, and labels roles", ConversationFormat),
                     TestCase.Async("refinement", "conversation-rewrite-call", "ConversationRewriter sends the conversation and returns the standalone query; no history, no call", ConversationRewriteCallAsync),
-                    TestCase.Sync("refinement", "conversation-rewrite-settings", "RetrievalSettings: chat conversation rewrite on by default, history turns validate", ConversationRewriteSettings)
+                    TestCase.Sync("refinement", "conversation-rewrite-settings", "RetrievalSettings: chat conversation rewrite on by default, history turns validate", ConversationRewriteSettings),
+                    TestCase.Sync("refinement", "fuse-query-weights", "Weighted multi-query fusion: a low-weight query cannot displace the main query's ranking", FuseQueryWeights),
+                    TestCase.Sync("refinement", "expander-parse", "QueryExpander.Parse reads the answer and keywords, tolerating thinking and bad JSON", ExpanderParse),
+                    TestCase.Sync("refinement", "expander-subqueries", "QueryExpander.ToSubQueries: answer by vector, keywords as text, per search mode", ExpanderSubQueries),
+                    TestCase.Async("refinement", "search-sub-query-weight", "Search: weighted sub-queries add results below the main query; weight 0 drops them", SearchSubQueryWeightAsync),
+                    TestCase.Sync("refinement", "query-weight-settings", "Query weights: defaults (additional 1.0, expansion 0.5) and validation", QueryWeightSettings)
                 });
         }
 
@@ -946,6 +951,86 @@ namespace Test.Shared
             Isis.Server.Settings.RetrievalSettings settings = new Isis.Server.Settings.RetrievalSettings();
             TestCase.Require(settings.ChatConversationRewrite && settings.ChatHistoryTurns == 6, "Chat conversation rewrite should default on with 6 turns.");
             TestCase.Throws<ArgumentOutOfRangeException>(() => settings.ChatHistoryTurns = 21, "ChatHistoryTurns above 20 should be rejected.");
+        }
+
+        private static void FuseQueryWeights()
+        {
+            List<MemorySearchHit> main = new List<MemorySearchHit> { Hit("a", 1, "a"), Hit("b", 1, "b") };
+            List<MemorySearchHit> extra = new List<MemorySearchHit> { Hit("c", 1, "c"), Hit("d", 1, "d") };
+
+            List<MemorySearchHit> equal = MemoryService.FuseQueryResults(new List<List<MemorySearchHit>> { Copy(main), Copy(extra) });
+            TestCase.Require(string.Join(",", equal.Select(h => h.Slug)) == "a,c,b,d", "At equal weight the extra query's first hit should tie the main query's, got " + string.Join(",", equal.Select(h => h.Slug)) + ".");
+
+            List<MemorySearchHit> weighted = MemoryService.FuseQueryResults(new List<List<MemorySearchHit>> { Copy(main), Copy(extra) }, new List<double> { 1.0, 0.3 });
+            TestCase.Require(string.Join(",", weighted.Select(h => h.Slug)) == "a,b,c,d", "A 0.3-weight query should rank below the main query's hits, got " + string.Join(",", weighted.Select(h => h.Slug)) + ".");
+            TestCase.Require(Math.Abs(weighted[0].Score - 1.0 / 1.3) < 1e-9, "The score should be normalized by the total weight, got " + weighted[0].Score + ".");
+
+            List<MemorySearchHit> dropped = MemoryService.FuseQueryResults(new List<List<MemorySearchHit>> { Copy(main), Copy(extra) }, new List<double> { 1.0, 0.0 });
+            TestCase.Require(dropped.Count == 2 && Math.Abs(dropped[0].Score - 1.0) < 1e-9, "A zero-weight ranking should add nothing.");
+            TestCase.Throws<ArgumentException>(() => MemoryService.FuseQueryResults(new List<List<MemorySearchHit>> { main }, new List<double> { 1.0, 0.5 }), "Mismatched weights should be rejected.");
+        }
+
+        private static List<MemorySearchHit> Copy(List<MemorySearchHit> hits)
+        {
+            return hits.Select(h => Hit(h.Slug ?? string.Empty, h.Score, h.Snippet ?? string.Empty)).ToList();
+        }
+
+        private static void ExpanderParse()
+        {
+            QueryExpansion parsed = QueryExpander.Parse("<think>hmm</think> Here: {\"answer\": \"The staging   database runs on pg-staging-01.\", \"keywords\": [\"staging\", \"database host\", \"Staging\", \"pg-staging-01\"]}", "where is the staging db?", 8, 600);
+            TestCase.Require(parsed.HypotheticalAnswer == "The staging database runs on pg-staging-01.", "The answer should be read with whitespace collapsed, got: " + parsed.HypotheticalAnswer);
+            TestCase.Require(parsed.Keywords.Count == 3 && parsed.Keywords[2] == "pg-staging-01", "Keywords should be de-duplicated ignoring case.");
+            QueryExpansion capped = QueryExpander.Parse("{\"answer\": \"" + new string('x', 200) + "\", \"keywords\": [\"a\", \"b\", \"c\"]}", "q", 2, 100);
+            TestCase.Require(capped.HypotheticalAnswer.Length == 100 && capped.Keywords.Count == 2, "The answer and keyword list should be capped.");
+            TestCase.Require(QueryExpander.Parse("not json", "q", 8, 600).IsEmpty && QueryExpander.Parse(null, "q", 8, 600).IsEmpty && QueryExpander.Parse("{\"answer\": 5}", "q", 8, 600).IsEmpty, "Unusable replies should yield an empty expansion.");
+            TestCase.Require(QueryExpander.Parse("{\"answer\": \"Where is the DB?\"}", "where is the db?", 8, 600).IsEmpty, "An answer that repeats the question should be ignored.");
+        }
+
+        private static void ExpanderSubQueries()
+        {
+            QueryExpansion expansion = new QueryExpansion { HypotheticalAnswer = "The TTL is five minutes.", Keywords = new List<string> { "cache", "ttl" } };
+            List<MemorySubQuery> hybrid = QueryExpander.ToSubQueries(expansion, SearchModeEnum.Hybrid, 0.4);
+            TestCase.Require(hybrid.Count == 2 && hybrid[0].Mode == SearchModeEnum.Semantic && hybrid[1].Mode == SearchModeEnum.Keyword && hybrid[1].Text == "cache ttl" && hybrid.All(q => q.Weight == 0.4), "Hybrid should search the answer by vector and the keywords as text at the given weight.");
+            TestCase.Require(QueryExpander.ToSubQueries(expansion, SearchModeEnum.Semantic, 0.4).Single().Mode == SearchModeEnum.Semantic, "Semantic mode should use only the answer.");
+            TestCase.Require(QueryExpander.ToSubQueries(expansion, SearchModeEnum.Keyword, 0.4).Single().Mode == SearchModeEnum.Keyword, "Keyword mode should use only the keywords.");
+            TestCase.Require(QueryExpander.ToSubQueries(expansion, SearchModeEnum.Hybrid, 0.0).Count == 0 && QueryExpander.ToSubQueries(new QueryExpansion(), SearchModeEnum.Hybrid, 0.5).Count == 0, "Zero weight or an empty expansion should add nothing.");
+        }
+
+        private static async Task SearchSubQueryWeightAsync()
+        {
+            using TempSqlite t = await TempSqlite.CreateAsync().ConfigureAwait(false);
+            FilesystemFixture f = await FixtureAsync(t).ConfigureAwait(false);
+            try
+            {
+                await PutAsync(f, "billing-owner", "Billing is owned by Seun on the payments team.").ConfigureAwait(false);
+                await PutAsync(f, "billing-invoices", "Billing sends invoices on the first of the month.").ConfigureAwait(false);
+                await PutAsync(f, "staging-db", "The staging database host is pg-staging-01.").ConfigureAwait(false);
+
+                MemorySearchQuery query = new MemorySearchQuery { QueryText = "billing", Mode = SearchModeEnum.Keyword, SubQueries = new List<MemorySubQuery> { new MemorySubQuery { Text = "staging database host", Weight = 0.3 } } };
+                MemorySearchResult weighted = await f.Service.SearchAsync(f.Scope, query).ConfigureAwait(false);
+                List<string> slugs = weighted.Hits.Select(h => h.Slug ?? string.Empty).ToList();
+                TestCase.Require(slugs.Contains("staging-db") && slugs.IndexOf("staging-db") > slugs.IndexOf("billing-owner") && slugs.IndexOf("staging-db") > slugs.IndexOf("billing-invoices"), "The low-weight sub-query's memory should come after the main query's, got " + Slugs(weighted) + ".");
+
+                MemorySearchResult zero = await f.Service.SearchAsync(f.Scope, new MemorySearchQuery { QueryText = "billing", Mode = SearchModeEnum.Keyword, AdditionalQueries = new List<string> { "staging database host" }, AdditionalQueryWeight = 0.0 }).ConfigureAwait(false);
+                TestCase.Require(zero.Hits.All(h => h.Slug != "staging-db"), "An additional-query weight of 0 should leave that query out, got " + Slugs(zero) + ".");
+            }
+            finally
+            {
+                DeleteWork(f.Work);
+            }
+        }
+
+        private static void QueryWeightSettings()
+        {
+            Isis.Server.Settings.RetrievalSettings settings = new Isis.Server.Settings.RetrievalSettings();
+            TestCase.Require(settings.AdditionalQueryWeight == 1.0 && settings.ExpansionWeight == 0.5 && !settings.ChatQueryExpansion, "Defaults should be additional 1.0, expansion 0.5, chat expansion off.");
+            TestCase.Require(settings.QueryFusionRrfK == 5 && MemoryService.QueryFusionRrfK == 5, "The multi-query fusion constant should default to 5.");
+            TestCase.Throws<ArgumentOutOfRangeException>(() => settings.QueryFusionRrfK = 0, "A query fusion constant below 1 should be rejected.");
+            TestCase.Throws<ArgumentOutOfRangeException>(() => settings.ExpansionWeight = 1.5, "An expansion weight above 1 should be rejected.");
+            MemorySearchQuery query = new MemorySearchQuery { ExpansionWeight = 2.0, AdditionalQueryWeight = -1.0 };
+            TestCase.Require(query.ExpansionWeight == 1.0 && query.AdditionalQueryWeight == 0.0, "Per-search weights should clamp to [0, 1].");
+            MemorySubQuery sub = new MemorySubQuery { Weight = 3.0 };
+            TestCase.Require(sub.Weight == 1.0, "A sub-query weight should clamp to 1.");
         }
 
         private static void ModelProfiles()

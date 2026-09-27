@@ -32,6 +32,7 @@ Latency and throughput depend on the machine. Compare them within this page, not
 | 5 | Chunks default to 75% of the model budget (capped at 256 tokens); retries on 429/502/503 with 503 reported for an endpoint still at capacity; 10 rerank candidates by default; embedding task prefixes; prompted chat-model reranking. Every model call (all-minilm, nomic-embed-text, gemma3:4b) ran on one GPU host instead of the laptop |
 | 6 | Hybrid fusion's RRF constant 60 → 20 after a sweep; embedding model profiles (nomic-embed-text chunks capped at 128 tokens); the cross-encoder seeded and attached to new scopes by the reference stack, with a circuit breaker; multi-query search and query decomposition (measured, off in chat by default); gpt-oss-20b measured as a prompted reranker |
 | 7 | Chat accepts the conversation's earlier messages and rewrites a follow-up into a standalone query before retrieval, searching both; a follow-up question dataset |
+| 8 | Weighted multi-query fusion with a small fusion constant (k = 5, was 60); opt-in query expansion (a drafted answer searched by vector, keywords searched as text); input validation across the API |
 
 ## Retrieval
 
@@ -259,6 +260,47 @@ unanswerable question declined, evidence in the prompt for 99.1%). On the follow
 configuration scored 0.906 on this run against 0.938 on the earlier one, with evidence in the prompt for every question
 both times; the difference is one question, within the 4B judge's noise.
 
+### Round 8: weighted extra queries, and why the fusion constant mattered
+
+Round 8 gave every extra query a fusion weight below the original question's, then added query expansion: the chat
+model drafts a short hypothetical answer, searched by vector, and keywords, searched as text. The first results were
+disappointing, and the reason was the multi-query fusion constant. At the conventional k = 60, the original query's
+first and tenth hits differ by only 0.002 in fused score, while the top hit of a 0.3-weight extra query adds 0.005, so
+an extra query could reorder the whole top ten whatever its weight. Weights only work with a smaller constant:
+
+| Hybrid nDCG@10 | isis-live | Atlas | SciFact | LongMemEval | Mean |
+|---|---|---|---|---|---|
+| Baseline (no extra queries) | 0.878 | 0.835 | 0.683 | 0.911 | 0.827 |
+| Decomposition, weight 1.0, k = 60 (round 6) | 0.844 | 0.764 | 0.666 | 0.901 | 0.794 |
+| Decomposition, weight 0.5, k = 60 | 0.848 | 0.779 | 0.668 | 0.922 | 0.804 |
+| Decomposition, weight 0.5, k = 20 | 0.846 | 0.786 | 0.680 | 0.923 | 0.809 |
+| Decomposition, weight 0.5, k = 5 | 0.869 | 0.820 | 0.683 | 0.931 | 0.826 |
+| Expansion, weight 0.5, k = 60 | 0.891 | 0.816 | 0.719 | 0.926 | 0.838 |
+| Expansion, weight 0.5, k = 20 | 0.871 | 0.835 | 0.701 | 0.943 | 0.838 |
+| **Expansion, weight 0.5, k = 5 (final run)** | **0.879** | **0.842** | **0.716** | **0.937** | **0.844** |
+
+At k = 5 the original query's tenth hit (1/15) still outscores a 0.3-weight query's first hit (0.3/6), so extra
+queries mostly re-rank the original's candidates, lifting the ones they agree on. That turned decomposition from
+lowering every dataset into roughly neutral, and made expansion better than or equal to the baseline on every dataset:
++0.033 on SciFact and +0.027 on LongMemEval, where the gains came from preference questions (0.785 to 0.891) and
+temporal questions (0.806 to 0.870), and +0.020 on Atlas paraphrase questions. At k = 60 expansion had cost Atlas
+0.019, because drafted answers about a fictional company invent plausible names that pull in the wrong near-duplicate;
+at k = 5 those drafts can no longer outrank the original query's hits (Atlas confusable questions 0.913 to 0.897, a
+smaller dip than the 0.864 at k = 60). The multi-query fusion constant is now `retrieval.queryFusionRrfK`, default 5.
+
+Expansion without a reranker now roughly matches the cross-encoder on SciFact (0.716 vs 0.712) and LongMemEval (0.937
+vs 0.939), but not on the memory-style datasets (isis-live 0.879 vs 0.925, Atlas 0.842 vs 0.883), and it costs a model
+call per search (about 2 s on the GPU host) against 0.3 to 0.4 s for the CPU cross-encoder. Combined with the
+cross-encoder at k = 60 it added nothing. Both expansion and decomposition therefore stay opt-in (`expand`,
+`decompose` on search; `retrieval.chatQueryExpansion` and `retrieval.chatQueryDecomposition` in chat, both off).
+Expansion is the better choice for a scope with an inference endpoint but no reranker.
+
+The full round-8 run on the final defaults reproduced round 7 for single-question retrieval (0.878, 0.835, 0.683,
+0.911; with the cross-encoder 0.925, 0.883, 0.712, 0.939), as expected since that path is unchanged. Chat on isis-live
+answered 0.989 of answerable questions correctly and declined 19 of 20 unanswerable ones (0.944 and 20 of 20 in round
+7, within the 4B judge's noise). The follow-up set, whose rewrite is fused with the question at the new constant,
+scored 0.969 against 0.906 in round 7, with evidence in the prompt for every question both times.
+
 ### Choosing the recency weight
 
 The recency weight was chosen by sweeping it on all four datasets, reusing the same ingested scopes.
@@ -434,12 +476,13 @@ decomposition calls one at a time.
 ## What's next
 
 [RETRIEVAL_IMPROVEMENTS.md](../RETRIEVAL_IMPROVEMENTS.md) lists every fix considered, scored for value and simplicity,
-with what landed in each round and the current ranked list. After round 6 the results point at:
+with what landed in each round and the current ranked list. After round 8 the results point at:
 
 - **An opt-in high-precision mode** built on a larger chat model as the reranker, with a relevance cutoff chosen from
   its score distributions; it is the strongest ranking and "nothing relevant" signal measured.
-- **Query rewrite that keeps the original query dominant**: a low-weight hypothetical answer and keyword expansion
-  for scopes without a reranker (rewriting chat follow-ups landed in round 7).
-- **RecallDB single-call hybrid search**, planned in the RecallDB repository.
+- **Expansion where no reranker runs.** It now helps every dataset; the open questions are whether to enable it
+  automatically for scopes without a reranker, and whether it adds anything on top of the cross-encoder at k = 5.
+- **RecallDB single-call hybrid search and stored vectors**, which need a RecallDB server that reports its
+  capabilities in the benchmark stack.
 - **Wider evaluation**: more BEIR datasets with published baselines (NFCorpus, FiQA, ArguAna, SciDocs), the full
-  LongMemEval_S, and a larger multi-turn set (Atlas-sized) to measure follow-up rewriting where retrieval is harder.
+  LongMemEval_S, a multi-hop set for decomposition, and a larger multi-turn set for follow-up rewriting.

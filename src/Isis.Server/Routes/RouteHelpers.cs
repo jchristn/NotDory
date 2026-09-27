@@ -22,6 +22,29 @@ namespace Isis.Server.Routes
         /// runs after the response is sent) can record it. Keyed on the context instance and GC-collectable.
         /// </summary>
         private static readonly ConditionalWeakTable<HttpContextBase, string> _ResponseBodies = new ConditionalWeakTable<HttpContextBase, string>();
+        private static long _MaxBodyBytes = 16L * 1024 * 1024;
+        private const int _MaxQueryValueChars = 2048;
+
+        #endregion
+
+        #region Public-Members
+
+        /// <summary>
+        /// Largest request body <see cref="Body{T}"/> accepts, in bytes. Minimum 1 KB, default 16 MB.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when set below 1 KB.</exception>
+        public static long MaxBodyBytes
+        {
+            get
+            {
+                return _MaxBodyBytes;
+            }
+            set
+            {
+                if (value < 1024) throw new ArgumentOutOfRangeException(nameof(MaxBodyBytes), "MaxBodyBytes must be at least 1024.");
+                _MaxBodyBytes = value;
+            }
+        }
 
         #endregion
 
@@ -103,7 +126,9 @@ namespace Isis.Server.Routes
         public static string? Query(HttpContextBase context, string key)
         {
             if (context.Request.Query == null || context.Request.Query.Elements == null) return null;
-            return context.Request.Query.Elements[key];
+            string? value = context.Request.Query.Elements[key];
+            if (value != null && value.Length > _MaxQueryValueChars) throw new ArgumentOutOfRangeException(key, "Query parameter " + key + " may be at most " + _MaxQueryValueChars + " characters.");
+            return value;
         }
 
         /// <summary>
@@ -142,10 +167,13 @@ namespace Isis.Server.Routes
         /// <typeparam name="T">Target type.</typeparam>
         /// <param name="context">HTTP context.</param>
         /// <returns>The deserialized body, or null.</returns>
+        /// <exception cref="RequestTooLargeException">Thrown when the body is larger than <see cref="MaxBodyBytes"/>.</exception>
         public static T? Body<T>(HttpContextBase context) where T : class
         {
+            if (context.Request.ContentLength > _MaxBodyBytes) throw new RequestTooLargeException("The request body is larger than the server accepts (" + _MaxBodyBytes + " bytes).");
             string body = context.Request.DataAsString;
             if (string.IsNullOrEmpty(body)) return null;
+            if (body.Length > _MaxBodyBytes) throw new RequestTooLargeException("The request body is larger than the server accepts (" + _MaxBodyBytes + " bytes).");
             try
             {
                 return Json.Deserialize<T>(body);

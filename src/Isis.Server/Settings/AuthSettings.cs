@@ -1,5 +1,7 @@
 namespace Isis.Server.Settings
 {
+    using Isis.Core.Helpers;
+
     /// <summary>
     /// Authentication settings.
     /// </summary>
@@ -15,7 +17,17 @@ namespace Isis.Server.Settings
         /// <summary>
         /// The lifetime, in minutes, of a session token issued by email/password login.
         /// </summary>
-        public int SessionLifetimeMinutes { get; set; } = 1440;
+        public int SessionLifetimeMinutes
+        {
+            get
+            {
+                return _SessionLifetimeMinutes;
+            }
+            set
+            {
+                _SessionLifetimeMinutes = InputGuard.Clamp(value, 5, 525600);
+            }
+        }
 
         /// <summary>
         /// The email address of the default administrator user seeded on first boot. This user has IsAdmin set
@@ -40,6 +52,12 @@ namespace Isis.Server.Settings
         /// Override via environment for anything beyond local development.
         /// </summary>
         public string DefaultSecretKey { get; set; } = "isisdefaultsecret";
+
+        #endregion
+
+        #region Private-Members
+
+        private int _SessionLifetimeMinutes = 1440;
 
         #endregion
 

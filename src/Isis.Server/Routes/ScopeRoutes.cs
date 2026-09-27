@@ -124,6 +124,13 @@ namespace Isis.Server.Routes
             // tenant's embedding endpoint (and adopt its dimensionality) when the caller did not specify one,
             // and return an actionable error — rather than persist a silently broken scope — when RecallDb is
             // requested but no embedding endpoint exists.
+            // The Verbex provider is not wired yet; a scope created on it would fail on its first search.
+            if (scope.StoreProvider == StoreProviderEnum.Verbex)
+            {
+                await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "The Verbex store provider is not available yet. Use RecallDb (semantic and keyword search) or Filesystem (keyword-only, git-trackable files).").ConfigureAwait(false);
+                return;
+            }
+
             if (scope.StoreProvider == StoreProviderEnum.RecallDb)
             {
                 ModelEndpoint? endpoint;
@@ -143,7 +150,7 @@ namespace Isis.Server.Routes
 
                 if (endpoint == null)
                 {
-                    await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "A RecallDb scope needs an embedding endpoint, but none is configured for this tenant. Create the scope with storeProvider 'Filesystem' or 'Verbex' for keyword-only memory, or configure an embedding endpoint first (list them with isis_endpoint_enumerate).").ConfigureAwait(false);
+                    await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "A RecallDb scope needs an embedding endpoint, but none is configured for this tenant. Create the scope with storeProvider 'Filesystem' for keyword-only memory, or configure an embedding endpoint first (list them with endpoint_enumerate).").ConfigureAwait(false);
                     return;
                 }
 

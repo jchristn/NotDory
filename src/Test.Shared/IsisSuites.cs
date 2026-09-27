@@ -68,6 +68,7 @@ namespace Test.Shared
                 ChunkerSuite.Suite(),
                 RetrievalSuite.Suite(),
                 RefinementSuite.Suite(),
+                ValidationSuite.Suite(),
                 ServiceSuite.Suite(),
                 RestSuite.Suite(),
                 McpSuite.Suite(),

@@ -50,7 +50,9 @@ src/
 
 ## Routes
 
-Grouped by workflow: Memory (Home, Scopes → categories/memories) · Recall
-(Search, Chat with Memory) · Inference (Embedding/Inference endpoints) ·
-Collections (RecallDB pass-through) · Observability (Request History, API
-Explorer) · System (Settings) · Administration (Tenants).
+Grouped by workflow: Memory (Home, Scopes → categories/memories, Memories,
+Instructions) · Recall (Search, Chat with Memory) · Inference (Embedding,
+Inference, and Rerank endpoints) · Collections (RecallDB pass-through) ·
+Observability (Request History, Operations, API Explorer) · System (Settings) ·
+Administration (Users and Credentials for tenant admins; Tenants for system
+admins).

@@ -1,5 +1,8 @@
 namespace Isis.Server.Models
 {
+    using System;
+    using Isis.Core.Helpers;
+
     /// <summary>
     /// A request to create a RecallDB collection via the pass-through.
     /// </summary>
@@ -10,17 +13,55 @@ namespace Isis.Server.Models
         /// <summary>
         /// The collection name.
         /// </summary>
-        public string Name { get; set; } = string.Empty;
+        public string Name
+        {
+            get
+            {
+                return _Name;
+            }
+            set
+            {
+                _Name = InputGuard.MaxLength(value ?? string.Empty, 256, nameof(Name))!;
+            }
+        }
 
         /// <summary>
         /// The vector dimensionality.
         /// </summary>
-        public int Dimensionality { get; set; } = 0;
+        public int Dimensionality
+        {
+            get
+            {
+                return _Dimensionality;
+            }
+            set
+            {
+                _Dimensionality = value < 0 ? 0 : Math.Min(value, 16384);
+            }
+        }
 
         /// <summary>
         /// An optional description.
         /// </summary>
-        public string? Description { get; set; } = null;
+        public string? Description
+        {
+            get
+            {
+                return _Description;
+            }
+            set
+            {
+                _Description = InputGuard.MaxLength(value, 4096, nameof(Description));
+            }
+        }
+
+        #endregion
+
+        #region Private-Members
+
+        private string? _Description = null;
+        private int _Dimensionality = 0;
+        private string _Name = string.Empty;
 
         #endregion
 

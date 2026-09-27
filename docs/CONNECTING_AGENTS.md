@@ -16,7 +16,7 @@ For the full tool contract, response schemas, and per-tool guidance, see
 
 | Property | Value |
 |----------|-------|
-| Endpoint | `http://localhost:8720/mcp` |
+| Endpoint | `http://127.0.0.1:8720/mcp` |
 | Transport | Streamable HTTP + SSE |
 | Auth (access key) | `Authorization: Bearer isisdefaultkey` **or** `x-access-key: isisdefaultkey` |
 
@@ -59,7 +59,7 @@ To connect manually, or to connect a different client, use the snippets below.
 Add Isis as an HTTP MCP server with the access-key header inline:
 
 ```bash
-claude mcp add --transport http isis http://localhost:8720/mcp --header "x-access-key: isisdefaultkey"
+claude mcp add --transport http isis http://127.0.0.1:8720/mcp --header "x-access-key: isisdefaultkey"
 ```
 
 The access key is the only header required; it identifies the credential and authenticates on
@@ -77,7 +77,7 @@ shares the same Isis connection:
   "mcpServers": {
     "isis": {
       "type": "http",
-      "url": "http://localhost:8720/mcp",
+      "url": "http://127.0.0.1:8720/mcp",
       "headers": {
         "x-access-key": "isisdefaultkey"
       }
@@ -99,7 +99,7 @@ project):
 {
   "mcpServers": {
     "isis": {
-      "url": "http://localhost:8720/mcp",
+      "url": "http://127.0.0.1:8720/mcp",
       "headers": {
         "x-access-key": "isisdefaultkey"
       }
@@ -124,7 +124,7 @@ secret key never leaves your machine. Add an `isis` entry to Mux's `mcp-servers.
     {
       "name": "isis",
       "transport": "http",
-      "url": "http://localhost:8720",
+      "url": "http://127.0.0.1:8720",
       "mcpPath": "/mcp",
       "auth": { "type": "bearer", "bearerToken": "isisdefaultkey" }
     }
@@ -145,7 +145,7 @@ access-key header (or send the access key as a bearer token):
 ```json
 {
   "type": "http",
-  "url": "http://localhost:8720/mcp",
+  "url": "http://127.0.0.1:8720/mcp",
   "headers": {
     "x-access-key": "isisdefaultkey"
   }
@@ -153,14 +153,14 @@ access-key header (or send the access key as a bearer token):
 ```
 
 The MCP `initialize` handshake succeeds over streamable HTTP + SSE, after which
-`tools/list` returns the thirteen Isis tools (plus a few server built-ins). Clients that only support the classic
-JSON-RPC path can use `http://localhost:8720/rpc`, but `/mcp` is preferred.
+`tools/list` returns the 32 Isis tools. Clients that only support the classic
+JSON-RPC path can use `http://127.0.0.1:8720/rpc`, but `/mcp` is preferred.
 
 You can verify the endpoint is reachable and correctly authenticated with a raw MCP
 `initialize` call:
 
 ```bash
-curl -s http://localhost:8720/mcp \
+curl -s http://127.0.0.1:8720/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "x-access-key: isisdefaultkey" \
@@ -226,6 +226,11 @@ instead of duplicating it.
 }
 ```
 
+When the new memory replaces an older one (a changed decision, a corrected fact), add
+`"supersedes": ["old-slug"]`; search then ranks the old memory after the new one. The
+response can include `similarMemories`, existing memories that look like duplicates of the
+one you wrote: if one says the same thing, reuse its slug or supersede it.
+
 ### 4. Recall it
 
 Search the scope with `memory_search`. Use `Hybrid` on a RecallDB-backed scope;
@@ -242,7 +247,26 @@ Search the scope with `memory_search`. Use `Hybrid` on a RecallDB-backed scope;
 ```
 
 The result carries summaries and ids; call `memory_read` with an id to pull the full
-body when you need it.
+body when you need it. A hit carrying `supersededBy` is outdated: prefer the memory it names.
+For a question about several distinct things, pass each part in `additionalQueries`. See
+[MCP_API.md](MCP_API.md) for the other search options (reranking, link expansion, and more).
+
+### 5. Ask a question (optional)
+
+`chat` answers a question from the scope's memory and cites the memory ids it used. It keeps
+no conversation state: for a follow-up, pass the earlier messages in `history`, oldest first.
+
+```json
+{
+  "tenantId": "ten_a1b2c3",
+  "scopeId": "scp_repo",
+  "question": "and where do the tests live?",
+  "history": [
+    { "role": "user", "content": "where does the MCP server live?" },
+    { "role": "assistant", "content": "In src/Isis.McpServer." }
+  ]
+}
+```
 
 ## Troubleshooting
 
@@ -293,6 +317,13 @@ place and preserves every other MCP server and setting in the file. See
 
 ## Related Documents
 
-- [MCP_API.md](MCP_API.md) — the full MCP tool reference.
-- [ISIS_PLAN.md](ISIS_PLAN.md) — the product plan and REST API surface.
+- [MCP_API.md](MCP_API.md): the full MCP tool reference.
+- [REST_API.md](REST_API.md): the full REST API reference.
+- [INSTRUCTIONS_FOR_CLAUDE_CODE.md](INSTRUCTIONS_FOR_CLAUDE_CODE.md),
+  [INSTRUCTIONS_FOR_CODEX.md](INSTRUCTIONS_FOR_CODEX.md),
+  [INSTRUCTIONS_FOR_CURSOR.md](INSTRUCTIONS_FOR_CURSOR.md),
+  [INSTRUCTIONS_FOR_GEMINI.md](INSTRUCTIONS_FOR_GEMINI.md),
+  [INSTRUCTIONS_FOR_MUX.md](INSTRUCTIONS_FOR_MUX.md): per-agent connection and usage guides.
+- [SEARCH_PIPELINE.md](../SEARCH_PIPELINE.md): how retrieval works.
+- [ISIS_PLAN.md](ISIS_PLAN.md): the original product plan (historical).
 </content>

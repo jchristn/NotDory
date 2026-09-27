@@ -22,6 +22,7 @@ namespace Isis.Server.Routes
     {
         #region Private-Members
 
+        private const int _CascadePageSize = 1000;
         private readonly DatabaseDriverBase _Database;
         private readonly AuthorizationService _Authorization;
 
@@ -256,18 +257,37 @@ namespace Isis.Server.Routes
 
         private async Task CascadeDeleteUserAsync(string tenantId, string userId, CancellationToken token)
         {
-            // Cascade: batch-delete credentials, sessions, and permissions owned by this user, then the user.
-            EnumerationResult<Credential> credentials = await _Database.Credentials.EnumerateAsync(tenantId, new EnumerationQuery { MaxResults = 100000 }, token).ConfigureAwait(false);
-            List<string> credentialIds = credentials.Objects.Where(c => string.Equals(c.UserId, userId, StringComparison.Ordinal)).Select(c => c.Id).ToList();
-            if (credentialIds.Count > 0) await _Database.Credentials.DeleteManyAsync(tenantId, credentialIds, token).ConfigureAwait(false);
+            // Cascade: batch-delete credentials, sessions, and permissions owned by this user, then the user. Enumeration
+            // pages are capped at 1000 records, so every page is read before deleting.
+            List<string> credentialIds = new List<string>();
+            for (int skip = 0; ; skip += _CascadePageSize)
+            {
+                EnumerationResult<Credential> page = await _Database.Credentials.EnumerateAsync(tenantId, new EnumerationQuery { MaxResults = _CascadePageSize, Skip = skip }, token).ConfigureAwait(false);
+                credentialIds.AddRange(page.Objects.Where(c => string.Equals(c.UserId, userId, StringComparison.Ordinal)).Select(c => c.Id));
+                if (page.Objects.Count < _CascadePageSize) break;
+            }
 
-            EnumerationResult<AuthSession> sessions = await _Database.Sessions.EnumerateAsync(tenantId, new EnumerationQuery { MaxResults = 100000 }, token).ConfigureAwait(false);
-            List<string> sessionIds = sessions.Objects.Where(s => string.Equals(s.UserId, userId, StringComparison.Ordinal)).Select(s => s.Id).ToList();
-            if (sessionIds.Count > 0) await _Database.Sessions.DeleteManyAsync(tenantId, sessionIds, token).ConfigureAwait(false);
+            for (int i = 0; i < credentialIds.Count; i += _CascadePageSize) await _Database.Credentials.DeleteManyAsync(tenantId, credentialIds.Skip(i).Take(_CascadePageSize).ToList(), token).ConfigureAwait(false);
 
-            EnumerationResult<Permission> permissions = await _Database.Permissions.EnumerateAsync(tenantId, userId, new EnumerationQuery { MaxResults = 100000 }, token).ConfigureAwait(false);
-            List<string> permissionIds = permissions.Objects.Select(p => p.Id).ToList();
-            if (permissionIds.Count > 0) await _Database.Permissions.DeleteManyAsync(tenantId, permissionIds, token).ConfigureAwait(false);
+            List<string> sessionIds = new List<string>();
+            for (int skip = 0; ; skip += _CascadePageSize)
+            {
+                EnumerationResult<AuthSession> page = await _Database.Sessions.EnumerateAsync(tenantId, new EnumerationQuery { MaxResults = _CascadePageSize, Skip = skip }, token).ConfigureAwait(false);
+                sessionIds.AddRange(page.Objects.Where(s => string.Equals(s.UserId, userId, StringComparison.Ordinal)).Select(s => s.Id));
+                if (page.Objects.Count < _CascadePageSize) break;
+            }
+
+            for (int i = 0; i < sessionIds.Count; i += _CascadePageSize) await _Database.Sessions.DeleteManyAsync(tenantId, sessionIds.Skip(i).Take(_CascadePageSize).ToList(), token).ConfigureAwait(false);
+
+            List<string> permissionIds = new List<string>();
+            for (int skip = 0; ; skip += _CascadePageSize)
+            {
+                EnumerationResult<Permission> page = await _Database.Permissions.EnumerateAsync(tenantId, userId, new EnumerationQuery { MaxResults = _CascadePageSize, Skip = skip }, token).ConfigureAwait(false);
+                permissionIds.AddRange(page.Objects.Select(p => p.Id));
+                if (page.Objects.Count < _CascadePageSize) break;
+            }
+
+            for (int i = 0; i < permissionIds.Count; i += _CascadePageSize) await _Database.Permissions.DeleteManyAsync(tenantId, permissionIds.Skip(i).Take(_CascadePageSize).ToList(), token).ConfigureAwait(false);
 
             await _Database.Users.DeleteAsync(tenantId, userId, token).ConfigureAwait(false);
         }

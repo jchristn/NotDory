@@ -27,7 +27,7 @@ namespace Isis.Core.Stores
         public static List<MemorySearchHit> Diversify(IReadOnlyList<MemorySearchHit> hits, double diversity, int count)
         {
             if (hits == null) throw new ArgumentNullException(nameof(hits));
-            if (diversity < 0.0 || diversity > 1.0) throw new ArgumentOutOfRangeException(nameof(diversity), "Diversity must be in [0, 1].");
+            if (!double.IsFinite(diversity) || diversity < 0.0 || diversity > 1.0) throw new ArgumentOutOfRangeException(nameof(diversity), "Diversity must be in [0, 1].");
             if (count < 0) throw new ArgumentOutOfRangeException(nameof(count), "Count may not be negative.");
 
             if (diversity <= 0.0 || hits.Count <= 1) return hits.Take(count).ToList();

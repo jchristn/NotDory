@@ -61,8 +61,8 @@ transferable; the secret key never leaves your MCP client. Calls without an acce
 - scope_enumerate(tenantId) — list scopes. scope_create(tenantId, name, [description, storeProvider,
   embeddingEndpointId, dimensionality, filesystemLayout, targetPath]) — create a project scope if missing. The
   default store (RecallDb) auto-selects the tenant's embedding endpoint and its dimensionality; if the tenant
-  has none, create a Filesystem or Verbex (keyword-only) scope instead.
-- endpoint_enumerate(tenantId, [kind=Embedding|Inference]) — list model endpoints (id, model, dimensionality)
+  has none, create a Filesystem (keyword-only) scope instead.
+- endpoint_enumerate(tenantId, [kind=Embedding|Inference|Rerank]): list model endpoints (id, model, dimensionality)
   to choose an embeddingEndpointId, or to confirm whether semantic (RecallDb) scopes are available at all.
 - guide(tenantId, scopeId) — a scope's categories, their instructions, and store capabilities. Call first.
 - category_enumerate(tenantId, scopeId) / category_create(tenantId, scopeId, name, [description, instructions]).
@@ -78,9 +78,9 @@ transferable; the secret key never leaves your MCP client. Calls without an acce
                     Content =
 @"Memory is organised as scopes → categories → memories.
 - Scope: a memory space for one project/book/domain, bound to a store: RecallDB (semantic + keyword — needs an
-  embedding endpoint; its dimension is fixed at creation to match the embedding model), Verbex (keyword), or
-  Filesystem (keyword, git-trackable files). Prefer RecallDB when an embedding endpoint exists (check with
-  endpoint_enumerate); otherwise use Verbex or Filesystem, which need no embeddings.
+  embedding endpoint; its dimension is fixed at creation to match the embedding model) or Filesystem (keyword,
+  git-trackable files). Prefer RecallDB when an embedding endpoint exists (check with
+  endpoint_enumerate); otherwise use Filesystem, which needs no embeddings.
 - Category: a labelled bucket within a scope that carries its OWN usage instructions telling you when and how to
   write into it. Always read the category's instructions (via guide) before writing.
 - Memory: one atomic note — a stable slug, an optional title, a one-line summary (recall hook), the body, a
@@ -134,7 +134,7 @@ Defaults:
 @"Search before writing to avoid duplicates (and to find the memory to update when a fact changes), and search
 before answering to ground your response.
 - On RecallDB scopes prefer Semantic or Hybrid search for meaning-based recall; use Keyword for exact terms.
-- Verbex and Filesystem scopes are keyword-only and match literal terms.
+- Filesystem scopes are keyword-only and match literal terms.
 - Narrow with the category filter when you know where the answer lives, and keep topK small."
                 }
             };

@@ -45,7 +45,7 @@ namespace Isis.Core.Recall
             }
             set
             {
-                if (value < TimeSpan.FromMilliseconds(1)) throw new ArgumentOutOfRangeException(nameof(BaseDelay), "BaseDelay must be at least 1 ms.");
+                if (value < TimeSpan.FromMilliseconds(1) || value > TimeSpan.FromMinutes(5)) throw new ArgumentOutOfRangeException(nameof(BaseDelay), "BaseDelay must be between 1 ms and 5 minutes.");
                 _BaseDelay = value;
             }
         }
@@ -62,7 +62,7 @@ namespace Isis.Core.Recall
             }
             set
             {
-                if (value < TimeSpan.FromMilliseconds(1)) throw new ArgumentOutOfRangeException(nameof(MaxDelay), "MaxDelay must be at least 1 ms.");
+                if (value < TimeSpan.FromMilliseconds(1) || value > TimeSpan.FromMinutes(5)) throw new ArgumentOutOfRangeException(nameof(MaxDelay), "MaxDelay must be between 1 ms and 5 minutes.");
                 _MaxDelay = value;
             }
         }

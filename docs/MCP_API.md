@@ -14,7 +14,7 @@
 Isis exposes an HTTP MCP server for AI agents. The MCP endpoint is:
 
 ```text
-http://localhost:8720/mcp
+http://127.0.0.1:8720/mcp
 ```
 
 The transport is **streamable HTTP + Server-Sent Events (SSE)**. The same server also
@@ -253,7 +253,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/scopes`.
 
 - A scope is a named memory space. Select one by `scopeId` before any category or memory call.
 - `storeProvider` tells you whether semantic search is available (`RecallDb`) or whether the
-  scope is keyword-only (`Verbex`, `Filesystem`).
+  scope is keyword-only (`Filesystem`).
 
 ### `scope_create`
 
@@ -269,7 +269,7 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes`.
 | `tenantId` | string | Yes | n/a | Tenant identifier from `whoami` |
 | `name` | string | Yes | n/a | Scope name (for example the project name) |
 | `description` | string | No | null | What the scope holds |
-| `storeProvider` | string | No | server default | Backing store: `RecallDb`, `Verbex`, or `Filesystem` |
+| `storeProvider` | string | No | server default | Backing store: `RecallDb` or `Filesystem` (`Verbex` is not available yet and is rejected) |
 | `embeddingEndpointId` | string | No | null | Embedding endpoint id for semantic scopes |
 | `dimensionality` | integer | No | null | Embedding vector dimension |
 | `filesystemLayout` | string | No | null | Layout for a `Filesystem` scope: `SingleFile`, `Hierarchy`, or `OkfBundle` |
@@ -332,7 +332,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/endpoints` (optional `kind` filter).
 
 #### Guidance
 
-- If no embedding endpoint is configured, prefer a `Filesystem` or `Verbex` (keyword-only) scope.
+- If no embedding endpoint is configured, create a `Filesystem` (keyword-only) scope.
 
 ### `instructions`
 
@@ -720,7 +720,11 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories/search`.
 | `rerank` | boolean | No | scope default | Rerank with the scope's rerank endpoint (default: when the scope has one) |
 | `minRerankScore` | number | No | scope `rerankMinScore` | Drop reranked hits scoring below this (0..1) |
 | `additionalQueries` | string[] | No | [] | Up to 4 extra queries searched alongside `queryText` and fused; pass the parts of a multi-part question |
+| `additionalQueryWeight` | number | No | server setting (1.0) | Fusion weight of each additional query relative to `queryText`'s 1.0, 0 to 1 |
+| `subQueries` | object[] | No | [] | Up to 4 extra queries `{ text, weight?, mode? }` with their own fusion weight (0 to 1, default 1) and optional mode |
 | `decompose` | boolean | No | false | Have the tenant's inference model split a multi-part question into sub-queries first |
+| `expand` | boolean | No | false | Have the tenant's inference model draft a hypothetical answer (searched by vector) and keywords (searched as text), fused below `queryText` |
+| `expansionWeight` | number | No | server setting (0.5) | Fusion weight of the `expand` forms relative to `queryText`'s 1.0, 0 to 1 |
 
 #### Example Request
 
@@ -853,6 +857,8 @@ upstream `statusCode`:
 
 - [CONNECTING_AGENTS.md](CONNECTING_AGENTS.md) — connect Claude Code, Cursor, and generic
   MCP clients to Isis, including the `isis mcp install` helper.
-- [ISIS_PLAN.md](ISIS_PLAN.md) — full product plan, including the REST API surface.
+- [REST_API.md](REST_API.md): the REST API each tool proxies, including request limits and error codes.
+- [../SEARCH_PIPELINE.md](../SEARCH_PIPELINE.md): how search and chat retrieval work, stage by stage.
+- [ISIS_PLAN.md](ISIS_PLAN.md): the original product plan (historical).
 </content>
 </invoke>

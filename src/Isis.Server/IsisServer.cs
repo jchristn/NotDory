@@ -105,10 +105,12 @@ namespace Isis.Server
             _ChatService.LinkExpansion = settings.Retrieval.ChatLinkExpansion;
             _ChatService.QueryDecomposition = settings.Retrieval.ChatQueryDecomposition;
             _ChatService.ConversationRewrite = settings.Retrieval.ChatConversationRewrite;
+            _ChatService.QueryExpansion = settings.Retrieval.ChatQueryExpansion;
             _ChatService.Rewriter.MaxTurns = settings.Retrieval.ChatHistoryTurns;
             _RetentionService = new RetentionService(_Database, Settings.Retention, _Log);
 
             WebserverSettings webserverSettings = new WebserverSettings();
+            RouteHelpers.MaxBodyBytes = settings.Rest.MaxRequestBodyBytes;
             webserverSettings.Hostname = settings.Rest.Hostname;
             webserverSettings.Port = settings.Rest.Port;
             webserverSettings.Ssl.Enable = settings.Rest.Ssl;
@@ -189,7 +191,7 @@ namespace Isis.Server
             new CredentialRoutes(_Database, _AuthorizationService).Register(_Server);
             new ScopeRoutes(_Database, _AuthorizationService, _MemoryService).Register(_Server);
             new CategoryRoutes(_Database, _AuthorizationService, _MemoryService).Register(_Server);
-            new MemoryRoutes(_Database, _AuthorizationService, _MemoryService, _LookupCache, new QueryDecomposer(_InferenceService)).Register(_Server);
+            new MemoryRoutes(_Database, _AuthorizationService, _MemoryService, _LookupCache, new QueryDecomposer(_InferenceService), new QueryExpander(_InferenceService)).Register(_Server);
             new ModelEndpointRoutes(_Database, _AuthorizationService, _HealthCheck).Register(_Server);
             new ChatRoutes(_Database, _AuthorizationService, _ChatService, _LookupCache).Register(_Server);
             new RequestHistoryRoutes(_Database, _AuthorizationService).Register(_Server);
@@ -227,7 +229,13 @@ namespace Isis.Server
             int status;
             string error;
             string message;
-            if (e is ModelEndpointUnavailableException)
+            if (e is RequestTooLargeException)
+            {
+                status = 413;
+                error = "PayloadTooLarge";
+                message = e.Message;
+            }
+            else if (e is ModelEndpointUnavailableException)
             {
                 status = 503;
                 error = "ServiceUnavailable";

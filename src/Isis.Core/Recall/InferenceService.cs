@@ -59,6 +59,8 @@ namespace Isis.Core.Recall
         public async Task<string> CompleteAsync(ModelEndpoint endpoint, string systemPrompt, string userPrompt, CancellationToken token = default)
         {
             if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
+            if (systemPrompt == null) throw new ArgumentNullException(nameof(systemPrompt));
+            if (userPrompt == null) throw new ArgumentNullException(nameof(userPrompt));
 
             string endpointHost = ResolveHost(endpoint.GetBaseUrl());
             string model = string.IsNullOrEmpty(endpoint.Model) ? "default" : endpoint.Model!;
@@ -106,6 +108,8 @@ namespace Isis.Core.Recall
         public async IAsyncEnumerable<InferenceChunk> CompleteStreamingAsync(ModelEndpoint endpoint, string systemPrompt, string userPrompt, [EnumeratorCancellation] CancellationToken token = default)
         {
             if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
+            if (systemPrompt == null) throw new ArgumentNullException(nameof(systemPrompt));
+            if (userPrompt == null) throw new ArgumentNullException(nameof(userPrompt));
 
             string endpointHost = ResolveHost(endpoint.GetBaseUrl());
             string model = string.IsNullOrEmpty(endpoint.Model) ? "default" : endpoint.Model!;

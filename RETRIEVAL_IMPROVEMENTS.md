@@ -407,3 +407,41 @@ which is the bar the weighted form has to beat.
 retrieval, have the chat model rewrite the latest turn into a standalone query using the session's earlier turns, and
 search both forms with the original at full weight. This is a different problem from vocabulary mismatch, and the
 reranker does not solve it. It needs a small multi-turn dataset to measure.
+
+## Round 8 findings and the current table
+
+Round 8 took items 3 and 5 of the round-6 table together, since both need a weight per extra query.
+
+| Round-6 item | Result |
+|---|---|
+| 3. Weighted query rewrite (expansion) | **Built, opt-in.** `expand: true` drafts a hypothetical answer (searched by vector) and keywords (searched as text), fused at 0.5. With the fusion fix below it is better than or equal to the baseline on every dataset: isis-live 0.878 to 0.879, Atlas 0.835 to 0.842, SciFact 0.683 to 0.716, LongMemEval 0.911 to 0.937, for about 2 s per search. It does not reach the cross-encoder on the memory-style datasets and adds nothing on top of it, so it stays off by default |
+| 5. Per-query weights, then re-test decomposition | **Done.** `additionalQueryWeight`, `subQueries` with their own weight and mode, and weighted fusion. Decomposition at weight 0.5 went from lowering every dataset (mean 0.794) to neutral (0.826 against 0.827); it helps LongMemEval (+0.020) and costs Atlas (-0.015), so it stays off by default |
+| (found while measuring) The multi-query fusion constant | **Changed from 60 to 5** (`retrieval.queryFusionRrfK`). At 60 the original query's top-ten scores sit within 0.002 of each other, so any extra query reordered them regardless of weight; at 5 extra queries re-rank the original's candidates instead of displacing them. This, not the weights alone, is what made both features safe |
+
+What round 8 taught:
+
+- **A fusion constant tuned for combining equal legs is wrong for combining a primary query with helpers.** RRF with
+  k = 60 treats every list as roughly equal; weighting only works when ranks inside the primary list stay far apart.
+- **Expansion helps where the model can guess the vocabulary** (science, conversational preferences and dates) and is
+  neutral on private, fictional facts once it cannot outrank the original query.
+- **The cross-encoder remains the better default** where one is available: better on memory-style data, faster, and
+  cheaper than a model call per search.
+
+Round 8 also added input validation across the API (clamped numbers, rejected oversized text and lists, a 16 MB body
+limit, settings that clamp rather than fail) and rejects Verbex scopes at creation; see the CHANGELOG.
+
+The current table replaces the round-6 table. Scores are value plus simplicity, each 1 to 10.
+
+| Rank | Fix | Weak area | Value | Simplicity | Score |
+|---|---|---|---|---|---|
+| 1 | Opt-in model-judged relevance: document a prompted Rerank endpoint on a larger chat model as a high-precision mode, and choose a `minRerankScore` cutoff for it from the answerable and unanswerable score distributions | "Nothing relevant", and ranking when latency is not a concern | 6 | 7 | 13 |
+| 2 | Expansion by default for scopes that have an inference endpoint but no reranker (a scope setting, on when no reranker is attached) | Paraphrase, preferences, dates without a reranker | 5 | 7 | 12 |
+| 3 | Re-measure expansion combined with the cross-encoder at k = 5 (the k = 60 run added nothing) | Whether the two stack | 3 | 9 | 12 |
+| 4 | RecallDB single-call hybrid search (the SDK is ready; the benchmark stack needs a RecallDB server that reports capabilities) | Keyword latency | 6 | 5 | 11 |
+| 5 | Wider evaluation: BEIR NFCorpus, FiQA, ArguAna, and SciDocs with published baselines, the full LongMemEval_S, a multi-hop set for decomposition, and a larger multi-turn set | Confidence in every result above | 5 | 6 | 11 |
+| 6 | Abstention from a combined, calibrated signal (vector score, rerank score, and score gap) for deployments without a large reranking model | "Nothing relevant" | 6 | 4 | 10 |
+| 7 | Stored vectors in search results, so diversity and duplicate detection compare vectors (same server dependency as item 4) | Diversity and similarity on whole memories | 4 | 4 | 8 |
+
+Outside retrieval, two findings from the validation audit need a product decision rather than a fix: restricting a
+filesystem scope's `targetPath` to a configured root (today it can point anywhere the server can write), and a minimum
+password length (which would affect the seeded default password).

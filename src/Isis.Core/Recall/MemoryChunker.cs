@@ -39,7 +39,7 @@ namespace Isis.Core.Recall
             }
             set
             {
-                if (value < 0.0 || value > 0.5) throw new ArgumentOutOfRangeException(nameof(HeaderBudgetFraction), "Header budget fraction must be in [0, 0.5].");
+                if (!double.IsFinite(value) || value < 0.0 || value > 0.5) throw new ArgumentOutOfRangeException(nameof(HeaderBudgetFraction), "Header budget fraction must be in [0, 0.5].");
                 _HeaderBudgetFraction = value;
             }
         }
@@ -59,7 +59,7 @@ namespace Isis.Core.Recall
             }
             set
             {
-                if (value < 0.1 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(DefaultChunkFraction), "Default chunk fraction must be in [0.1, 1.0].");
+                if (!double.IsFinite(value) || value < 0.1 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(DefaultChunkFraction), "Default chunk fraction must be in [0.1, 1.0].");
                 _DefaultChunkFraction = value;
             }
         }
@@ -77,7 +77,7 @@ namespace Isis.Core.Recall
             }
             set
             {
-                if (value < 16) throw new ArgumentOutOfRangeException(nameof(DefaultChunkMaxTokens), "Default chunk max tokens must be at least 16.");
+                if (value < 16 || value > 8192) throw new ArgumentOutOfRangeException(nameof(DefaultChunkMaxTokens), "Default chunk max tokens must be between 16 and 8192.");
                 _DefaultChunkMaxTokens = value;
             }
         }
@@ -98,7 +98,7 @@ namespace Isis.Core.Recall
             }
             set
             {
-                if (value < 0.0 || value > 0.25) throw new ArgumentOutOfRangeException(nameof(TokenizerMarginFraction), "Tokenizer margin fraction must be in [0, 0.25].");
+                if (!double.IsFinite(value) || value < 0.0 || value > 0.25) throw new ArgumentOutOfRangeException(nameof(TokenizerMarginFraction), "Tokenizer margin fraction must be in [0, 0.25].");
                 _TokenizerMarginFraction = value;
             }
         }
@@ -229,7 +229,7 @@ namespace Isis.Core.Recall
             {
                 Strategy = MapStrategy(scope.ChunkStrategy),
                 MaxTokens = perChunk < 1 ? 1 : perChunk,
-                OverlapCount = scope.ChunkOverlapTokens,
+                OverlapCount = Math.Min(scope.ChunkOverlapTokens, Math.Max(0, (perChunk < 1 ? 1 : perChunk) / 2)),
                 ComputeOffsets = true
             };
 

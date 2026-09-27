@@ -33,21 +33,34 @@ namespace Isis.Core.Stores.RecallDb
             }
             set
             {
-                if (value < 1) throw new ArgumentOutOfRangeException(nameof(DefaultRrfK), "The RRF constant must be at least 1.");
+                if (value < 1 || value > 1000) throw new ArgumentOutOfRangeException(nameof(DefaultRrfK), "The RRF constant must be between 1 and 1000.");
                 _DefaultRrfK = value;
             }
         }
 
         /// <summary>
-        /// Text-leg weight used when a query and the embedding model's profile do not set one. Default 0.5.
+        /// Text-leg weight used when a query and the embedding model's profile do not set one, 0.0 to 1.0. Default 0.5.
         /// </summary>
-        public static double DefaultTextWeight { get; set; } = 0.5;
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when set outside [0, 1] or to NaN.</exception>
+        public static double DefaultTextWeight
+        {
+            get
+            {
+                return _DefaultTextWeight;
+            }
+            set
+            {
+                if (!double.IsFinite(value) || value < 0.0 || value > 1.0) throw new ArgumentOutOfRangeException(nameof(DefaultTextWeight), "The default text weight must be between 0 and 1.");
+                _DefaultTextWeight = value;
+            }
+        }
 
         #endregion
 
         #region Private-Members
 
         private static int _DefaultRrfK = 20;
+        private static double _DefaultTextWeight = 0.5;
 
         #endregion
 
@@ -75,8 +88,8 @@ namespace Isis.Core.Stores.RecallDb
         {
             ArgumentNullException.ThrowIfNull(parentKey);
             int k = rrfK ?? DefaultRrfK;
-            if (textWeight < 0.0 || textWeight > 1.0) throw new ArgumentOutOfRangeException(nameof(textWeight), "Text weight must be in [0, 1].");
-            if (recencyWeight < 0.0 || recencyWeight > 1.0) throw new ArgumentOutOfRangeException(nameof(recencyWeight), "Recency weight must be in [0, 1].");
+            if (!double.IsFinite(textWeight) || textWeight < 0.0 || textWeight > 1.0) throw new ArgumentOutOfRangeException(nameof(textWeight), "Text weight must be in [0, 1].");
+            if (!double.IsFinite(recencyWeight) || recencyWeight < 0.0 || recencyWeight > 1.0) throw new ArgumentOutOfRangeException(nameof(recencyWeight), "Recency weight must be in [0, 1].");
             if (k < 1) throw new ArgumentOutOfRangeException(nameof(rrfK), "The RRF constant must be at least 1.");
 
             Dictionary<string, FusedDocument> byKey = new Dictionary<string, FusedDocument>(StringComparer.Ordinal);

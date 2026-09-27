@@ -90,7 +90,7 @@ namespace Isis.Core.Models
             set
             {
                 if (String.IsNullOrWhiteSpace(value)) throw new ArgumentNullException(nameof(Slug));
-                _Slug = value;
+                _Slug = InputGuard.MaxLength(value, 256, nameof(Slug))!;
             }
         }
 
@@ -102,23 +102,63 @@ namespace Isis.Core.Models
         /// <summary>
         /// Human-readable title.
         /// </summary>
-        public string? Title { get; set; } = null;
+        public string? Title
+        {
+            get
+            {
+                return _Title;
+            }
+            set
+            {
+                _Title = InputGuard.MaxLength(value, 1024, nameof(Title));
+            }
+        }
 
         /// <summary>
         /// Classification of the memory.
         /// </summary>
-        public MemoryTypeEnum Type { get; set; } = MemoryTypeEnum.Project;
+        public MemoryTypeEnum Type
+        {
+            get
+            {
+                return _Type;
+            }
+            set
+            {
+                _Type = InputGuard.Defined(value, MemoryTypeEnum.Project);
+            }
+        }
 
         /// <summary>
         /// A one-line recall hook, cheap to return in listings and search results.
         /// </summary>
-        public string? Summary { get; set; } = null;
+        public string? Summary
+        {
+            get
+            {
+                return _Summary;
+            }
+            set
+            {
+                _Summary = InputGuard.MaxLength(value, 8192, nameof(Summary));
+            }
+        }
 
         /// <summary>
         /// Optional URI reference to the underlying resource this memory describes (for example a
         /// console link, document URL, or repository path). Maps to the OKF <c>resource</c> field.
         /// </summary>
-        public string? Resource { get; set; } = null;
+        public string? Resource
+        {
+            get
+            {
+                return _Resource;
+            }
+            set
+            {
+                _Resource = InputGuard.MaxLength(value, 4096, nameof(Resource));
+            }
+        }
 
         /// <summary>
         /// The full memory body. Stored as the memory store document content.
@@ -132,25 +172,55 @@ namespace Isis.Core.Models
             set
             {
                 if (value == null) throw new ArgumentNullException(nameof(Body));
-                _Body = value;
+                _Body = InputGuard.MaxLength(value, 4 * 1024 * 1024, nameof(Body))!;
             }
         }
 
         /// <summary>
         /// Free-form tags.
         /// </summary>
-        public List<string> Tags { get; set; } = new List<string>();
+        public List<string> Tags
+        {
+            get
+            {
+                return _Tags;
+            }
+            set
+            {
+                _Tags = InputGuard.CleanList(value, 256, 256, nameof(Tags));
+            }
+        }
 
         /// <summary>
         /// Slugs of related memories, forming the link graph.
         /// </summary>
-        public List<string> Links { get; set; } = new List<string>();
+        public List<string> Links
+        {
+            get
+            {
+                return _Links;
+            }
+            set
+            {
+                _Links = InputGuard.CleanList(value, 256, 256, nameof(Links));
+            }
+        }
 
         /// <summary>
         /// Slugs (or ids) of memories in the same scope that this memory replaces, for example an earlier decision
         /// this one reverses. Search demotes replaced memories behind their replacement. Empty by default.
         /// </summary>
-        public List<string> Supersedes { get; set; } = new List<string>();
+        public List<string> Supersedes
+        {
+            get
+            {
+                return _Supersedes;
+            }
+            set
+            {
+                _Supersedes = InputGuard.CleanList(value, 64, 256, nameof(Supersedes));
+            }
+        }
 
         /// <summary>
         /// Id of the memory that replaces this one, maintained by the server from other memories'
@@ -168,7 +238,29 @@ namespace Isis.Core.Models
         /// <summary>
         /// Extensible structured metadata (for example referenced files, confidence).
         /// </summary>
-        public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, string> Metadata
+        {
+            get
+            {
+                return _Metadata;
+            }
+            set
+            {
+                Dictionary<string, string> cleaned = new Dictionary<string, string>();
+                if (value != null)
+                {
+                    foreach (KeyValuePair<string, string> entry in value)
+                    {
+                        if (string.IsNullOrWhiteSpace(entry.Key)) continue;
+                        InputGuard.MaxLength(entry.Key, 256, nameof(Metadata) + " key");
+                        cleaned[entry.Key] = InputGuard.MaxLength(entry.Value ?? string.Empty, 8192, nameof(Metadata) + " value")!;
+                    }
+                }
+                
+                if (cleaned.Count > 128) throw new ArgumentOutOfRangeException(nameof(Metadata), "Metadata may have at most 128 entries (got " + cleaned.Count + ").");
+                _Metadata = cleaned;
+            }
+        }
 
         /// <summary>
         /// Ranking signal in the range 0.0 to 1.0, bumped when a memory is read. Default 0.5.
@@ -181,9 +273,7 @@ namespace Isis.Core.Models
             }
             set
             {
-                if (value < 0.0) value = 0.0;
-                if (value > 1.0) value = 1.0;
-                _Salience = value;
+                _Salience = InputGuard.Clamp(value, 0.0, 1.0, 0.5);
             }
         }
 
@@ -205,7 +295,17 @@ namespace Isis.Core.Models
         /// <summary>
         /// Monotonic version counter, incremented on update.
         /// </summary>
-        public int Version { get; set; } = 1;
+        public int Version
+        {
+            get
+            {
+                return _Version;
+            }
+            set
+            {
+                _Version = value < 1 ? 1 : value;
+            }
+        }
 
         /// <summary>
         /// UTC timestamp when the memory was created.
@@ -226,6 +326,15 @@ namespace Isis.Core.Models
 
         #region Private-Members
 
+        private int _Version = 1;
+        private Dictionary<string, string> _Metadata = new Dictionary<string, string>();
+        private List<string> _Supersedes = new List<string>();
+        private List<string> _Links = new List<string>();
+        private List<string> _Tags = new List<string>();
+        private MemoryTypeEnum _Type = MemoryTypeEnum.Project;
+        private string? _Resource = null;
+        private string? _Summary = null;
+        private string? _Title = null;
         private string _Id = IdGenerator.Memory();
         private string _TenantId = String.Empty;
         private string _ScopeId = String.Empty;

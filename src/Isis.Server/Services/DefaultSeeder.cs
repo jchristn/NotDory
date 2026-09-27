@@ -221,6 +221,7 @@ namespace Isis.Server.Services
         {
             if (database == null) throw new ArgumentNullException(nameof(database));
             if (http == null) throw new ArgumentNullException(nameof(http));
+            if (maxWait < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(maxWait), "The wait may not be negative.");
 
             string baseUrl = (Environment.GetEnvironmentVariable("ISIS_DEFAULT_RERANK_BASEURL") ?? string.Empty).Trim().TrimEnd('/');
             if (baseUrl.Length == 0) return false;

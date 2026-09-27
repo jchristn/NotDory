@@ -74,6 +74,13 @@ namespace Isis.Server.Services
         public bool ConversationRewrite { get; set; } = true;
 
         /// <summary>
+        /// Whether each question is expanded with a drafted answer (searched by vector) and keywords (searched as text),
+        /// fused below the question's own weight (<see cref="MemoryService.ExpansionWeight"/>). Costs one short
+        /// inference call per question. Default false.
+        /// </summary>
+        public bool QueryExpansion { get; set; } = false;
+
+        /// <summary>
         /// The rewriter used for follow-up questions; its settings bound how much conversation is used.
         /// </summary>
         public ConversationRewriter Rewriter
@@ -92,6 +99,7 @@ namespace Isis.Server.Services
         private int _LinkExpansion = 2;
         private readonly QueryDecomposer _Decomposer;
         private readonly ConversationRewriter _Rewriter;
+        private readonly QueryExpander _Expander;
 
         private readonly MemoryService _MemoryService;
         private readonly InferenceService _InferenceService;
@@ -112,6 +120,7 @@ namespace Isis.Server.Services
             _InferenceService = inferenceService ?? throw new ArgumentNullException(nameof(inferenceService));
             _Decomposer = new QueryDecomposer(_InferenceService);
             _Rewriter = new ConversationRewriter(_InferenceService);
+            _Expander = new QueryExpander(_InferenceService);
         }
 
         #endregion
@@ -384,7 +393,8 @@ namespace Isis.Server.Services
             if (ConversationRewrite && history != null && history.Count > 0)
             {
                 standalone = await _Rewriter.RewriteAsync(inferenceEndpoint, history, question, token).ConfigureAwait(false);
-                if (standalone != null) query.AdditionalQueries = new List<string> { standalone };
+                // The standalone form is the better query for a follow-up, so it keeps full weight.
+                if (standalone != null) query.SubQueries = new List<MemorySubQuery> { new MemorySubQuery { Text = standalone, Weight = 1.0 } };
             }
 
             if (QueryDecomposition)
@@ -395,6 +405,18 @@ namespace Isis.Server.Services
                     List<string> additional = query.AdditionalQueries ?? new List<string>();
                     additional.AddRange(parts);
                     query.AdditionalQueries = additional;
+                }
+            }
+
+            if (QueryExpansion)
+            {
+                QueryExpansion expansion = await _Expander.ExpandAsync(inferenceEndpoint, standalone ?? question, token).ConfigureAwait(false);
+                List<MemorySubQuery> forms = QueryExpander.ToSubQueries(expansion, query.Mode, _MemoryService.ExpansionWeight);
+                if (forms.Count > 0)
+                {
+                    List<MemorySubQuery> subQueries = query.SubQueries ?? new List<MemorySubQuery>();
+                    subQueries.AddRange(forms);
+                    query.SubQueries = subQueries;
                 }
             }
 

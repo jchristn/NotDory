@@ -86,7 +86,7 @@ namespace Isis.Server.Routes
 
             EndpointKindEnum? kind = null;
             string? kindText = RouteHelpers.Query(context, "kind");
-            if (!string.IsNullOrEmpty(kindText) && Enum.TryParse(kindText, true, out EndpointKindEnum parsed)) kind = parsed;
+            if (!string.IsNullOrEmpty(kindText) && Enum.TryParse(kindText, true, out EndpointKindEnum parsed) && Enum.IsDefined(parsed)) kind = parsed;
 
             EnumerationResult<ModelEndpoint> result = await _Database.ModelEndpoints.EnumerateAsync(tenantId, kind, RouteHelpers.Enumeration(context), context.Token).ConfigureAwait(false);
             await RouteHelpers.JsonAsync(context, 200, result).ConfigureAwait(false);
@@ -107,9 +107,10 @@ namespace Isis.Server.Routes
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(endpoint.BaseUrl))
+            string? invalid = ValidateBaseUrl(endpoint.BaseUrl);
+            if (invalid != null)
             {
-                await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "A base URL is required (for example http://host:11434 or https://api.openai.com).").ConfigureAwait(false);
+                await RouteHelpers.ErrorAsync(context, 400, "BadRequest", invalid).ConfigureAwait(false);
                 return;
             }
 
@@ -158,6 +159,13 @@ namespace Isis.Server.Routes
             if (update == null)
             {
                 await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "An endpoint body is required.").ConfigureAwait(false);
+                return;
+            }
+
+            string? invalidUrl = ValidateBaseUrl(update.BaseUrl);
+            if (invalidUrl != null || string.IsNullOrWhiteSpace(update.Name))
+            {
+                await RouteHelpers.ErrorAsync(context, 400, "BadRequest", invalidUrl ?? "An endpoint name is required.").ConfigureAwait(false);
                 return;
             }
 
@@ -251,8 +259,16 @@ namespace Isis.Server.Routes
             List<ModelEndpoint> objects = new List<ModelEndpoint>();
             if (request != null && request.Items != null && request.Items.Count > 0)
             {
-                foreach (ModelEndpoint item in request.Items)
+                for (int i = 0; i < request.Items.Count; i++)
                 {
+                    ModelEndpoint item = request.Items[i];
+                    string? invalidItem = string.IsNullOrWhiteSpace(item.Name) ? "An endpoint name is required." : ValidateBaseUrl(item.BaseUrl);
+                    if (invalidItem != null)
+                    {
+                        await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "Item " + i + ": " + invalidItem).ConfigureAwait(false);
+                        return;
+                    }
+
                     item.TenantId = tenantId;
                     item.Id = IdGenerator.Endpoint(item.Kind);
                 }
@@ -283,6 +299,17 @@ namespace Isis.Server.Routes
             Dictionary<string, object?> body = new Dictionary<string, object?>();
             body["deleted"] = deleted;
             await RouteHelpers.JsonAsync(context, 200, body).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Check that a base URL is an absolute http or https URL; returns the error message, or null when valid.
+        /// </summary>
+        private static string? ValidateBaseUrl(string? baseUrl)
+        {
+            if (string.IsNullOrWhiteSpace(baseUrl)) return "A base URL is required (for example http://host:11434 or https://api.openai.com).";
+            if (!Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out Uri? uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                return "The base URL must be an absolute http or https URL (for example http://host:11434).";
+            return null;
         }
 
         #endregion

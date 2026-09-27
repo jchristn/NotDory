@@ -1,6 +1,8 @@
 namespace Isis.Server.Models
 {
     using System.Collections.Generic;
+    using System.Linq;
+    using Isis.Core.Helpers;
     using Isis.Core.Models;
 
     /// <summary>
@@ -13,7 +15,23 @@ namespace Isis.Server.Models
         /// <summary>
         /// The model endpoints to create.
         /// </summary>
-        public List<ModelEndpoint> Items { get; set; } = new List<ModelEndpoint>();
+        public List<ModelEndpoint> Items
+        {
+            get
+            {
+                return _Items;
+            }
+            set
+            {
+                _Items = InputGuard.MaxCount((value ?? new List<ModelEndpoint>()).Where(i => i != null).ToList(), 100, nameof(Items))!;
+            }
+        }
+
+        #endregion
+
+        #region Private-Members
+
+        private List<ModelEndpoint> _Items = new List<ModelEndpoint>();
 
         #endregion
 

@@ -1,6 +1,8 @@
 namespace Isis.Server.Models
 {
     using System.Collections.Generic;
+    using System.Linq;
+    using Isis.Core.Helpers;
     using Isis.Core.Models;
 
     /// <summary>
@@ -13,7 +15,23 @@ namespace Isis.Server.Models
         /// <summary>
         /// The memories to create or update.
         /// </summary>
-        public List<Memory> Items { get; set; } = new List<Memory>();
+        public List<Memory> Items
+        {
+            get
+            {
+                return _Items;
+            }
+            set
+            {
+                _Items = InputGuard.MaxCount((value ?? new List<Memory>()).Where(i => i != null).ToList(), 100, nameof(Items))!;
+            }
+        }
+
+        #endregion
+
+        #region Private-Members
+
+        private List<Memory> _Items = new List<Memory>();
 
         #endregion
 

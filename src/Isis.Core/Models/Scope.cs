@@ -63,12 +63,32 @@ namespace Isis.Core.Models
         /// <summary>
         /// Optional description of what this scope holds.
         /// </summary>
-        public string? Description { get; set; } = null;
+        public string? Description
+        {
+            get
+            {
+                return _Description;
+            }
+            set
+            {
+                _Description = InputGuard.MaxLength(value, 4096, nameof(Description));
+            }
+        }
 
         /// <summary>
         /// The memory store backend for this scope. Determines available retrieval capabilities.
         /// </summary>
-        public StoreProviderEnum StoreProvider { get; set; } = StoreProviderEnum.RecallDb;
+        public StoreProviderEnum StoreProvider
+        {
+            get
+            {
+                return _StoreProvider;
+            }
+            set
+            {
+                _StoreProvider = InputGuard.Defined(value, StoreProviderEnum.RecallDb);
+            }
+        }
 
         /// <summary>
         /// For the RecallDB store, the backing collection identifier.
@@ -126,30 +146,80 @@ namespace Isis.Core.Models
         /// question with no relevant memory returns nothing instead of the least-bad matches. Null (the default)
         /// keeps every reranked hit. A query's <c>minRerankScore</c> overrides it.
         /// </summary>
-        public double? RerankMinScore { get; set; } = null;
+        public double? RerankMinScore
+        {
+            get
+            {
+                return _RerankMinScore;
+            }
+            set
+            {
+                _RerankMinScore = InputGuard.Clamp(value, 0.0, 1.0);
+            }
+        }
 
         /// <summary>
         /// For the filesystem store, the layout mode.
         /// </summary>
-        public FilesystemLayoutEnum FilesystemLayout { get; set; } = FilesystemLayoutEnum.Hierarchy;
+        public FilesystemLayoutEnum FilesystemLayout
+        {
+            get
+            {
+                return _FilesystemLayout;
+            }
+            set
+            {
+                _FilesystemLayout = InputGuard.Defined(value, FilesystemLayoutEnum.Hierarchy);
+            }
+        }
 
         /// <summary>
         /// For the filesystem store, the target path where memory files are written.
         /// </summary>
-        public string? TargetPath { get; set; } = null;
+        public string? TargetPath
+        {
+            get
+            {
+                return _TargetPath;
+            }
+            set
+            {
+                _TargetPath = InputGuard.MaxLength(value, 1024, nameof(TargetPath));
+            }
+        }
 
         /// <summary>
         /// When memory bodies in this scope are chunked for embedding. Default OnOverflow (only when a body
         /// exceeds the embedding model's token budget).
         /// </summary>
-        public ChunkingModeEnum ChunkingMode { get; set; } = ChunkingModeEnum.OnOverflow;
+        public ChunkingModeEnum ChunkingMode
+        {
+            get
+            {
+                return _ChunkingMode;
+            }
+            set
+            {
+                _ChunkingMode = InputGuard.Defined(value, ChunkingModeEnum.OnOverflow);
+            }
+        }
 
         /// <summary>
         /// The chunking strategy name (maps to the chunking library's strategy, e.g. FixedTokenCount, Recursive,
         /// SentenceBased, ParagraphBased). Default FixedTokenCount, which packs each chunk to the token budget
         /// with the configured overlap — the predictable choice for embedding regardless of body structure.
         /// </summary>
-        public string ChunkStrategy { get; set; } = "FixedTokenCount";
+        public string ChunkStrategy
+        {
+            get
+            {
+                return _ChunkStrategy;
+            }
+            set
+            {
+                _ChunkStrategy = string.IsNullOrWhiteSpace(value) ? "FixedTokenCount" : InputGuard.MaxLength(value.Trim(), 64, nameof(ChunkStrategy))!;
+            }
+        }
 
         /// <summary>
         /// The per-chunk token budget. Zero means use the embedding endpoint's resolved input budget.
@@ -163,7 +233,7 @@ namespace Isis.Core.Models
             set
             {
                 if (value < 0) throw new ArgumentOutOfRangeException(nameof(ChunkMaxTokens), "ChunkMaxTokens may not be negative.");
-                _ChunkMaxTokens = value;
+                _ChunkMaxTokens = Math.Min(value, 8192);
             }
         }
 
@@ -179,7 +249,7 @@ namespace Isis.Core.Models
             set
             {
                 if (value < 0) throw new ArgumentOutOfRangeException(nameof(ChunkOverlapTokens), "ChunkOverlapTokens may not be negative.");
-                _ChunkOverlapTokens = value;
+                _ChunkOverlapTokens = Math.Min(value, 1024);
             }
         }
 
@@ -202,6 +272,13 @@ namespace Isis.Core.Models
 
         #region Private-Members
 
+        private string _ChunkStrategy = "FixedTokenCount";
+        private ChunkingModeEnum _ChunkingMode = ChunkingModeEnum.OnOverflow;
+        private FilesystemLayoutEnum _FilesystemLayout = FilesystemLayoutEnum.Hierarchy;
+        private StoreProviderEnum _StoreProvider = StoreProviderEnum.RecallDb;
+        private string? _TargetPath = null;
+        private double? _RerankMinScore = null;
+        private string? _Description = null;
         private string _Id = IdGenerator.Scope();
         private string _TenantId = String.Empty;
         private string _Name = String.Empty;

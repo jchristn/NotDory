@@ -149,8 +149,8 @@ in [`docs/CONNECTING_AGENTS.md`](docs/CONNECTING_AGENTS.md) and [`docs/MCP_API.m
 ## Architecture
 
 ```
-Agent harness ──MCP──▶ nginx ─▶ Isis.McpServer (Voltaic 0.6.1) ─proxy─┐
-Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.1) ◀────────────┘
+Agent harness ──MCP──▶ nginx ─▶ Isis.McpServer (Voltaic 2.0.0) ─proxy─┐
+Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀────────────┘
                                      │                 │
                         Isis metadata│                 │memory content + vectors
                           (Postgres  │                 │(RecallDb.Sdk over HTTP)
@@ -160,7 +160,8 @@ Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.1) ◀──
                                 │ (shared)  │    │  db: recalldb│
                                 └───────────┘    └──────────────┘
    Embedding endpoint ◀─ Isis computes vectors
-   Inference endpoint ◀─ Isis summarizes / compacts   (health-checked, dedup by method+URL+auth)
+   Rerank endpoint    ◀─ Isis reorders search candidates (cross-encoder, optional)
+   Inference endpoint ◀─ chat answers; optional query rewriting, splitting, expansion   (all health-checked)
 ```
 
 - **RecallDB** is the default system of record for memory content, embeddings, and retrieval, on a
@@ -172,8 +173,9 @@ Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.1) ◀──
 
 ## How it works
 
-1. **Agents talk MCP, operators talk REST.** Agents call `isis_*` tools (scope/category/memory
-   create, upsert, search, read, enumerate, guide); operators and the dashboard use the tenant-scoped
+1. **Agents talk MCP, operators talk REST.** Agents call the MCP tools (`whoami`, `guide`,
+   `memory_upsert`, `memory_search`, `chat`, and scope, category, endpoint, and instruction management;
+   no `isis_` prefix, your client namespaces them); operators and the dashboard use the tenant-scoped
    REST API.
 2. **Authentication.** Interactive users sign in with **email + password** and receive a session
    token (`Authorization: Bearer`); automation and MCP authenticate with a credential **access key**
@@ -194,7 +196,7 @@ Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.1) ◀──
 Isis stores memory through a pluggable `IMemoryStore`, chosen **per scope**. Capabilities differ by
 provider — pick the one that matches what you need:
 
-| Capability | **RecallDB** (default) | **Verbex** | **Filesystem** |
+| Capability | **RecallDB** (default) | **Verbex** (not wired yet) | **Filesystem** |
 |---|:--:|:--:|:--:|
 | System of record for memory content | RecallDB (Postgres) | Isis database | Flat files at a target path |
 | Keyword / full-text search | ✅ (`ts_rank`) | ✅ (TF-IDF inverted index) | ⚠️ DB-native `LIKE` (or Verbex sidecar) |
@@ -208,16 +210,31 @@ provider — pick the one that matches what you need:
 | Travels inside the target repository | ❌ | ❌ | ✅ |
 
 **Only RecallDB provides semantic and hybrid search.** Verbex and Filesystem are keyword/metadata
-only. **Filesystem** is the choice when you want memory to live *inside* a repository (single file or
+only, and the Verbex provider is not wired yet (its searches raise `NotSupported`). **Filesystem** is the choice when you want memory to live *inside* a repository (single file or
 an organized markdown hierarchy) and be reviewed in a pull request.
+
+## Retrieval
+
+A search runs a vector search and a full-text search in parallel, fuses them by weighted reciprocal rank with a small
+recency signal, rolls chunks up to one hit per memory, optionally reranks the candidates with a cross-encoder, and then
+applies supersession (a replaced fact ranks after its replacement) and optional link expansion. Chat grounds its
+answers on the best whole chunk of each retrieved memory, cites every claim, understands follow-up questions sent with
+the conversation's history, and says so when memory does not hold the answer. Optional extra queries (caller-supplied,
+split from a multi-part question, or a model-drafted answer and keywords) are fused by weight below the original
+query.
+
+On the benchmark suite, hybrid retrieval reaches nDCG@10 of 0.84 to 0.91 on the memory-style datasets, or 0.88 to 0.94
+with the cross-encoder, and beats the published BM25 and dense-model baselines on BEIR SciFact. See
+[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) for every stage with its rationale, implementation, and measured effect, and
+[RETRIEVAL_IMPROVEMENTS.md](RETRIEVAL_IMPROVEMENTS.md) for what has been tried and what is next.
 
 ## Projects
 
 | Project | Purpose |
 |---|---|
 | `src/Isis.Core` | Models, enums, PrettyId, database providers (Sqlite/Mysql/Postgresql/SqlServer), memory stores, services |
-| `src/Isis.Server` | REST API (Watson 7.1) + dashboard host + OpenAPI |
-| `src/Isis.McpServer` | MCP server (Voltaic 0.6.1), agent-facing tools |
+| `src/Isis.Server` | REST API (Watson 7.2) + dashboard host + OpenAPI |
+| `src/Isis.McpServer` | MCP server (Voltaic 2.0.0), agent-facing tools |
 | `dashboard` | React 19 / Vite 6 management dashboard |
 | `docker` | Compose stack, per-service Dockerfiles, factory/demo seed |
 | `docs` | REST API reference, MCP API, agent-connection guides, product plan |
@@ -228,7 +245,7 @@ an organized markdown hierarchy) and be reviewed in a pull request.
 LongMemEval), chat-with-memory accuracy, agent-in-the-loop task success over MCP, and load. It runs against an
 isolated stack so it never touches a deployment. See [benchmarks/README.md](benchmarks/README.md) for how to run it
 and [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for the current baseline. With Isis connected, Claude Code
-(haiku) completed 96% of memory-dependent tasks, against 21% without memory.
+(haiku) completed 96% of memory-dependent tasks, against 17 to 21% without memory.
 
 ## Issues & discussion
 

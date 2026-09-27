@@ -8,6 +8,7 @@ namespace Test.Shared
     using System.Text;
     using System.Text.Json;
     using System.Threading.Tasks;
+    using Isis.Server.Routes;
     using Touchstone.Core;
 
     /// <summary>
@@ -96,6 +97,10 @@ namespace Test.Shared
                     TestCase.Async("rest", "memory-read-unknown", "GET /memories/{unknown} is not found", MemoryReadUnknownAsync),
                     TestCase.Async("rest", "memory-search", "POST /memories/search returns hits", MemorySearchAsync),
                     TestCase.Async("rest", "memory-search-empty-query", "POST /memories/search without queryText is a bad request", MemorySearchEmptyQueryAsync),
+                    TestCase.Async("rest", "memory-search-invalid-input", "POST /memories/search: null sub-query ignored, oversized query 400, huge token budget clamped", MemorySearchInvalidInputAsync),
+                    TestCase.Async("rest", "body-too-large", "A request body over the server's limit is answered 413", BodyTooLargeAsync),
+                    TestCase.Async("rest", "scope-create-verbex-rejected", "POST /scopes with the unwired Verbex provider is a bad request", ScopeCreateVerbexRejectedAsync),
+                    TestCase.Async("rest", "endpoint-invalid-base-url", "Endpoint create, update, and batch create reject a non-http base URL", EndpointInvalidBaseUrlAsync),
                     TestCase.Async("rest", "memory-search-category-name", "POST /memories/search filters by category name", MemorySearchCategoryByNameAsync),
                     TestCase.Async("rest", "memory-search-category-id", "POST /memories/search filters by category id", MemorySearchCategoryByIdAsync),
                     TestCase.Async("rest", "memory-search-category-unknown", "POST /memories/search with an unknown category is a bad request", MemorySearchCategoryUnknownAsync),
@@ -875,6 +880,64 @@ namespace Test.Shared
             ExpectStatus(r, HttpStatusCode.OK, "search memories");
             using JsonDocument doc = await ReadJsonAsync(r).ConfigureAwait(false);
             TestCase.Require(doc.RootElement.GetProperty("hits").GetArrayLength() >= 1, "search should return at least one hit.");
+        }
+
+        private static async Task MemorySearchInvalidInputAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient access = h.AccessClient();
+            string sid = await CreateScopeAsync(access, h, "s1").ConfigureAwait(false);
+            string cid = await CreateCategoryAsync(access, h, sid, "notes").ConfigureAwait(false);
+            await UpsertMemoryAsync(access, h, sid, cid, "centerline", "Control the centerline; posture and framing win positions.").ConfigureAwait(false);
+            string path = MemoriesPath(h.TenantId, sid) + "/search";
+
+            HttpResponseMessage nullSub = await PostAsync(access, path, new { queryText = "posture", mode = "Keyword", subQueries = new object?[] { null, new { text = "framing", weight = 0.5 } }, tokenBudget = int.MaxValue }).ConfigureAwait(false);
+            ExpectStatus(nullSub, HttpStatusCode.OK, "search with a null sub-query and a huge token budget");
+            using (JsonDocument doc = await ReadJsonAsync(nullSub).ConfigureAwait(false))
+            {
+                TestCase.Require(doc.RootElement.GetProperty("hits").GetArrayLength() >= 1, "The search should still return hits.");
+            }
+
+            HttpResponseMessage tooLong = await PostAsync(access, path, new { queryText = new string('q', 5000) }).ConfigureAwait(false);
+            ExpectStatus(tooLong, HttpStatusCode.BadRequest, "search with a 5000-character query");
+        }
+
+        private static async Task BodyTooLargeAsync()
+        {
+            long previous = RouteHelpers.MaxBodyBytes;
+            RouteHelpers.MaxBodyBytes = 2048;
+            try
+            {
+                using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+                RouteHelpers.MaxBodyBytes = 2048;
+                using HttpClient access = h.AccessClient();
+                HttpResponseMessage r = await PostAsync(access, ScopesPath(h.TenantId), new { name = "big", description = new string('d', 4000), storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "big") }).ConfigureAwait(false);
+                ExpectStatus(r, (HttpStatusCode)413, "oversized body");
+            }
+            finally
+            {
+                RouteHelpers.MaxBodyBytes = previous;
+            }
+        }
+
+        private static async Task ScopeCreateVerbexRejectedAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient access = h.AccessClient();
+            HttpResponseMessage r = await PostAsync(access, ScopesPath(h.TenantId), new { name = "vx", storeProvider = "Verbex" }).ConfigureAwait(false);
+            ExpectStatus(r, HttpStatusCode.BadRequest, "Verbex scope");
+        }
+
+        private static async Task EndpointInvalidBaseUrlAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient admin = h.AdminClient();
+            HttpResponseMessage create = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "bad", kind = "Embedding", apiFormat = "Ollama", baseUrl = "ftp://127.0.0.1/x", model = "m" }).ConfigureAwait(false);
+            ExpectStatus(create, HttpStatusCode.BadRequest, "ftp base URL");
+            HttpResponseMessage relative = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "bad", kind = "Embedding", apiFormat = "Ollama", baseUrl = "not a url", model = "m" }).ConfigureAwait(false);
+            ExpectStatus(relative, HttpStatusCode.BadRequest, "relative base URL");
+            HttpResponseMessage batch = await PostAsync(admin, EndpointsPath(h.TenantId) + "/batch", new { items = new object[] { new { name = "ok", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "m" }, new { name = "bad", kind = "Embedding", apiFormat = "Ollama", baseUrl = "nope", model = "m" } } }).ConfigureAwait(false);
+            ExpectStatus(batch, HttpStatusCode.BadRequest, "batch with an invalid base URL");
         }
 
         private static async Task MemorySearchEmptyQueryAsync()

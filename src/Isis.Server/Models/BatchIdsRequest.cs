@@ -1,6 +1,8 @@
 namespace Isis.Server.Models
 {
     using System.Collections.Generic;
+    using System.Linq;
+    using Isis.Core.Helpers;
 
     /// <summary>
     /// A request carrying a list of identifiers, used by the uniform batch-get and batch-delete endpoints.
@@ -12,7 +14,23 @@ namespace Isis.Server.Models
         /// <summary>
         /// The identifiers to operate on.
         /// </summary>
-        public List<string> Ids { get; set; } = new List<string>();
+        public List<string> Ids
+        {
+            get
+            {
+                return _Ids;
+            }
+            set
+            {
+                _Ids = InputGuard.CleanList(value, 1000, 128, nameof(Ids)).Distinct().ToList();
+            }
+        }
+
+        #endregion
+
+        #region Private-Members
+
+        private List<string> _Ids = new List<string>();
 
         #endregion
 

@@ -1,5 +1,7 @@
 namespace Isis.Server.Settings
 {
+    using Isis.Core.Helpers;
+
     /// <summary>
     /// Request history capture settings.
     /// </summary>
@@ -26,7 +28,23 @@ namespace Isis.Server.Settings
         /// <summary>
         /// Maximum number of bytes of a request or response body to retain; longer bodies are truncated.
         /// </summary>
-        public int MaxBodyBytes { get; set; } = 16384;
+        public int MaxBodyBytes
+        {
+            get
+            {
+                return _MaxBodyBytes;
+            }
+            set
+            {
+                _MaxBodyBytes = InputGuard.Clamp(value, 0, 1048576);
+            }
+        }
+
+        #endregion
+
+        #region Private-Members
+
+        private int _MaxBodyBytes = 16384;
 
         #endregion
 
