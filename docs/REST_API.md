@@ -272,6 +272,28 @@ no relevant memory returns nothing; null keeps every hit). Creating or updating 
 is missing or not a `Rerank` endpoint returns 400. `PUT` replaces the whole scope, so send every field you want to
 keep (read the scope first).
 
+A scope also names the model for each remaining job and which optional query steps run. Every field is optional;
+null means the server default (the `retrieval` settings), so a scope only records what it overrides.
+
+| Field | Job | When null |
+| --- | --- | --- |
+| `embeddingEndpointId` | Vectors for memories and queries | the tenant's first embedding endpoint (set at creation) |
+| `rerankEndpointId`, `rerankCandidates`, `rerankMinScore` | Reranking: a cross-encoder, or a large chat model (`Ollama` or `OpenAI` format) for a slower, high-precision mode with a relevance cutoff | the tenant's first rerank endpoint on creation, 10, none |
+| `inferenceEndpointId` | Chat answers | the request's `inferenceEndpointId`, then the tenant's first active inference endpoint |
+| `queryEndpointId` | Rewriting chat follow-ups, splitting multi-part questions, and query expansion | `inferenceEndpointId`, then the chat model in use, then the tenant's first active inference endpoint |
+| `conversationRewrite` | Rewrite a chat follow-up into a standalone query (true / false) | `retrieval.chatConversationRewrite`, true |
+| `queryExpansion` | Expand searches with a drafted answer and keywords: `Off`, `On`, or `Auto` (only searches that are not reranked) | `retrieval.queryExpansion`, `Auto` |
+| `queryDecomposition` | Split multi-part questions into sub-queries (true / false) | `retrieval.queryDecomposition`, false |
+
+Settings resolve in the same order everywhere: the request, then the scope, then the server. A search's `expand` and
+`decompose` (and a chat request's `inferenceEndpointId`) override the scope for that call; left unset, they follow it.
+An endpoint the scope names must exist in the tenant and be of the right kind (400 otherwise); one that is later
+deactivated is skipped in favor of the next choice. With the default `Auto`, a scope that has a query model available
+and no reranker expands every search, which adds one short model call (about 2 s on the benchmark host). Over two
+benchmark runs it raised nDCG@10 on SciFact (+0.037) and LongMemEval (+0.021) and was neutral on the agent-memory
+datasets (within 0.01); in chat it doubled latency without improving what reached the prompt. A scope with a reranker
+is not expanded. Set `queryExpansion` to `Off` for latency-sensitive scopes without a reranker.
+
 A memory upsert accepts `supersedes`, a list of slugs (or `mem_` ids) of memories in the same scope that the new
 memory replaces, for example an earlier decision it reverses. The server keeps `supersededBy` (the id of the replacing
 memory) on each replaced memory; it is read-only. Removing a slug from `supersedes`, or deleting the replacing memory,
@@ -316,8 +338,8 @@ are searched alongside `queryText` and the rankings fused, so a memory that answ
 memories that answer another. `decompose: true` has an inference endpoint (`inferenceEndpointId`, or the tenant's
 first active one) split the question into sub-queries first; the reply is parsed generically, and a question the model
 keeps whole, or a reply it cannot read, searches the question as given. When more than one query ran, the response's
-`queries` lists them. Chat can split multi-part questions this way before retrieval (`retrieval.chatQueryDecomposition`, default false; in
-benchmarks it lowered retrieval and answer accuracy).
+`queries` lists them. Left unset, `decompose` follows the scope's `queryDecomposition` (then
+`retrieval.queryDecomposition`, default false); chat uses the same setting.
 
 Extra queries are fused by weighted reciprocal rank, with `queryText` at weight 1.0, so an extra query weighted lower
 adds memories without displacing the ones the question already ranks well. The fusion constant is the server setting
@@ -331,8 +353,16 @@ example `[{ "text": "…", "weight": 0.5, "mode": "Semantic" }]`.
 because it reads like a stored memory, and keywords a relevant memory would contain (with any identifiers from the
 question), searched as text. Both are added as sub-queries at `expansionWeight` (0 to 1; null uses the server's
 `retrieval.expansionWeight`, default 0.5). In Semantic mode only the answer is used, and in Keyword mode only the
-keywords. A reply the endpoint cannot give or the server cannot read adds nothing. Chat can expand questions the same
-way (`retrieval.chatQueryExpansion`, default false). The reranker, when one runs, always scores against `queryText`.
+keywords. A reply the endpoint cannot give or the server cannot read adds nothing. Left unset, `expand` follows the
+scope's `queryExpansion` (then `retrieval.queryExpansion`, default `Auto`: expand searches that are not reranked);
+chat uses the same setting. The model is the request's `inferenceEndpointId`, then the scope's `queryEndpointId` and
+`inferenceEndpointId`, then the tenant's first active inference endpoint; a search that asks for a step no model can
+run gets a notice. The reranker, when one runs, always scores against `queryText`.
+
+On RecallDB, a hybrid search runs as one call when the RecallDB server reports the `search.hybrid.rrf` and
+`search.collapse` capabilities: RecallDB fuses both legs with the same weights, constant, and recency signal and
+returns one hit per memory. Older servers, or a failed call, use two calls fused in Isis; both paths give the same
+results. `retrieval.serverSideHybrid` (default true) turns the single call off.
 
 Each hit has `storeKey`, `slug`, `title`, `snippet`, and `score`, plus the evidence behind the score: `vectorScore`
 and `textScore` (the raw leg scores, null when that leg did not return the hit), and in hybrid mode `vectorRank`
@@ -344,6 +374,8 @@ hold the reranker's score (0..1 for TEI and Cohere-compatible rerankers). Hits a
 brought this memory in by link expansion or as a replacement, null for directly retrieved memories).
 
 Chat (`POST …/scopes/{scopeId}/chat`) takes `{ "question": "…", "topK": 0, "inferenceEndpointId": "…", "history": null }`.
+The answering model is `inferenceEndpointId`, then the scope's `inferenceEndpointId`, then the tenant's first active
+inference endpoint.
 A `topK` of 0 (the default) retrieves the server's default number of memories, 8. Chat follows up to 2 links from the
 retrieved memories (server setting `retrieval.chatLinkExpansion`), tells the model which memories are outdated, and,
 when the scope's reranker rejects every candidate, grounds the answer on no memories so the model says the answer is

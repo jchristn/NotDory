@@ -163,7 +163,22 @@ export const en = {
       rerankEndpoint: 'Rerank endpoint',
       rerankCandidates: 'Rerank candidates',
       rerankMinScore: 'Minimum rerank score',
-      rerankHint: 'When set, searches send this many candidates to the reranker and keep the best. A minimum score drops weak matches so an unanswerable question returns nothing; leave it blank to keep all.'
+      rerankHint: 'When set, searches send this many candidates to the reranker and keep the best. A minimum score drops weak matches so an unanswerable question returns nothing; leave it blank to keep all.',
+      modelsTitle: 'Models and query steps',
+      chatModel: 'Chat model',
+      queryModel: 'Query model',
+      conversationRewrite: 'Rewrite follow-up questions',
+      queryExpansion: 'Query expansion',
+      queryDecomposition: 'Split multi-part questions',
+      serverDefault: 'Server default',
+      tenantDefault: 'Tenant default',
+      sameAsChat: 'Same as chat model',
+      enabled: 'On',
+      disabled: 'Off',
+      expansionAuto: 'Auto (when not reranked)',
+      expansionOn: 'On',
+      expansionOff: 'Off',
+      modelsHint: 'The chat model answers chat in this scope. The query model rewrites follow-up questions, splits multi-part questions, and drafts an answer and keywords to expand searches; it defaults to the chat model. A reranker can also be a large chat model (Ollama or OpenAI format) for a slower, high-precision mode. Unset values follow the server settings.'
     },
     instructions: {
       title: 'Instructions',

@@ -18,7 +18,8 @@ import {
   FILESYSTEM_LAYOUT_LABELS,
   CHUNKING_MODES,
   CHUNKING_MODE_LABELS,
-  CHUNK_STRATEGIES
+  CHUNK_STRATEGIES,
+  QUERY_EXPANSION_MODES
 } from '../utils/constants';
 
 const EMPTY = {
@@ -35,15 +36,33 @@ const EMPTY = {
   chunkMaxTokens: 0,
   chunkOverlapTokens: 64,
   rerankEndpointId: '',
-  rerankCandidates: 20,
-  rerankMinScore: ''
+  rerankCandidates: 10,
+  rerankMinScore: '',
+  inferenceEndpointId: '',
+  queryEndpointId: '',
+  conversationRewrite: '',
+  queryExpansion: '',
+  queryDecomposition: ''
 };
 
-function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, t }) {
+// Tri-state switches: '' follows the server default; 'true' / 'false' override it.
+const toTriState = (value) => (value === true ? 'true' : value === false ? 'false' : '');
+const fromTriState = (value) => (value === 'true' ? true : value === 'false' ? false : null);
+
+function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, inferenceEndpoints, t }) {
   const [form, setForm] = useState(() => {
     const merged = { ...EMPTY, ...(initial || {}) };
     // Nulls from the API would make the inputs uncontrolled.
-    return { ...merged, rerankEndpointId: merged.rerankEndpointId || '', rerankMinScore: merged.rerankMinScore ?? '' };
+    return {
+      ...merged,
+      rerankEndpointId: merged.rerankEndpointId || '',
+      rerankMinScore: merged.rerankMinScore ?? '',
+      inferenceEndpointId: merged.inferenceEndpointId || '',
+      queryEndpointId: merged.queryEndpointId || '',
+      conversationRewrite: toTriState(merged.conversationRewrite),
+      queryExpansion: merged.queryExpansion || '',
+      queryDecomposition: toTriState(merged.queryDecomposition)
+    };
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -71,7 +90,12 @@ function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, t }
         // The scope update replaces the whole scope, so always send the rerank settings.
         rerankEndpointId: form.rerankEndpointId || null,
         rerankCandidates: Number(form.rerankCandidates) || 20,
-        rerankMinScore: form.rerankMinScore === '' || form.rerankMinScore === null ? null : Number(form.rerankMinScore)
+        rerankMinScore: form.rerankMinScore === '' || form.rerankMinScore === null ? null : Number(form.rerankMinScore),
+        inferenceEndpointId: form.inferenceEndpointId || null,
+        queryEndpointId: form.queryEndpointId || null,
+        conversationRewrite: fromTriState(form.conversationRewrite),
+        queryExpansion: form.queryExpansion || null,
+        queryDecomposition: fromTriState(form.queryDecomposition)
       });
       onClose();
     } catch (e2) {
@@ -237,6 +261,63 @@ function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, t }
           </div>
         </div>
         <div className="field-hint">{t('scopes.rerankHint')}</div>
+        <div className="section-title" style={{ marginTop: 'var(--spacing-md)' }}>
+          {t('scopes.modelsTitle')}
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label>{t('scopes.chatModel')}</label>
+            <select value={form.inferenceEndpointId} onChange={(e) => set('inferenceEndpointId', e.target.value)}>
+              <option value="">{t('scopes.tenantDefault')}</option>
+              {inferenceEndpoints.map((ep) => (
+                <option key={ep.id || ep.Id} value={ep.id || ep.Id}>
+                  {ep.name || ep.id} ({ep.model})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>{t('scopes.queryModel')}</label>
+            <select value={form.queryEndpointId} onChange={(e) => set('queryEndpointId', e.target.value)}>
+              <option value="">{t('scopes.sameAsChat')}</option>
+              {inferenceEndpoints.map((ep) => (
+                <option key={ep.id || ep.Id} value={ep.id || ep.Id}>
+                  {ep.name || ep.id} ({ep.model})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label>{t('scopes.queryExpansion')}</label>
+            <select value={form.queryExpansion} onChange={(e) => set('queryExpansion', e.target.value)}>
+              <option value="">{t('scopes.serverDefault')}</option>
+              {QUERY_EXPANSION_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {t('scopes.expansion' + m)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>{t('scopes.conversationRewrite')}</label>
+            <select value={form.conversationRewrite} onChange={(e) => set('conversationRewrite', e.target.value)}>
+              <option value="">{t('scopes.serverDefault')}</option>
+              <option value="true">{t('scopes.enabled')}</option>
+              <option value="false">{t('scopes.disabled')}</option>
+            </select>
+          </div>
+          <div className="field">
+            <label>{t('scopes.queryDecomposition')}</label>
+            <select value={form.queryDecomposition} onChange={(e) => set('queryDecomposition', e.target.value)}>
+              <option value="">{t('scopes.serverDefault')}</option>
+              <option value="true">{t('scopes.enabled')}</option>
+              <option value="false">{t('scopes.disabled')}</option>
+            </select>
+          </div>
+        </div>
+        <div className="field-hint">{t('scopes.modelsHint')}</div>
       </form>
     </Modal>
   );
@@ -251,6 +332,7 @@ function ScopesView() {
   const [scopes, setScopes] = useState([]);
   const [endpoints, setEndpoints] = useState([]);
   const [rerankEndpoints, setRerankEndpoints] = useState([]);
+  const [inferenceEndpoints, setInferenceEndpoints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null); // scope object or EMPTY sentinel
@@ -281,6 +363,12 @@ function ScopesView() {
       setRerankEndpoints(reps.items || []);
     } catch {
       setRerankEndpoints([]);
+    }
+    try {
+      const ieps = await apiClient.listEndpoints(tenantId, 'Inference', { maxResults: 1000 });
+      setInferenceEndpoints(ieps.items || []);
+    } catch {
+      setInferenceEndpoints([]);
     }
   }, [apiClient, tenantId]);
 
@@ -410,6 +498,7 @@ function ScopesView() {
           initial={editing}
           endpoints={endpoints}
           rerankEndpoints={rerankEndpoints}
+          inferenceEndpoints={inferenceEndpoints}
           t={t}
           onSubmit={handleSubmit}
           onClose={() => setShowForm(false)}

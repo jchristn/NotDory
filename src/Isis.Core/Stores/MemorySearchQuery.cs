@@ -190,7 +190,7 @@ namespace Isis.Core.Stores
         /// text), fused at <see cref="ExpansionWeight"/> below the main query. Default false. Uses
         /// <see cref="InferenceEndpointId"/>, or the tenant's first active inference endpoint.
         /// </summary>
-        public bool Expand { get; set; } = false;
+        public bool? Expand { get; set; } = null;
 
         /// <summary>
         /// Fusion weight of the <see cref="Expand"/> forms relative to the main query's 1.0, from 0.0 to 1.0. Values
@@ -213,7 +213,7 @@ namespace Isis.Core.Stores
         /// <see cref="AdditionalQueries"/>) before searching. Default false. Uses
         /// <see cref="InferenceEndpointId"/>, or the tenant's first active inference endpoint.
         /// </summary>
-        public bool Decompose { get; set; } = false;
+        public bool? Decompose { get; set; } = null;
 
         /// <summary>
         /// Inference endpoint used when <see cref="Decompose"/> or <see cref="Expand"/> is true. Null uses the tenant's

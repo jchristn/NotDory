@@ -59,26 +59,16 @@ namespace Isis.Server.Services
         }
 
         /// <summary>
-        /// Whether the chat model is asked to split a multi-part question into sub-queries before retrieval, so each
-        /// part's memories are found. Costs one short inference call per question. Default false: with each part fused
-        /// at the same weight as the question, it lowered retrieval and answer accuracy in benchmarks.
+        /// The query preparer: decides per scope which model rewrites, splits, and expands queries and whether those
+        /// steps run, and applies them before retrieval.
         /// </summary>
-        public bool QueryDecomposition { get; set; } = false;
-
-        /// <summary>
-        /// Whether a question sent with earlier messages is rewritten into a standalone query before retrieval, so a
-        /// follow-up such as "and for staging?" finds the memories it is about. Retrieval searches both the question as
-        /// sent and the rewrite, and the answer prompt shows the recent conversation. Costs one short inference call
-        /// per question that has history; questions without history are unaffected. Default true.
-        /// </summary>
-        public bool ConversationRewrite { get; set; } = true;
-
-        /// <summary>
-        /// Whether each question is expanded with a drafted answer (searched by vector) and keywords (searched as text),
-        /// fused below the question's own weight (<see cref="MemoryService.ExpansionWeight"/>). Costs one short
-        /// inference call per question. Default false.
-        /// </summary>
-        public bool QueryExpansion { get; set; } = false;
+        public QueryPreparer Preparer
+        {
+            get
+            {
+                return _Preparer;
+            }
+        }
 
         /// <summary>
         /// The rewriter used for follow-up questions; its settings bound how much conversation is used.
@@ -87,7 +77,7 @@ namespace Isis.Server.Services
         {
             get
             {
-                return _Rewriter;
+                return _Preparer.Rewriter;
             }
         }
 
@@ -97,9 +87,7 @@ namespace Isis.Server.Services
 
         private int _DefaultTopK = 8;
         private int _LinkExpansion = 2;
-        private readonly QueryDecomposer _Decomposer;
-        private readonly ConversationRewriter _Rewriter;
-        private readonly QueryExpander _Expander;
+        private readonly QueryPreparer _Preparer;
 
         private readonly MemoryService _MemoryService;
         private readonly InferenceService _InferenceService;
@@ -113,14 +101,14 @@ namespace Isis.Server.Services
         /// </summary>
         /// <param name="memoryService">The memory service used for retrieval.</param>
         /// <param name="inferenceService">The inference service used for answer synthesis.</param>
+        /// <param name="preparer">The query preparer, shared with search. Null creates one that resolves only the chat
+        /// model it is given.</param>
         /// <exception cref="ArgumentNullException">Thrown when a required argument is null.</exception>
-        public MemoryChatService(MemoryService memoryService, InferenceService inferenceService)
+        public MemoryChatService(MemoryService memoryService, InferenceService inferenceService, QueryPreparer? preparer = null)
         {
             _MemoryService = memoryService ?? throw new ArgumentNullException(nameof(memoryService));
             _InferenceService = inferenceService ?? throw new ArgumentNullException(nameof(inferenceService));
-            _Decomposer = new QueryDecomposer(_InferenceService);
-            _Rewriter = new ConversationRewriter(_InferenceService);
-            _Expander = new QueryExpander(_InferenceService);
+            _Preparer = preparer ?? new QueryPreparer(memoryService, inferenceService);
         }
 
         #endregion
@@ -356,7 +344,7 @@ namespace Isis.Server.Services
 
         private string FormatHistory(List<ChatTurn>? history)
         {
-            return ConversationRewriter.FormatConversation(history, _Rewriter.MaxTurns, _Rewriter.MaxTurnChars);
+            return ConversationRewriter.FormatConversation(history, _Preparer.Rewriter.MaxTurns, _Preparer.Rewriter.MaxTurnChars);
         }
 
         /// <summary>
@@ -387,37 +375,17 @@ namespace Isis.Server.Services
             // not in a memory's opening sentence.
             MemorySearchQuery query = new MemorySearchQuery { QueryText = question, Mode = SearchModeEnum.Hybrid, TopK = k, TokenBudget = _ContextCharsPerMemory, LinkExpansion = _LinkExpansion };
 
-            // A follow-up is searched both as sent and as a standalone rewrite: the rewrite finds what the follow-up is
-            // about, and the original keeps any exact terms the rewrite might have dropped.
+            // Query steps follow the scope's settings (then the server defaults): rewrite a follow-up, split a multi-part
+            // question, and expand the question, on the scope's query model (then its chat model).
+            bool rewrite = _Preparer.ShouldRewrite(scope) && history != null && history.Count > 0;
+            bool decompose = _Preparer.ShouldDecompose(scope, null);
+            bool expand = _Preparer.ShouldExpand(scope, null, !string.IsNullOrEmpty(scope.RerankEndpointId));
             string? standalone = null;
-            if (ConversationRewrite && history != null && history.Count > 0)
+            if (rewrite || decompose || expand)
             {
-                standalone = await _Rewriter.RewriteAsync(inferenceEndpoint, history, question, token).ConfigureAwait(false);
-                // The standalone form is the better query for a follow-up, so it keeps full weight.
-                if (standalone != null) query.SubQueries = new List<MemorySubQuery> { new MemorySubQuery { Text = standalone, Weight = 1.0 } };
-            }
-
-            if (QueryDecomposition)
-            {
-                List<string> parts = await _Decomposer.DecomposeAsync(inferenceEndpoint, standalone ?? question, token).ConfigureAwait(false);
-                if (parts.Count > 0)
-                {
-                    List<string> additional = query.AdditionalQueries ?? new List<string>();
-                    additional.AddRange(parts);
-                    query.AdditionalQueries = additional;
-                }
-            }
-
-            if (QueryExpansion)
-            {
-                QueryExpansion expansion = await _Expander.ExpandAsync(inferenceEndpoint, standalone ?? question, token).ConfigureAwait(false);
-                List<MemorySubQuery> forms = QueryExpander.ToSubQueries(expansion, query.Mode, _MemoryService.ExpansionWeight);
-                if (forms.Count > 0)
-                {
-                    List<MemorySubQuery> subQueries = query.SubQueries ?? new List<MemorySubQuery>();
-                    subQueries.AddRange(forms);
-                    query.SubQueries = subQueries;
-                }
+                ModelEndpoint? queryEndpoint = await _Preparer.ResolveQueryEndpointAsync(scope, null, inferenceEndpoint, token).ConfigureAwait(false);
+                QueryPreparation preparation = await _Preparer.PrepareAsync(query, queryEndpoint, history, rewrite, decompose, expand, token).ConfigureAwait(false);
+                standalone = preparation.StandaloneQuestion;
             }
 
             MemorySearchResult retrieval = await _MemoryService.SearchAsync(scope, query, token).ConfigureAwait(false);

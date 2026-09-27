@@ -1,21 +1,23 @@
 namespace Test.Shared
 {
-    using System;
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
-    using System.Net;
     using System.Net.Http;
+    using System.Net;
     using System.Text.Json;
-    using System.Threading;
     using System.Threading.Tasks;
+    using System.Threading;
+    using System;
     using Isis.Core.Database.Migrations;
     using Isis.Core.Enums;
     using Isis.Core.Helpers;
     using Isis.Core.Models;
     using Isis.Core.Recall;
+    using Isis.Core.Stores.RecallDb;
     using Isis.Core.Stores;
     using Isis.Server.Services;
+    using RecallDb.Sdk;
     using TextChunker.Tokenization;
     using Touchstone.Core;
 
@@ -103,7 +105,9 @@ namespace Test.Shared
                     TestCase.Sync("refinement", "expander-parse", "QueryExpander.Parse reads the answer and keywords, tolerating thinking and bad JSON", ExpanderParse),
                     TestCase.Sync("refinement", "expander-subqueries", "QueryExpander.ToSubQueries: answer by vector, keywords as text, per search mode", ExpanderSubQueries),
                     TestCase.Async("refinement", "search-sub-query-weight", "Search: weighted sub-queries add results below the main query; weight 0 drops them", SearchSubQueryWeightAsync),
-                    TestCase.Sync("refinement", "query-weight-settings", "Query weights: defaults (additional 1.0, expansion 0.5) and validation", QueryWeightSettings)
+                    TestCase.Sync("refinement", "query-weight-settings", "Query weights: defaults (additional 1.0, expansion 0.5) and validation", QueryWeightSettings),
+                    TestCase.Async("refinement", "server-hybrid-single-call", "RecallDB store: a capable server gets one hybrid call with Isis's fusion settings and collapse", ServerHybridSingleCallAsync),
+                    TestCase.Async("refinement", "server-hybrid-fallbacks", "RecallDB store: no capability, the switch off, or a failed call use the two-call path", ServerHybridFallbacksAsync)
                 });
         }
 
@@ -1023,7 +1027,7 @@ namespace Test.Shared
         private static void QueryWeightSettings()
         {
             Isis.Server.Settings.RetrievalSettings settings = new Isis.Server.Settings.RetrievalSettings();
-            TestCase.Require(settings.AdditionalQueryWeight == 1.0 && settings.ExpansionWeight == 0.5 && !settings.ChatQueryExpansion, "Defaults should be additional 1.0, expansion 0.5, chat expansion off.");
+            TestCase.Require(settings.AdditionalQueryWeight == 1.0 && settings.ExpansionWeight == 0.5 && settings.QueryExpansion == QueryExpansionModeEnum.Auto, "Defaults should be additional 1.0, expansion 0.5, expansion Auto.");
             TestCase.Require(settings.QueryFusionRrfK == 5 && MemoryService.QueryFusionRrfK == 5, "The multi-query fusion constant should default to 5.");
             TestCase.Throws<ArgumentOutOfRangeException>(() => settings.QueryFusionRrfK = 0, "A query fusion constant below 1 should be rejected.");
             TestCase.Throws<ArgumentOutOfRangeException>(() => settings.ExpansionWeight = 1.5, "An expansion weight above 1 should be rejected.");
@@ -1031,6 +1035,80 @@ namespace Test.Shared
             TestCase.Require(query.ExpansionWeight == 1.0 && query.AdditionalQueryWeight == 0.0, "Per-search weights should clamp to [0, 1].");
             MemorySubQuery sub = new MemorySubQuery { Weight = 3.0 };
             TestCase.Require(sub.Weight == 1.0, "A sub-query weight should clamp to 1.");
+        }
+
+        private const string _CapableHealth = "{\"Name\":\"RecallDB\",\"Version\":\"0.2.1\",\"Capabilities\":[\"search.hybrid.rrf\",\"search.hybrid.recency\",\"search.collapse\",\"search.include-embeddings\"]}";
+        private const string _OldHealth = "{\"Name\":\"RecallDB\",\"Version\":\"0.2.1\"}";
+        private const string _SearchBody = "{\"Success\":true,\"Documents\":[" +
+            "{\"DocumentKey\":\"mem_a\",\"DocumentId\":\"alpha\",\"Content\":\"alpha text\",\"Score\":1.0,\"VectorScore\":0.9,\"TextScore\":0.4,\"VectorRank\":1,\"TextRank\":1,\"Tags\":{\"parentKey\":\"mem_a\",\"title\":\"Alpha\"}}," +
+            "{\"DocumentKey\":\"mem_b-c0\",\"DocumentId\":\"beta\",\"Content\":\"beta text\",\"Score\":0.6,\"VectorScore\":0.2,\"TextScore\":0.3,\"TextRank\":2,\"Tags\":{\"parentKey\":\"mem_b\"}}]}";
+
+        private static Scope RecallScope()
+        {
+            return new Scope { Id = "scp_x", TenantId = "ten_x", Name = "s", StoreProvider = StoreProviderEnum.RecallDb, RecallCollectionId = "col_x", Dimensionality = 3 };
+        }
+
+        private static RoutingStubHandler RecallStub(string health, HttpStatusCode singleCallStatus)
+        {
+            return new RoutingStubHandler((method, path, body) =>
+            {
+                if (method == "GET" && (path == "/" || path == string.Empty)) return new KeyValuePair<HttpStatusCode, string>(HttpStatusCode.OK, health);
+                if (path.EndsWith("/search", StringComparison.Ordinal) && body.Contains("\"Hybrid\"", StringComparison.OrdinalIgnoreCase) && body.Contains("\"Collapse\"", StringComparison.OrdinalIgnoreCase))
+                    return new KeyValuePair<HttpStatusCode, string>(singleCallStatus, singleCallStatus == HttpStatusCode.OK ? _SearchBody : "{\"Error\":\"BadRequest\",\"Message\":\"no\"}");
+                return new KeyValuePair<HttpStatusCode, string>(HttpStatusCode.OK, _SearchBody);
+            });
+        }
+
+        private static async Task ServerHybridSingleCallAsync()
+        {
+            RoutingStubHandler handler = RecallStub(_CapableHealth, HttpStatusCode.OK);
+            using RecallDbClient client = new RecallDbClient("http://127.0.0.1:9", "key", handler);
+            RecallDbMemoryStore store = new RecallDbMemoryStore(client);
+            MemorySearchQuery query = new MemorySearchQuery { QueryText = "alpha", Mode = SearchModeEnum.Hybrid, TopK = 5, TextWeight = 0.4, RrfK = 20, RecencyWeight = 0.1, CategoryFilter = "cat_x" };
+            MemorySearchResult result = await store.SearchAsync(RecallScope(), query, new float[] { 0.1f, 0.2f, 0.3f }).ConfigureAwait(false);
+
+            List<string> searches = handler.Requests.Where(r => r.StartsWith("POST", StringComparison.Ordinal) && r.Contains("/search", StringComparison.Ordinal)).ToList();
+            TestCase.Require(searches.Count == 1, "A capable server should get exactly one search call, got " + searches.Count + ".");
+            string sent = searches[0];
+            TestCase.Require(sent.Contains("\"RrfK\":20", StringComparison.OrdinalIgnoreCase) && sent.Contains("\"TextWeight\":0.4", StringComparison.OrdinalIgnoreCase) && sent.Contains("\"RecencyWeight\":0.1", StringComparison.OrdinalIgnoreCase), "The call should carry Isis's fusion settings: " + sent);
+            TestCase.Require(sent.Contains("parentKey", StringComparison.Ordinal) && sent.Contains("cat_x", StringComparison.Ordinal), "The call should collapse by parentKey and filter by category: " + sent);
+            TestCase.Require(result.EffectiveMode == SearchModeEnum.Hybrid && result.Hits.Count == 2 && result.Hits[0].Slug == "alpha" && result.Hits[0].StoreKey == "mem_a" && result.Hits[0].Title == "Alpha", "Hits should map from the fused documents.");
+            TestCase.Require(result.Hits[0].VectorRank == 1 && result.Hits[0].VectorScore == 0.9 && result.Hits[1].VectorScore == null && result.Hits[1].TextRank == 2, "A hit the vector leg did not rank should carry no vector score.");
+        }
+
+        private static async Task ServerHybridFallbacksAsync()
+        {
+            float[] embedding = new float[] { 0.1f, 0.2f, 0.3f };
+            MemorySearchQuery query = new MemorySearchQuery { QueryText = "alpha", Mode = SearchModeEnum.Hybrid, TopK = 5 };
+
+            RoutingStubHandler old = RecallStub(_OldHealth, HttpStatusCode.OK);
+            using (RecallDbClient client = new RecallDbClient("http://127.0.0.1:9", "key", old))
+            {
+                MemorySearchResult result = await new RecallDbMemoryStore(client).SearchAsync(RecallScope(), query, embedding).ConfigureAwait(false);
+                TestCase.Require(old.Requests.Count(r => r.Contains("/search", StringComparison.Ordinal)) == 2 && result.Hits.Count == 2, "A server without the capability should get the two legs.");
+            }
+
+            RoutingStubHandler failing = RecallStub(_CapableHealth, HttpStatusCode.BadRequest);
+            using (RecallDbClient client = new RecallDbClient("http://127.0.0.1:9", "key", failing))
+            {
+                MemorySearchResult result = await new RecallDbMemoryStore(client).SearchAsync(RecallScope(), query, embedding).ConfigureAwait(false);
+                TestCase.Require(failing.Requests.Count(r => r.Contains("/search", StringComparison.Ordinal)) == 3 && result.Hits.Count == 2, "A failed single call should fall back to the two legs.");
+            }
+
+            RoutingStubHandler capable = RecallStub(_CapableHealth, HttpStatusCode.OK);
+            RecallDbMemoryStore.ServerSideHybrid = false;
+            try
+            {
+                using RecallDbClient client = new RecallDbClient("http://127.0.0.1:9", "key", capable);
+                await new RecallDbMemoryStore(client).SearchAsync(RecallScope(), query, embedding).ConfigureAwait(false);
+                TestCase.Require(capable.Requests.Count(r => r.Contains("/search", StringComparison.Ordinal)) == 2, "With the switch off, the two legs should be used.");
+            }
+            finally
+            {
+                RecallDbMemoryStore.ServerSideHybrid = true;
+            }
+
+            TestCase.Require(new Isis.Server.Settings.RetrievalSettings().ServerSideHybrid, "Server-side hybrid should default on.");
         }
 
         private static void ModelProfiles()
@@ -1071,7 +1149,7 @@ namespace Test.Shared
             TestCase.Require(query.TextWeight == 1.0, "TextWeight should clamp to 1.");
             TestCase.Require(Isis.Core.Stores.RecallDb.HybridFusion.DefaultRrfK == 20, "The generic RRF constant should be 20.");
             TestCase.Throws<ArgumentOutOfRangeException>(() => Isis.Core.Stores.RecallDb.HybridFusion.DefaultRrfK = 0, "A default RRF constant below 1 should be rejected.");
-            TestCase.Require(!new Isis.Server.Settings.RetrievalSettings().ChatQueryDecomposition, "Chat query decomposition should default to off.");
+            TestCase.Require(!new Isis.Server.Settings.RetrievalSettings().QueryDecomposition, "Query decomposition should default to off.");
         }
 
         private static async Task RerankCircuitBreakerAsync()

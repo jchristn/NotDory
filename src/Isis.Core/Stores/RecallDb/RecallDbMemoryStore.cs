@@ -7,11 +7,13 @@ namespace Isis.Core.Stores.RecallDb
     using System.Threading;
     using System.Threading.Tasks;
     using global::RecallDb.Sdk;
+    using global::RecallDb.Sdk.Constants;
     using global::RecallDb.Sdk.Models;
     using Isis.Core.Enums;
     using Isis.Core.Models;
     using Isis.Core.Observability;
     using Isis.Core.Stores;
+    using RecallCapabilities = global::RecallDb.Sdk.Constants.Capabilities;
     using RecallCollectionPage = global::RecallDb.Sdk.Models.EnumerationResult<global::RecallDb.Sdk.Models.CollectionMetadata>;
     using RecallEnumerationQuery = global::RecallDb.Sdk.Models.EnumerationQuery;
 
@@ -23,6 +25,13 @@ namespace Isis.Core.Stores.RecallDb
     public class RecallDbMemoryStore : IMemoryStore
     {
         #region Public-Members
+
+        /// <summary>
+        /// Whether hybrid searches use RecallDB's single-call hybrid search (both legs, fusion, recency, and collapse
+        /// on the server) when the server reports the capability. False always runs the two legs separately and fuses
+        /// them here. Default true.
+        /// </summary>
+        public static bool ServerSideHybrid { get; set; } = true;
 
         /// <inheritdoc />
         public StoreCapabilities Capabilities { get; } = new StoreCapabilities
@@ -49,6 +58,16 @@ namespace Isis.Core.Stores.RecallDb
         /// </summary>
         public RecallDbMemoryStore()
         {
+        }
+
+        /// <summary>
+        /// Instantiate a store over an existing client, for example one built with a custom HTTP handler.
+        /// </summary>
+        /// <param name="client">The RecallDB client.</param>
+        /// <exception cref="ArgumentNullException">Thrown when client is null.</exception>
+        public RecallDbMemoryStore(RecallDbClient client)
+        {
+            _Client = client ?? throw new ArgumentNullException(nameof(client));
         }
 
         /// <summary>
@@ -363,36 +382,15 @@ namespace Isis.Core.Stores.RecallDb
 
             if (wantSemantic && wantKeyword)
             {
-                // Hybrid = UNION of a vector-only and a full-text-only search, fused by reciprocal rank.
-                // RecallDB's combined Vector+FullText query applies the text query as a REQUIRED filter, so a
-                // strong vector match is dropped whenever a natural-language question shares no literal keyword
-                // with the memory (the common case for "what can you tell me about X?"). Running the two
-                // searches separately and unioning them keeps semantic hits that have no keyword overlap.
-                SearchQuery vectorQuery = new SearchQuery
-                {
-                    MaxResults = fetch,
-                    LabelFilter = labelFilter,
-                    Vector = new VectorQuery { SearchType = "CosineSimilarity", Embeddings = queryEmbedding!.ToList() }
-                };
-                SearchQuery textQuery = new SearchQuery
-                {
-                    MaxResults = fetch,
-                    LabelFilter = labelFilter,
-                    FullText = new FullTextQuery { Query = query.QueryText }
-                };
+                // Prefer one call when the server supports it: RecallDB runs both legs, fuses them by weighted reciprocal
+                // rank with the recency signal, and collapses chunks to one hit per memory, with the same formula and
+                // settings as HybridFusion. Older servers, or a failed call, use the two-call path.
+                List<FusedDocument>? serverFused = null;
+                if (ServerSideHybrid && await SupportsServerHybridAsync(client, query.RecencyWeight > 0.0, token).ConfigureAwait(false))
+                    serverFused = await ServerHybridSearchAsync(client, scope, query, queryEmbedding!, labelFilter, topK, fetch, token).ConfigureAwait(false);
 
-                // The two legs are independent, so run them concurrently: hybrid latency becomes max(vector, text)
-                // instead of their sum.
-                Task<SearchResult> vectorTask = ExecuteSearchAsync(client, scope, vectorQuery, token);
-                Task<SearchResult> textTask = ExecuteSearchAsync(client, scope, textQuery, token);
-                await Task.WhenAll(vectorTask, textTask).ConfigureAwait(false);
-                SearchResult vectorResult = await vectorTask.ConfigureAwait(false);
-                SearchResult textResult = await textTask.ConfigureAwait(false);
-
-                // Fuse at the chunk-document level (with the optional recency signal), then roll chunks up to one
-                // hit per memory. The fused score is normalized to [0, 1] so it can be thresholded with MinScore.
-                List<FusedDocument> fused = HybridFusion.Fuse(vectorResult.Documents, textResult.Documents, query.TextWeight ?? HybridFusion.DefaultTextWeight, query.RecencyWeight, ParentKey, query.RrfK ?? HybridFusion.DefaultRrfK);
-                documents = GroupByParent(fused, topK);
+                activity?.SetTag("isis.hybrid.path", serverFused != null ? "server" : "client");
+                documents = serverFused ?? await ClientHybridSearchAsync(client, scope, query, queryEmbedding!, labelFilter, topK, fetch, token).ConfigureAwait(false);
                 effectiveMode = SearchModeEnum.Hybrid;
             }
             else
@@ -505,6 +503,98 @@ namespace Isis.Core.Stores.RecallDb
             {
                 throw new InvalidOperationException("RecallDB search failed: " + e.Message, e);
             }
+        }
+
+        private static async Task<bool> SupportsServerHybridAsync(RecallDbClient client, bool needsRecency, CancellationToken token)
+        {
+            // The SDK caches the server's capability list per client; a server that predates the list supports none.
+            try
+            {
+                if (!await client.SupportsAsync(RecallCapabilities.HybridRrf, false, token).ConfigureAwait(false)) return false;
+                if (!await client.SupportsAsync(RecallCapabilities.Collapse, false, token).ConfigureAwait(false)) return false;
+                return !needsRecency || await client.SupportsAsync(RecallCapabilities.HybridRecency, false, token).ConfigureAwait(false);
+            }
+            catch (Exception e) when (!(e is OperationCanceledException && token.IsCancellationRequested))
+            {
+                return false;
+            }
+        }
+
+        private static async Task<List<FusedDocument>?> ServerHybridSearchAsync(RecallDbClient client, Scope scope, MemorySearchQuery query, float[] queryEmbedding, LabelFilter? labelFilter, int topK, int fetch, CancellationToken token)
+        {
+            SearchQuery search = new SearchQuery
+            {
+                MaxResults = topK,
+                LabelFilter = labelFilter,
+                Vector = new VectorQuery { SearchType = "CosineSimilarity", Embeddings = queryEmbedding.ToList() },
+                FullText = new FullTextQuery { Query = query.QueryText, TextWeight = query.TextWeight ?? HybridFusion.DefaultTextWeight },
+                Hybrid = new HybridQuery
+                {
+                    Strategy = HybridStrategies.Rrf,
+                    RrfK = query.RrfK ?? HybridFusion.DefaultRrfK,
+                    CandidatePool = fetch,
+                    RecencyWeight = query.RecencyWeight > 0.0 ? query.RecencyWeight : null
+                },
+                Collapse = new CollapseQuery { Field = CollapseFields.Tag, TagKey = "parentKey" }
+            };
+
+            SearchResult result;
+            try
+            {
+                result = await ExecuteSearchAsync(client, scope, search, token).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
+
+            List<FusedDocument> fused = new List<FusedDocument>();
+            foreach (DocumentRecord document in result.Documents ?? new List<DocumentRecord>())
+            {
+                // The server scores the vector leg for every candidate; like HybridFusion, report a vector score only
+                // for hits the vector leg actually ranked.
+                fused.Add(new FusedDocument(document)
+                {
+                    Score = document.Score,
+                    VectorRank = document.VectorRank,
+                    TextRank = document.TextRank,
+                    RecencyRank = document.RecencyRank,
+                    VectorScore = document.VectorRank.HasValue ? document.VectorScore : null,
+                    TextScore = document.TextRank.HasValue ? document.TextScore : null
+                });
+            }
+
+            return GroupByParent(fused, topK);
+        }
+
+        private static async Task<List<FusedDocument>> ClientHybridSearchAsync(RecallDbClient client, Scope scope, MemorySearchQuery query, float[] queryEmbedding, LabelFilter? labelFilter, int topK, int fetch, CancellationToken token)
+        {
+            // Hybrid = UNION of a vector-only and a full-text-only search, fused by reciprocal rank. RecallDB's older
+            // combined query applied the text query as a required filter, dropping strong vector matches that share no
+            // keyword with the question, so the legs run separately and concurrently (latency is the slower leg).
+            SearchQuery vectorQuery = new SearchQuery
+            {
+                MaxResults = fetch,
+                LabelFilter = labelFilter,
+                Vector = new VectorQuery { SearchType = "CosineSimilarity", Embeddings = queryEmbedding.ToList() }
+            };
+            SearchQuery textQuery = new SearchQuery
+            {
+                MaxResults = fetch,
+                LabelFilter = labelFilter,
+                FullText = new FullTextQuery { Query = query.QueryText }
+            };
+
+            Task<SearchResult> vectorTask = ExecuteSearchAsync(client, scope, vectorQuery, token);
+            Task<SearchResult> textTask = ExecuteSearchAsync(client, scope, textQuery, token);
+            await Task.WhenAll(vectorTask, textTask).ConfigureAwait(false);
+            SearchResult vectorResult = await vectorTask.ConfigureAwait(false);
+            SearchResult textResult = await textTask.ConfigureAwait(false);
+
+            // Fuse at the chunk-document level (with the optional recency signal), then roll chunks up to one hit per
+            // memory. The fused score is normalized to [0, 1] so it can be thresholded with MinScore.
+            List<FusedDocument> fused = HybridFusion.Fuse(vectorResult.Documents, textResult.Documents, query.TextWeight ?? HybridFusion.DefaultTextWeight, query.RecencyWeight, ParentKey, query.RrfK ?? HybridFusion.DefaultRrfK);
+            return GroupByParent(fused, topK);
         }
 
         private static List<FusedDocument> GroupByParent(IEnumerable<FusedDocument> ordered, int topK)

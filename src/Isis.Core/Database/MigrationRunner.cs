@@ -27,7 +27,8 @@ namespace Isis.Core.Database
             new Migration003ScopeChunkConfig(),
             new Migration004EndpointMaxInputTokens(),
             new Migration005MemorySupersession(),
-            new Migration006ScopeRerank()
+            new Migration006ScopeRerank(),
+            new Migration007ScopeModels()
         };
 
         #endregion

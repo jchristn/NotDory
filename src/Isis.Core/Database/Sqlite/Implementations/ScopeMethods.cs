@@ -42,7 +42,7 @@ namespace Isis.Core.Database.Sqlite.Implementations
             scope.LastUpdateUtc = DateTime.UtcNow;
 
             string query =
-                "INSERT INTO scopes (id, tenantid, name, description, storeprovider, recallcollectionid, dimensionality, embeddingendpointid, filesystemlayout, targetpath, chunkingmode, chunkstrategy, chunkmaxtokens, chunkoverlaptokens, active, createdutc, lastupdateutc, rerankendpointid, rerankcandidates, rerankminscore) VALUES (" +
+                "INSERT INTO scopes (id, tenantid, name, description, storeprovider, recallcollectionid, dimensionality, embeddingendpointid, filesystemlayout, targetpath, chunkingmode, chunkstrategy, chunkmaxtokens, chunkoverlaptokens, active, createdutc, lastupdateutc, rerankendpointid, rerankcandidates, rerankminscore, inferenceendpointid, queryendpointid, conversationrewrite, queryexpansion, querydecomposition) VALUES (" +
                 SqliteHelpers.ToSqlRequired(scope.Id) + ", " +
                 SqliteHelpers.ToSqlRequired(scope.TenantId) + ", " +
                 SqliteHelpers.ToSqlRequired(scope.Name) + ", " +
@@ -62,7 +62,12 @@ namespace Isis.Core.Database.Sqlite.Implementations
                 SqliteHelpers.ToSqlRequired(scope.LastUpdateUtc) + ", " +
                 SqliteHelpers.ToSql(scope.RerankEndpointId) + ", " +
                 scope.RerankCandidates + ", " +
-                NullableDouble(scope.RerankMinScore) + ");";
+                NullableDouble(scope.RerankMinScore) + ", " +
+                SqliteHelpers.ToSql(scope.InferenceEndpointId) + ", " +
+                SqliteHelpers.ToSql(scope.QueryEndpointId) + ", " +
+                NullableBool(scope.ConversationRewrite) + ", " +
+                SqliteHelpers.ToSql(scope.QueryExpansion?.ToString()) + ", " +
+                NullableBool(scope.QueryDecomposition) + ");";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
             return scope;
@@ -146,6 +151,11 @@ namespace Isis.Core.Database.Sqlite.Implementations
                 "rerankendpointid = " + SqliteHelpers.ToSql(scope.RerankEndpointId) + ", " +
                 "rerankcandidates = " + scope.RerankCandidates + ", " +
                 "rerankminscore = " + NullableDouble(scope.RerankMinScore) + ", " +
+                "inferenceendpointid = " + SqliteHelpers.ToSql(scope.InferenceEndpointId) + ", " +
+                "queryendpointid = " + SqliteHelpers.ToSql(scope.QueryEndpointId) + ", " +
+                "conversationrewrite = " + NullableBool(scope.ConversationRewrite) + ", " +
+                "queryexpansion = " + SqliteHelpers.ToSql(scope.QueryExpansion?.ToString()) + ", " +
+                "querydecomposition = " + NullableBool(scope.QueryDecomposition) + ", " +
                 "active = " + SqliteHelpers.ToSql(scope.Active) + ", " +
                 "lastupdateutc = " + SqliteHelpers.ToSqlRequired(scope.LastUpdateUtc) + " " +
                 "WHERE tenantid = " + SqliteHelpers.ToSqlRequired(scope.TenantId) +
@@ -245,12 +255,31 @@ namespace Isis.Core.Database.Sqlite.Implementations
                 scope.RerankMinScore = SqliteHelpers.GetDouble(row["rerankminscore"]);
             }
 
+            if (row.Table.Columns.Contains("inferenceendpointid")) scope.InferenceEndpointId = SqliteHelpers.NullIfEmpty(SqliteHelpers.GetString(row["inferenceendpointid"]));
+            if (row.Table.Columns.Contains("queryendpointid")) scope.QueryEndpointId = SqliteHelpers.NullIfEmpty(SqliteHelpers.GetString(row["queryendpointid"]));
+            if (row.Table.Columns.Contains("conversationrewrite")) scope.ConversationRewrite = NullableBoolValue(row["conversationrewrite"]);
+            if (row.Table.Columns.Contains("querydecomposition")) scope.QueryDecomposition = NullableBoolValue(row["querydecomposition"]);
+            if (row.Table.Columns.Contains("queryexpansion") && Enum.TryParse(SqliteHelpers.GetString(row["queryexpansion"]), out QueryExpansionModeEnum expansion)) scope.QueryExpansion = expansion;
+
             return scope;
         }
 
         private static string NullableDouble(double? value)
         {
             return value.HasValue ? value.Value.ToString("R", System.Globalization.CultureInfo.InvariantCulture) : "NULL";
+        }
+
+        private static string NullableBool(bool? value)
+        {
+            return value.HasValue ? (value.Value ? "1" : "0") : "NULL";
+        }
+
+        private static bool? NullableBoolValue(object? cell)
+        {
+            // Drivers surface a NULL column as DBNull or an empty string; either means "use the server default".
+            string text = SqliteHelpers.GetString(cell);
+            if (string.IsNullOrEmpty(text)) return null;
+            return text == "1" || string.Equals(text, "true", StringComparison.OrdinalIgnoreCase);
         }
 
         #endregion

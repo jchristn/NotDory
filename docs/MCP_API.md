@@ -103,7 +103,7 @@ revision removed `ping` (it gets `-32601`); probe connectivity with `GET /` inst
 | `scope_enumerate` | `GET .../scopes` | List the memory scopes in a tenant |
 | `scope_create` | `POST .../scopes` | Create a memory scope |
 | `scope_read` | `GET .../scopes/{sid}` | Read a scope by id |
-| `scope_update` | `GET` then `PUT .../scopes/{sid}` | Update a scope's name, description, or rerank settings, keeping everything else |
+| `scope_update` | `GET` then `PUT .../scopes/{sid}` | Update a scope's name, description, models, or rerank and query settings, keeping everything else (an empty string clears a model or `queryExpansion`) |
 | `scope_delete` | `DELETE .../scopes/{sid}` | Delete a scope (cascades categories, memories, scope instructions) |
 | `category_enumerate` | `GET .../categories` | List categories in a scope |
 | `category_create` | `POST .../categories` | Create a category |
@@ -283,6 +283,11 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes`.
 | `rerankEndpointId` | string | No | null | A `Rerank` endpoint (`rep_` id); searches in the scope are then reranked by default |
 | `rerankCandidates` | integer | No | 10 | Candidates the reranker scores before the top results are kept (1..100) |
 | `rerankMinScore` | number | No | null | Drop reranked hits scoring below this (0..1), so a question with no relevant memory returns nothing |
+| `inferenceEndpointId` | string | No | null | Inference endpoint that answers chat in this scope (null: the tenant's first active one) |
+| `queryEndpointId` | string | No | null | Inference endpoint that rewrites follow-ups, splits, and expands queries (null: the scope's chat model) |
+| `conversationRewrite` | boolean | No | server default (true) | Rewrite chat follow-up questions into standalone queries |
+| `queryExpansion` | string | No | server default (`Auto`) | `Off`, `On`, or `Auto` (expand searches that are not reranked) |
+| `queryDecomposition` | boolean | No | server default (false) | Split multi-part questions into sub-queries |
 
 #### Example Request
 
@@ -724,8 +729,8 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories/search`.
 | `additionalQueries` | string[] | No | [] | Up to 4 extra queries searched alongside `queryText` and fused; pass the parts of a multi-part question |
 | `additionalQueryWeight` | number | No | server setting (1.0) | Fusion weight of each additional query relative to `queryText`'s 1.0, 0 to 1 |
 | `subQueries` | object[] | No | [] | Up to 4 extra queries `{ text, weight?, mode? }` with their own fusion weight (0 to 1, default 1) and optional mode |
-| `decompose` | boolean | No | false | Have the tenant's inference model split a multi-part question into sub-queries first |
-| `expand` | boolean | No | false | Have the tenant's inference model draft a hypothetical answer (searched by vector) and keywords (searched as text), fused below `queryText` |
+| `decompose` | boolean | No | the scope's `queryDecomposition` (false) | Split a multi-part question into sub-queries first |
+| `expand` | boolean | No | the scope's `queryExpansion` (Auto) | Draft a hypothetical answer (searched by vector) and keywords (searched as text), fused below `queryText`; unset follows the scope, which by default expands searches that are not reranked |
 | `expansionWeight` | number | No | server setting (0.5) | Fusion weight of the `expand` forms relative to `queryText`'s 1.0, 0 to 1 |
 
 #### Example Request

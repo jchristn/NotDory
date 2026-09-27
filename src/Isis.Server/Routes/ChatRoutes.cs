@@ -99,7 +99,7 @@ namespace Isis.Server.Routes
                 return;
             }
 
-            ModelEndpoint? endpoint = await ResolveInferenceEndpointAsync(tenantId, request.InferenceEndpointId, context.Token).ConfigureAwait(false);
+            ModelEndpoint? endpoint = await _ChatService.Preparer.ResolveChatEndpointAsync(scope, request.InferenceEndpointId, context.Token).ConfigureAwait(false);
             if (endpoint == null)
             {
                 await RouteHelpers.ErrorAsync(context, 400, "NoInferenceEndpoint", "No active inference endpoint is configured for this tenant. Add one under /v1.0/api/tenants/{tenantId}/endpoints.").ConfigureAwait(false);
@@ -149,7 +149,7 @@ namespace Isis.Server.Routes
                 return;
             }
 
-            ModelEndpoint? endpoint = await ResolveInferenceEndpointAsync(tenantId, request.InferenceEndpointId, context.Token).ConfigureAwait(false);
+            ModelEndpoint? endpoint = await _ChatService.Preparer.ResolveChatEndpointAsync(scope, request.InferenceEndpointId, context.Token).ConfigureAwait(false);
             if (endpoint == null)
             {
                 await RouteHelpers.ErrorAsync(context, 400, "NoInferenceEndpoint", "No active inference endpoint is configured for this tenant. Add one under /v1.0/api/tenants/{tenantId}/endpoints.").ConfigureAwait(false);
@@ -193,24 +193,6 @@ namespace Isis.Server.Routes
                 try { await context.Response.SendChunk(Array.Empty<byte>(), true, context.Token).ConfigureAwait(false); }
                 catch { }
             }
-        }
-
-        private async Task<ModelEndpoint?> ResolveInferenceEndpointAsync(string tenantId, string? endpointId, System.Threading.CancellationToken token)
-        {
-            if (!string.IsNullOrEmpty(endpointId))
-            {
-                ModelEndpoint? explicitEndpoint = await _Database.ModelEndpoints.ReadAsync(tenantId, endpointId, token).ConfigureAwait(false);
-                if (explicitEndpoint != null && explicitEndpoint.Kind == EndpointKindEnum.Inference && explicitEndpoint.Active) return explicitEndpoint;
-                return null;
-            }
-
-            EnumerationResult<ModelEndpoint> endpoints = await _Database.ModelEndpoints.EnumerateAsync(tenantId, EndpointKindEnum.Inference, new EnumerationQuery { MaxResults = 1000 }, token).ConfigureAwait(false);
-            foreach (ModelEndpoint candidate in endpoints.Objects)
-            {
-                if (candidate.Active) return candidate;
-            }
-
-            return null;
         }
 
         #endregion

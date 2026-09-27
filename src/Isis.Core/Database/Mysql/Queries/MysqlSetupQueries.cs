@@ -111,6 +111,11 @@ CREATE TABLE IF NOT EXISTS scopes (
     rerankendpointid VARCHAR(64) NULL,
     rerankcandidates INT NOT NULL DEFAULT 10,
     rerankminscore DOUBLE NULL,
+    inferenceendpointid VARCHAR(64) NULL,
+    queryendpointid VARCHAR(64) NULL,
+    conversationrewrite INT NULL,
+    queryexpansion VARCHAR(16) NULL,
+    querydecomposition INT NULL,
     UNIQUE KEY uk_scopes_tenant_name (tenantid, name)
 );
 

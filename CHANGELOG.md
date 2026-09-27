@@ -15,8 +15,22 @@ All notable changes to Isis are documented here. This project adheres to
   question type with the net change and baselines.
 - **Multi-query search.** `additionalQueries` (up to 4) are searched alongside `queryText` and the rankings fused;
   `decompose: true` has an inference endpoint split the question first, and the response lists the `queries` run
-  (REST and MCP `memory_search`). Chat can decompose questions too (`retrieval.chatQueryDecomposition`), off by
-  default because equal-weight decomposition lowered retrieval and answer accuracy on the benchmarks.
+  (REST and MCP `memory_search`). Chat can decompose questions too; it is off by default (see per-scope models below).
+- **Per-scope models and query steps.** A scope names the model for each job, like an assistant's settings in
+  AssistantHub: `inferenceEndpointId` (chat answers) and `queryEndpointId` (follow-up rewriting, splitting, and
+  expansion), next to the existing embedding and rerank endpoints, plus `conversationRewrite`, `queryExpansion` (`Off`,
+  `On`, or `Auto`), and `queryDecomposition` (migration `2026-09-27-scope-models`). Null means the server default, and a
+  search's `expand` and `decompose` or a chat request's `inferenceEndpointId` override the scope for that call. A
+  high-precision mode is a scope whose reranker is a large chat model with a `rerankMinScore` cutoff. REST, MCP
+  (`scope_create`, `scope_update`), and the dashboard scope form expose every field; scope create and update reject a
+  missing or wrong-kind endpoint. Server settings `retrieval.queryExpansion` (default `Auto`) and
+  `retrieval.queryDecomposition` replace the chat-only `chatQueryExpansion` and `chatQueryDecomposition`.
+- **Query expansion on by default for searches that are not reranked** (`queryExpansion: Auto`). Over two benchmark
+  runs it raised nDCG@10 on SciFact (+0.037) and LongMemEval (+0.021) and was neutral on isis-live and Atlas (the small
+  model's drafts vary between runs by about 0.01); it adds a model call (about 2 s) per search and per chat question.
+- **RecallDB single-call hybrid search.** When the RecallDB server reports the capabilities, a hybrid search is one
+  request: RecallDB fuses both legs with Isis's weights, RRF constant, and recency and collapses chunks to one hit per
+  memory. Results are identical to the two-call path, which remains the fallback (`retrieval.serverSideHybrid`).
 - **Weighted multi-query search.** Extra queries are fused by weighted reciprocal rank with the original query at 1.0:
   `additionalQueryWeight` weights `additionalQueries` and decomposed parts (server default
   `retrieval.additionalQueryWeight`, 1.0), and new `subQueries` carry their own `weight` and optional `mode`. The
@@ -25,10 +39,10 @@ All notable changes to Isis are documented here. This project adheres to
   At 5, decomposition went from lowering every dataset to roughly neutral (mean nDCG@10 0.804 to 0.826 at weight 0.5).
 - **Query expansion.** `expand: true` on search (REST and MCP) has the inference endpoint draft a short hypothetical
   answer, searched by vector, and keywords, searched as text, fused at `expansionWeight` (default 0.5,
-  `retrieval.expansionWeight`). It is better than or equal to plain hybrid search on every benchmark dataset (SciFact
-  +0.033, LongMemEval +0.027, Atlas +0.007, isis-live +0.001 nDCG@10) but costs a model call per search (about 2 s)
-  and trails the cross-encoder on memory-style data, so it is off by default; it suits scopes with an inference
-  endpoint and no reranker. Chat can use it (`retrieval.chatQueryExpansion`, default false).
+  `retrieval.expansionWeight`). Over two runs it raised nDCG@10 on SciFact (+0.037) and LongMemEval (+0.021) and
+  was neutral on isis-live and Atlas; it costs a model call per search (about 2 s) and trails the cross-encoder on
+  memory-style data. It runs automatically for searches that are not reranked (see
+  per-scope models below).
 - **Input validation.** Every request value and setting is checked where it enters (`InputGuard`): numbers clamp to a
   valid range and NaN or infinity falls back to the default; oversized text and lists are rejected with 400 naming the
   field; null lists become empty and undefined enum values fall back. Request bodies over `rest.maxRequestBodyBytes`

@@ -100,6 +100,7 @@ namespace Test.Shared
                     TestCase.Async("rest", "memory-search-invalid-input", "POST /memories/search: null sub-query ignored, oversized query 400, huge token budget clamped", MemorySearchInvalidInputAsync),
                     TestCase.Async("rest", "body-too-large", "A request body over the server's limit is answered 413", BodyTooLargeAsync),
                     TestCase.Async("rest", "scope-create-verbex-rejected", "POST /scopes with the unwired Verbex provider is a bad request", ScopeCreateVerbexRejectedAsync),
+                    TestCase.Async("rest", "scope-models", "POST/PUT /scopes validate and persist the chat and query models and query settings", ScopeModelsAsync),
                     TestCase.Async("rest", "endpoint-invalid-base-url", "Endpoint create, update, and batch create reject a non-http base URL", EndpointInvalidBaseUrlAsync),
                     TestCase.Async("rest", "memory-search-category-name", "POST /memories/search filters by category name", MemorySearchCategoryByNameAsync),
                     TestCase.Async("rest", "memory-search-category-id", "POST /memories/search filters by category id", MemorySearchCategoryByIdAsync),
@@ -918,6 +919,29 @@ namespace Test.Shared
             {
                 RouteHelpers.MaxBodyBytes = previous;
             }
+        }
+
+        private static async Task ScopeModelsAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient admin = h.AdminClient();
+            HttpResponseMessage inference = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "chat", kind = "Inference", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "gemma3:4b" }).ConfigureAwait(false);
+            ExpectStatus(inference, HttpStatusCode.Created, "create inference endpoint");
+            string inferenceId;
+            using (JsonDocument doc = await ReadJsonAsync(inference).ConfigureAwait(false)) inferenceId = doc.RootElement.GetProperty("id").GetString()!;
+            HttpResponseMessage embedding = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "emb", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "all-minilm", dimensionality = 384 }).ConfigureAwait(false);
+            string embeddingId;
+            using (JsonDocument doc = await ReadJsonAsync(embedding).ConfigureAwait(false)) embeddingId = doc.RootElement.GetProperty("id").GetString()!;
+
+            HttpResponseMessage wrongKind = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "wrong", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "wrong"), queryEndpointId = embeddingId }).ConfigureAwait(false);
+            ExpectStatus(wrongKind, HttpStatusCode.BadRequest, "query model that is an embedding endpoint");
+
+            HttpResponseMessage created = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "models", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "models"), inferenceEndpointId = inferenceId, queryEndpointId = inferenceId, queryExpansion = "On", conversationRewrite = false, queryDecomposition = true }).ConfigureAwait(false);
+            ExpectStatus(created, HttpStatusCode.Created, "scope with models");
+            using JsonDocument sd = await ReadJsonAsync(created).ConfigureAwait(false);
+            JsonElement root = sd.RootElement;
+            TestCase.Require(root.GetProperty("inferenceEndpointId").GetString() == inferenceId && root.GetProperty("queryEndpointId").GetString() == inferenceId, "The models should be stored.");
+            TestCase.Require(root.GetProperty("queryExpansion").GetString() == "On" && !root.GetProperty("conversationRewrite").GetBoolean() && root.GetProperty("queryDecomposition").GetBoolean(), "The query settings should be stored.");
         }
 
         private static async Task ScopeCreateVerbexRejectedAsync()

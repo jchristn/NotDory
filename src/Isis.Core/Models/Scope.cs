@@ -124,6 +124,67 @@ namespace Isis.Core.Models
         public string? RerankEndpointId { get; set; } = null;
 
         /// <summary>
+        /// The inference endpoint that answers chat in this scope. Null uses the request's endpoint, then the tenant's
+        /// first active inference endpoint.
+        /// </summary>
+        public string? InferenceEndpointId
+        {
+            get
+            {
+                return _InferenceEndpointId;
+            }
+            set
+            {
+                _InferenceEndpointId = InputGuard.MaxLength(string.IsNullOrWhiteSpace(value) ? null : value.Trim(), 64, nameof(InferenceEndpointId));
+            }
+        }
+
+        /// <summary>
+        /// The inference endpoint that rewrites follow-up questions, splits multi-part questions, and expands queries in
+        /// this scope. Null uses <see cref="InferenceEndpointId"/>, then the chat model in use, then the tenant's first
+        /// active inference endpoint.
+        /// </summary>
+        public string? QueryEndpointId
+        {
+            get
+            {
+                return _QueryEndpointId;
+            }
+            set
+            {
+                _QueryEndpointId = InputGuard.MaxLength(string.IsNullOrWhiteSpace(value) ? null : value.Trim(), 64, nameof(QueryEndpointId));
+            }
+        }
+
+        /// <summary>
+        /// Whether chat rewrites a follow-up question into a standalone query before retrieval. Null uses the server
+        /// default (<c>retrieval.chatConversationRewrite</c>).
+        /// </summary>
+        public bool? ConversationRewrite { get; set; } = null;
+
+        /// <summary>
+        /// When searches and chat expand the query with a drafted answer and keywords: Off, On, or Auto (when the search
+        /// is not reranked). Null uses the server default (<c>retrieval.queryExpansion</c>, Auto).
+        /// </summary>
+        public QueryExpansionModeEnum? QueryExpansion
+        {
+            get
+            {
+                return _QueryExpansion;
+            }
+            set
+            {
+                _QueryExpansion = value.HasValue && Enum.IsDefined(value.Value) ? value : null;
+            }
+        }
+
+        /// <summary>
+        /// Whether searches and chat split a multi-part question into sub-queries. Null uses the server default
+        /// (<c>retrieval.queryDecomposition</c>).
+        /// </summary>
+        public bool? QueryDecomposition { get; set; } = null;
+
+        /// <summary>
         /// How many retrieved candidates are sent to the reranker before the top results are kept. Minimum 1,
         /// maximum 100, default 10. Never fewer than the query's topK.
         /// </summary>
@@ -272,6 +333,9 @@ namespace Isis.Core.Models
 
         #region Private-Members
 
+        private QueryExpansionModeEnum? _QueryExpansion = null;
+        private string? _QueryEndpointId = null;
+        private string? _InferenceEndpointId = null;
         private string _ChunkStrategy = "FixedTokenCount";
         private ChunkingModeEnum _ChunkingMode = ChunkingModeEnum.OnOverflow;
         private FilesystemLayoutEnum _FilesystemLayout = FilesystemLayoutEnum.Hierarchy;

@@ -1,12 +1,13 @@
 namespace Isis.Server
 {
-    using System;
     using System.Net.Http;
-    using System.Threading;
     using System.Threading.Tasks;
+    using System.Threading;
+    using System;
     using Isis.Core.Database;
     using Isis.Core.Enums;
     using Isis.Core.Recall;
+    using Isis.Core.Stores.RecallDb;
     using Isis.Core.Stores;
     using Isis.Server.Observability;
     using Isis.Server.Services;
@@ -92,6 +93,7 @@ namespace Isis.Server
             memoryService.AdditionalQueryWeight = settings.Retrieval.AdditionalQueryWeight;
             memoryService.ExpansionWeight = settings.Retrieval.ExpansionWeight;
             MemoryService.QueryFusionRrfK = settings.Retrieval.QueryFusionRrfK;
+            RecallDbMemoryStore.ServerSideHybrid = settings.Retrieval.ServerSideHybrid;
 
             // Start the observability pipeline before the server so Watson's instrumentation is collected from
             // the first request. A telemetry failure never prevents startup (Start returns null and logs).

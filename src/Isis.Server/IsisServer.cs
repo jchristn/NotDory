@@ -48,6 +48,7 @@ namespace Isis.Server
         private readonly HealthCheckService _HealthCheck;
         private readonly InferenceService _InferenceService;
         private readonly MemoryChatService _ChatService;
+        private readonly QueryPreparer _QueryPreparer;
         private readonly RetentionService _RetentionService;
         private readonly Webserver _Server;
         private readonly Action<string>? _Log;
@@ -101,11 +102,12 @@ namespace Isis.Server
             // per-request cancellation token instead.
             _InferenceHandler = new SocketsHttpHandler();
             _InferenceService = new InferenceService(new TransientRetryHandler(_InferenceHandler));
-            _ChatService = new MemoryChatService(_MemoryService, _InferenceService);
+            _QueryPreparer = new QueryPreparer(_MemoryService, _InferenceService, _Database);
+            _QueryPreparer.DefaultConversationRewrite = settings.Retrieval.ChatConversationRewrite;
+            _QueryPreparer.DefaultQueryExpansion = settings.Retrieval.QueryExpansion;
+            _QueryPreparer.DefaultQueryDecomposition = settings.Retrieval.QueryDecomposition;
+            _ChatService = new MemoryChatService(_MemoryService, _InferenceService, _QueryPreparer);
             _ChatService.LinkExpansion = settings.Retrieval.ChatLinkExpansion;
-            _ChatService.QueryDecomposition = settings.Retrieval.ChatQueryDecomposition;
-            _ChatService.ConversationRewrite = settings.Retrieval.ChatConversationRewrite;
-            _ChatService.QueryExpansion = settings.Retrieval.ChatQueryExpansion;
             _ChatService.Rewriter.MaxTurns = settings.Retrieval.ChatHistoryTurns;
             _RetentionService = new RetentionService(_Database, Settings.Retention, _Log);
 
@@ -191,7 +193,7 @@ namespace Isis.Server
             new CredentialRoutes(_Database, _AuthorizationService).Register(_Server);
             new ScopeRoutes(_Database, _AuthorizationService, _MemoryService).Register(_Server);
             new CategoryRoutes(_Database, _AuthorizationService, _MemoryService).Register(_Server);
-            new MemoryRoutes(_Database, _AuthorizationService, _MemoryService, _LookupCache, new QueryDecomposer(_InferenceService), new QueryExpander(_InferenceService)).Register(_Server);
+            new MemoryRoutes(_Database, _AuthorizationService, _MemoryService, _LookupCache, _QueryPreparer).Register(_Server);
             new ModelEndpointRoutes(_Database, _AuthorizationService, _HealthCheck).Register(_Server);
             new ChatRoutes(_Database, _AuthorizationService, _ChatService, _LookupCache).Register(_Server);
             new RequestHistoryRoutes(_Database, _AuthorizationService).Register(_Server);

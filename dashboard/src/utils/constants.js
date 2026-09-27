@@ -34,7 +34,10 @@ export const DISCORD_URL = 'https://discord.gg/tRAN8HgvK5';
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 250, 500, 1000];
 export const DEFAULT_PAGE_SIZE = 25;
 
-export const STORE_PROVIDERS = ['RecallDb', 'Verbex', 'Filesystem'];
+// Verbex is not wired yet; the server rejects new Verbex scopes.
+export const STORE_PROVIDERS = ['RecallDb', 'Filesystem'];
+
+export const QUERY_EXPANSION_MODES = ['Auto', 'On', 'Off'];
 export const FILESYSTEM_LAYOUTS = ['SingleFile', 'Hierarchy', 'OkfBundle'];
 
 // Friendly labels for the filesystem layout options.

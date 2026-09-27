@@ -278,8 +278,8 @@ namespace Test.Benchmark
                 if (options.MinRerankScore.HasValue) body["minRerankScore"] = options.MinRerankScore.Value;
                 if (options.TextWeight.HasValue) body["textWeight"] = options.TextWeight.Value;
                 if (options.RrfK.HasValue) body["rrfK"] = options.RrfK.Value;
-                if (options.Decompose) body["decompose"] = true;
-                if (options.Expand) body["expand"] = true;
+                if (options.Decompose.HasValue) body["decompose"] = options.Decompose.Value;
+                if (options.Expand.HasValue) body["expand"] = options.Expand.Value;
                 if (options.ExpansionWeight.HasValue) body["expansionWeight"] = options.ExpansionWeight.Value;
                 if (options.AdditionalQueryWeight.HasValue) body["additionalQueryWeight"] = options.AdditionalQueryWeight.Value;
                 if (!string.IsNullOrEmpty(options.InferenceEndpointId)) body["inferenceEndpointId"] = options.InferenceEndpointId;

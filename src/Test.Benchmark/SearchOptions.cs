@@ -55,12 +55,12 @@ namespace Test.Benchmark
         /// <summary>
         /// Ask the server to split multi-part questions into sub-queries.
         /// </summary>
-        public bool Decompose { get; set; } = false;
+        public bool? Decompose { get; set; } = null;
 
         /// <summary>
         /// Expand each query with a drafted answer and keywords (needs an inference endpoint).
         /// </summary>
-        public bool Expand { get; set; } = false;
+        public bool? Expand { get; set; } = null;
 
         /// <summary>
         /// Fusion weight of the expansion forms; null uses the server's setting.
@@ -98,8 +98,12 @@ namespace Test.Benchmark
             if (args.GetOptional("min-rerank-score") != null) options.MinRerankScore = args.GetDouble("min-rerank-score", 0.0);
             if (args.GetOptional("text-weight") != null) options.TextWeight = args.GetDouble("text-weight", 0.5);
             if (args.GetOptional("rrf-k") != null) options.RrfK = args.GetInt("rrf-k", 60);
-            options.Decompose = args.GetFlag("decompose");
-            options.Expand = args.GetFlag("expand");
+            // Unset follows the scope's settings (then the server's); --expand/--no-expand and --decompose/--no-decompose
+            // force the step on or off for the run.
+            if (args.GetFlag("decompose")) options.Decompose = true;
+            if (args.GetFlag("no-decompose")) options.Decompose = false;
+            if (args.GetFlag("expand")) options.Expand = true;
+            if (args.GetFlag("no-expand")) options.Expand = false;
             if (args.GetOptional("expansion-weight") != null) options.ExpansionWeight = args.GetDouble("expansion-weight", 0.5);
             if (args.GetOptional("additional-query-weight") != null) options.AdditionalQueryWeight = args.GetDouble("additional-query-weight", 1.0);
             return options;

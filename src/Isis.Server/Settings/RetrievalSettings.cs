@@ -1,6 +1,8 @@
 namespace Isis.Server.Settings
 {
     using System;
+    using Isis.Core.Enums;
+    using Isis.Core.Helpers;
 
     /// <summary>
     /// Server-wide retrieval settings: the similarity check on upsert, reranker input size, and chat link expansion.
@@ -52,10 +54,10 @@ namespace Isis.Server.Settings
         }
 
         /// <summary>
-        /// Whether chat asks its inference endpoint to split a multi-part question into sub-queries before retrieval.
-        /// Default false.
+        /// Whether searches and chat split a multi-part question into sub-queries before retrieval, when neither the
+        /// request nor the scope says. Default false.
         /// </summary>
-        public bool ChatQueryDecomposition { get; set; } = false;
+        public bool QueryDecomposition { get; set; } = false;
 
         /// <summary>
         /// Whether chat rewrites a question sent with earlier messages into a standalone query before retrieval.
@@ -64,9 +66,27 @@ namespace Isis.Server.Settings
         public bool ChatConversationRewrite { get; set; } = true;
 
         /// <summary>
-        /// Whether chat expands each question with a drafted answer and keywords before retrieval. Default false.
+        /// When searches and chat expand the query with a drafted answer and keywords, when neither the request nor the
+        /// scope says: Off, On, or Auto (expand searches that are not reranked). Default Auto.
         /// </summary>
-        public bool ChatQueryExpansion { get; set; } = false;
+        public QueryExpansionModeEnum QueryExpansion
+        {
+            get
+            {
+                return _QueryExpansion;
+            }
+            set
+            {
+                _QueryExpansion = InputGuard.Defined(value, QueryExpansionModeEnum.Auto);
+            }
+        }
+
+        /// <summary>
+        /// Whether hybrid searches on RecallDB use its single-call hybrid search when the server reports the capability
+        /// (both legs, fusion, recency, and collapse on the server). False always runs the two legs separately and
+        /// fuses them in Isis. Default true.
+        /// </summary>
+        public bool ServerSideHybrid { get; set; } = true;
 
         /// <summary>
         /// Fusion weight of a search's additional queries (for example decomposed parts) relative to the main query's
@@ -180,6 +200,7 @@ namespace Isis.Server.Settings
 
         #region Private-Members
 
+        private QueryExpansionModeEnum _QueryExpansion = QueryExpansionModeEnum.Auto;
         private double _DuplicateSimilarityThreshold = 0.85;
         private int _RerankPassageChars = 1200;
         private int _ChatLinkExpansion = 2;

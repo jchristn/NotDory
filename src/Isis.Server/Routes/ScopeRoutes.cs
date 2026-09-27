@@ -177,7 +177,7 @@ namespace Isis.Server.Routes
                 }
             }
 
-            string? rerankError = await ValidateRerankEndpointAsync(tenantId, scope.RerankEndpointId, context.Token).ConfigureAwait(false);
+            string? rerankError = await ValidateScopeEndpointsAsync(tenantId, scope, context.Token).ConfigureAwait(false);
             if (rerankError != null)
             {
                 await RouteHelpers.ErrorAsync(context, 400, "BadRequest", rerankError).ConfigureAwait(false);
@@ -188,13 +188,21 @@ namespace Isis.Server.Routes
             await RouteHelpers.JsonAsync(context, 201, created).ConfigureAwait(false);
         }
 
-        private async Task<string?> ValidateRerankEndpointAsync(string tenantId, string? rerankEndpointId, CancellationToken token)
+        private async Task<string?> ValidateScopeEndpointsAsync(string tenantId, Scope scope, CancellationToken token)
         {
-            if (string.IsNullOrEmpty(rerankEndpointId)) return null;
+            // Each model the scope names must exist in the tenant and be of the kind its job needs.
+            return await ValidateEndpointAsync(tenantId, scope.RerankEndpointId, EndpointKindEnum.Rerank, "rerankEndpointId", token).ConfigureAwait(false)
+                ?? await ValidateEndpointAsync(tenantId, scope.InferenceEndpointId, EndpointKindEnum.Inference, "inferenceEndpointId", token).ConfigureAwait(false)
+                ?? await ValidateEndpointAsync(tenantId, scope.QueryEndpointId, EndpointKindEnum.Inference, "queryEndpointId", token).ConfigureAwait(false);
+        }
 
-            ModelEndpoint? endpoint = await _Database.ModelEndpoints.ReadAsync(tenantId, rerankEndpointId, token).ConfigureAwait(false);
-            if (endpoint == null) return "The specified rerankEndpointId was not found in this tenant.";
-            if (endpoint.Kind != EndpointKindEnum.Rerank) return "The specified rerankEndpointId is a " + endpoint.Kind + " endpoint; a Rerank endpoint is required.";
+        private async Task<string?> ValidateEndpointAsync(string tenantId, string? endpointId, EndpointKindEnum kind, string field, CancellationToken token)
+        {
+            if (string.IsNullOrEmpty(endpointId)) return null;
+
+            ModelEndpoint? endpoint = await _Database.ModelEndpoints.ReadAsync(tenantId, endpointId, token).ConfigureAwait(false);
+            if (endpoint == null) return "The specified " + field + " was not found in this tenant.";
+            if (endpoint.Kind != kind) return "The specified " + field + " is a " + endpoint.Kind + " endpoint; a " + kind + " endpoint is required.";
             return null;
         }
 
@@ -246,7 +254,7 @@ namespace Isis.Server.Routes
             update.StoreProvider = existing.StoreProvider;
             update.Dimensionality = existing.Dimensionality;
             update.RecallCollectionId = existing.RecallCollectionId;
-            string? rerankError = await ValidateRerankEndpointAsync(tenantId, update.RerankEndpointId, context.Token).ConfigureAwait(false);
+            string? rerankError = await ValidateScopeEndpointsAsync(tenantId, update, context.Token).ConfigureAwait(false);
             if (rerankError != null)
             {
                 await RouteHelpers.ErrorAsync(context, 400, "BadRequest", rerankError).ConfigureAwait(false);

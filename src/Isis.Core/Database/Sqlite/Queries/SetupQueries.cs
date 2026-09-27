@@ -110,7 +110,12 @@ CREATE TABLE IF NOT EXISTS scopes (
     lastupdateutc TEXT NOT NULL,
     rerankendpointid TEXT,
     rerankcandidates INTEGER NOT NULL DEFAULT 10,
-    rerankminscore REAL
+    rerankminscore REAL,
+    inferenceendpointid TEXT,
+    queryendpointid TEXT,
+    conversationrewrite INTEGER,
+    queryexpansion TEXT,
+    querydecomposition INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS categories (

@@ -115,8 +115,9 @@ $B retrieval --dataset benchmarks/datasets/atlas.json --embedding-model nomic-em
 
 # Fusion and extra queries: --text-weight and --rrf-k set hybrid fusion per query; --expand drafts a hypothetical answer
 # and keywords (--expansion-weight), --decompose splits multi-part questions (--additional-query-weight); both need an
-# inference endpoint (--inference-model/--inference-url). The multi-query fusion constant is the server setting
-# retrieval.queryFusionRrfK.
+# inference endpoint (--inference-model/--inference-url). Without either flag the scope's settings apply (by default,
+# expansion runs for searches that are not reranked when the tenant has an inference endpoint); --no-expand and
+# --no-decompose force them off. The multi-query fusion constant is the server setting retrieval.queryFusionRrfK.
 $B retrieval --dataset benchmarks/datasets/atlas.json --modes Hybrid --text-weight 0.5 --rrf-k 20 --label fusion
 $B retrieval --dataset benchmarks/datasets/atlas.json --modes Hybrid --inference-model gemma3:4b --expand --expansion-weight 0.5 --label expand
 

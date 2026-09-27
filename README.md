@@ -221,7 +221,8 @@ applies supersession (a replaced fact ranks after its replacement) and optional 
 answers on the best whole chunk of each retrieved memory, cites every claim, understands follow-up questions sent with
 the conversation's history, and says so when memory does not hold the answer. Optional extra queries (caller-supplied,
 split from a multi-part question, or a model-drafted answer and keywords) are fused by weight below the original
-query.
+query. Each scope chooses the model for every job (embedding, reranking, chat answers, and query rewriting and
+expansion) and which optional steps run, from REST, MCP, or the dashboard.
 
 On the benchmark suite, hybrid retrieval reaches nDCG@10 of 0.84 to 0.91 on the memory-style datasets, or 0.88 to 0.94
 with the cross-encoder, and beats the published BM25 and dense-model baselines on BEIR SciFact. See

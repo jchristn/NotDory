@@ -195,11 +195,11 @@ weight and optional mode. Sources:
 | Source | How | Weight | Mode | Default |
 |---|---|---|---|---|
 | Caller | `additionalQueries`, `subQueries` | as given | as given | none |
-| Decomposition | `decompose: true`: `QueryDecomposer` asks the inference model to split a question of 6 or more words into up to 3 self-contained queries | `additionalQueryWeight` | search's mode | off |
-| Expansion | `expand: true`: `QueryExpander` asks for a 1 to 3 sentence hypothetical answer and up to 8 keywords | `expansionWeight` (default 0.5) | answer by vector (Semantic), keywords as text (Keyword) | off (helps every dataset, but costs a model call per search and trails the cross-encoder on memory-style data) |
+| Decomposition | `decompose`, else the scope's `queryDecomposition`: `QueryDecomposer` asks the query model to split a question of 6 or more words into up to 3 self-contained queries | `additionalQueryWeight` | search's mode | off |
+| Expansion | `expand`, else the scope's `queryExpansion`: `QueryExpander` asks for a 1 to 3 sentence hypothetical answer and up to 8 keywords | `expansionWeight` (default 0.5) | answer by vector (Semantic), keywords as text (Keyword) | `Auto`: on for searches that are not reranked (it helps the public datasets, is neutral on agent memory, costs one model call, and adds nothing on top of a cross-encoder) |
 | Chat follow-up | Chat with `history`: `ConversationRewriter` rewrites the latest message as a standalone query | 1.0 | search's mode | on in chat |
 
-All three model-backed sources use one model-agnostic prompt, strip `<think>` blocks, parse a strict format, time out
+The model for all three is the scope's query model (section 3.11). All three use one model-agnostic prompt, strip `<think>` blocks, parse a strict format, time out
 after 20 seconds, and fall back to the original query on any failure. Expansion targets the two legs separately
 because each form suits one: a drafted answer reads like a stored memory, so it embeds near the answering memory,
 while keywords (including exact identifiers from the question) match the full-text leg.
@@ -226,8 +226,13 @@ legs separately.
    same thing across queries. Each hit keeps its evidence: `vectorScore`, `textScore`, `vectorRank`, `textRank`.
 5. **Collapse.** Chunks roll up to one hit per memory (`GroupByParent`), keeping the best chunk as the snippet.
 
-Semantic and Keyword modes run one leg and skip fusion. RecallDB can now do all of this in one call (hybrid RRF,
-recency, and collapse on the server); moving to it is planned (section 9).
+Semantic and Keyword modes run one leg and skip fusion.
+
+**Single call.** When the RecallDB server reports the `search.hybrid.rrf` and `search.collapse` capabilities (checked
+once per client), steps 1 to 5 run inside RecallDB in one request: Isis sends its text weight, RRF constant, candidate
+pool, and recency weight, and RecallDB collapses chunks by the `parentKey` tag. The two paths return the same rankings
+(identical nDCG@10 on all four benchmark datasets); the single call saves a request and the client-side fusion. Older
+servers, a failed call, or `retrieval.serverSideHybrid: false` use the two-call path.
 
 ### 3.7 Multi-query fusion
 
@@ -286,6 +291,28 @@ using word-set overlap as the similarity because it works for every store withou
    isis-live nDCG (0.877 to 0.852), on in chat (2) where the extra context helps answers.
 4. The list is cut to `topK`.
 
+### 3.11 Per-scope models and query steps
+
+**Rationale.** Which model does which job is a deployment choice, not something Isis should hard-code: a team may
+answer chat with a large model but rewrite queries with a small fast one, or rerank with a large chat model where
+precision matters more than latency. `QueryPreparer` puts that in the scope, in the same shape as an assistant's
+settings in AssistantHub.
+
+**Implementation.** `src/Isis.Server/Services/QueryPreparer.cs`, used by both search and chat.
+
+| Job | Scope field | Resolution |
+|---|---|---|
+| Embedding | `embeddingEndpointId` | set at creation |
+| Reranking | `rerankEndpointId`, `rerankCandidates`, `rerankMinScore` | set at creation (tenant's first rerank endpoint) |
+| Chat answers | `inferenceEndpointId` | request, then scope, then tenant's first active inference endpoint |
+| Query steps | `queryEndpointId` | request, then scope, then the scope's chat model, then the chat model in use, then tenant default |
+| Follow-up rewrite | `conversationRewrite` | scope, then `retrieval.chatConversationRewrite` (true) |
+| Expansion | `queryExpansion` | request `expand`, then scope, then `retrieval.queryExpansion` (`Auto`) |
+| Decomposition | `queryDecomposition` | request `decompose`, then scope, then `retrieval.queryDecomposition` (false) |
+
+A named endpoint that is inactive or of the wrong kind is skipped in favor of the next choice; scope create and update
+reject one that is missing or of the wrong kind. The dashboard's scope form exposes every field.
+
 ---
 
 ## 4. Chat grounding
@@ -297,9 +324,8 @@ not hold the answer.
 
 1. **Keyword-only stores** (filesystem) skip search: the model receives every memory (up to 200), grouped by category,
    because lexical ranking fails on broad or meta questions and these stores are small.
-2. **Query forms.** With `history`, the follow-up rewrite runs first (section 3.5). Decomposition
-   (`retrieval.chatQueryDecomposition`) and expansion (`retrieval.chatQueryExpansion`) run next when enabled; both
-   default to off.
+2. **Query forms.** With `history`, the follow-up rewrite runs first (section 3.5), then decomposition and expansion
+   when the scope's settings call for them (section 3.11), all on the scope's query model.
 3. **Search** in Hybrid mode for 8 memories (`DefaultTopK`), with up to 4,000 characters of the best chunk per memory
    (a whole memory for typical sizes) and link expansion 2. Grounding on a 240-character snippet was the largest chat
    defect found: accuracy rose from 0.68 to 0.96 when chat moved to whole chunks.
@@ -346,7 +372,9 @@ not hold the answer.
 | `superseded`, `linkExpansion` | Search | `Demote`, 0 | 3.10 |
 | `retrieval.chatLinkExpansion` | Server settings | 2 | 4 |
 | `retrieval.chatConversationRewrite`, `retrieval.chatHistoryTurns` | Server settings | true, 6 | 4 |
-| `retrieval.chatQueryDecomposition`, `retrieval.chatQueryExpansion` | Server settings | false, false | 4 |
+| `retrieval.queryDecomposition`, `retrieval.queryExpansion` | Server settings | false, `Auto` | 3.5, 3.11 |
+| `inferenceEndpointId`, `queryEndpointId`, `conversationRewrite`, `queryExpansion`, `queryDecomposition` | Scope | null (server defaults) | 3.11 |
+| `retrieval.serverSideHybrid` | Server settings | true | 3.6 |
 | `cache.enabled`, `cache.ttlSeconds` | Server settings | true, 10 | lookups for every request |
 
 ---
@@ -378,7 +406,8 @@ Hybrid nDCG@10 unless noted, from [benchmarks/RESULTS.md](benchmarks/RESULTS.md)
 | Whole-chunk chat grounding | Chat accuracy 0.68 to 0.96 |
 | Chat follow-up rewrite | Follow-up set, 3 memories retrieved: evidence in the prompt 0.953 to 1.000, accuracy 0.969 to 1.000 |
 | Decomposition | At full weight and k = 60 lowered every dataset (Atlas 0.831 to 0.764); at weight 0.5 and k = 5 neutral (mean 0.826 vs 0.827); off by default |
-| Expansion (weight 0.5, k = 5) | isis-live 0.878 to 0.879, Atlas 0.835 to 0.842, SciFact 0.683 to 0.716, LongMemEval 0.911 to 0.937; about 2 s per search; opt-in |
+| Expansion (weight 0.5, k = 5), mean of two runs | isis-live 0.878 to 0.876, Atlas 0.835 to 0.835, SciFact 0.683 to 0.720, LongMemEval 0.911 to 0.932; runs differ by about 0.01 because the drafts vary; about 2 s per search; chat latency 2.1 to 4.1 s with no change in evidence reaching the prompt |
+| Single-call hybrid (RecallDB) | Identical nDCG@10 to the two-call path on all four datasets; similar latency |
 | Multi-query fusion constant 5 instead of 60 | Expansion's Atlas result 0.816 to 0.842, decomposition's mean 0.804 to 0.826 |
 
 SciFact against published results: Isis Hybrid is +0.018 over BM25 and +0.038 over dense all-MiniLM-L6-v2; with the
@@ -388,9 +417,6 @@ cross-encoder it is +0.024 over BM25 with a cross-encoder.
 
 ## 9. Known limits
 
-- **Two calls per hybrid search.** RecallDB can now fuse both legs with recency and collapse chunks on the server
-  (RecallDb.Sdk 0.2.2). Isis still runs two searches and fuses them itself; moving to the single call needs a RecallDB
-  server that reports the `search.hybrid.rrf` capability, with the current path as the fallback.
 - **Diversity by word overlap.** Search results do not carry stored vectors yet, so diversity and the duplicate check
   compare words. RecallDB returns vectors on request now; switching to cosine similarity is planned.
 - **No calibrated "nothing relevant" score** without a large reranking model: no single fused, vector, or cross-encoder

@@ -99,6 +99,16 @@ function ScopeDetail() {
               <dd>{scope.rerankMinScore ?? '—'}</dd>
             </>
           )}
+          <dt>{t('scopes.chatModel')}</dt>
+          <dd>{scope?.inferenceEndpointId ? <CopyableId value={scope.inferenceEndpointId} /> : t('scopes.tenantDefault')}</dd>
+          <dt>{t('scopes.queryModel')}</dt>
+          <dd>{scope?.queryEndpointId ? <CopyableId value={scope.queryEndpointId} /> : t('scopes.sameAsChat')}</dd>
+          <dt>{t('scopes.queryExpansion')}</dt>
+          <dd>{scope?.queryExpansion ? t('scopes.expansion' + scope.queryExpansion) : t('scopes.serverDefault')}</dd>
+          <dt>{t('scopes.conversationRewrite')}</dt>
+          <dd>{scope?.conversationRewrite == null ? t('scopes.serverDefault') : scope.conversationRewrite ? t('scopes.enabled') : t('scopes.disabled')}</dd>
+          <dt>{t('scopes.queryDecomposition')}</dt>
+          <dd>{scope?.queryDecomposition == null ? t('scopes.serverDefault') : scope.queryDecomposition ? t('scopes.enabled') : t('scopes.disabled')}</dd>
           {scope?.targetPath && (
             <>
               <dt>{t('scopes.targetPath')}</dt>

@@ -287,6 +287,21 @@ namespace Isis.McpServer
             return result;
         }
 
+        private static void AddModelSettings(RpcParameters? p, Dictionary<string, object?> body)
+        {
+            // An empty string clears a model or setting (the scope then uses the server default).
+            string? inferenceEndpointId = p?.GetString("inferenceEndpointId");
+            if (inferenceEndpointId != null) body["inferenceEndpointId"] = inferenceEndpointId.Length > 0 ? inferenceEndpointId : null;
+            string? queryEndpointId = p?.GetString("queryEndpointId");
+            if (queryEndpointId != null) body["queryEndpointId"] = queryEndpointId.Length > 0 ? queryEndpointId : null;
+            string? queryExpansion = p?.GetString("queryExpansion");
+            if (queryExpansion != null) body["queryExpansion"] = queryExpansion.Length > 0 ? queryExpansion : null;
+            bool? conversationRewrite = p?.GetBoolean("conversationRewrite");
+            if (conversationRewrite.HasValue) body["conversationRewrite"] = conversationRewrite.Value;
+            bool? queryDecomposition = p?.GetBoolean("queryDecomposition");
+            if (queryDecomposition.HasValue) body["queryDecomposition"] = queryDecomposition.Value;
+        }
+
         private static void AddRerankSettings(RpcParameters? p, Dictionary<string, object?> body)
         {
             string? rerankEndpointId = p?.GetString("rerankEndpointId");
@@ -380,7 +395,8 @@ namespace Isis.McpServer
                 "Create a memory scope for a project when one does not already exist (check first with scope_enumerate). "
                 + "Required: tenantId, name. Optional: description; storeProvider: RecallDb (default: semantic + keyword, needs an embedding endpoint) or Filesystem (keyword-only, git-trackable files). "
                 + "For RecallDb you may pass embeddingEndpointId and dimensionality, but if you omit them the tenant's embedding endpoint and its dimensionality are selected AUTOMATICALLY (list options with endpoint_enumerate). "
-                + "If the tenant has NO embedding endpoint, RecallDb is rejected with guidance; use storeProvider Filesystem instead. Filesystem also accepts filesystemLayout (SingleFile|Hierarchy|OkfBundle; OkfBundle writes a git-trackable Open Knowledge Format bundle: one markdown file per memory with YAML frontmatter plus a generated index.md) and targetPath.",
+                + "If the tenant has NO embedding endpoint, RecallDb is rejected with guidance; use storeProvider Filesystem instead. Filesystem also accepts filesystemLayout (SingleFile|Hierarchy|OkfBundle; OkfBundle writes a git-trackable Open Knowledge Format bundle: one markdown file per memory with YAML frontmatter plus a generated index.md) and targetPath. "
+                + "Optional model and retrieval settings: rerankEndpointId, rerankCandidates, rerankMinScore, inferenceEndpointId (chat model), queryEndpointId (model for query rewriting and expansion), conversationRewrite, queryExpansion (Off|On|Auto), queryDecomposition; unset values use the server defaults.",
                 new
                 {
                     type = "object",
@@ -400,7 +416,12 @@ namespace Isis.McpServer
                         chunkOverlapTokens = new { type = "integer", description = "Token overlap between adjacent chunks (default 64)." },
                         rerankEndpointId = new { type = "string", description = "Optional Rerank endpoint id (rep_); searches in the scope are then reranked by default." },
                         rerankCandidates = new { type = "integer", description = "Candidates sent to the reranker (1..100, default 10)." },
-                        rerankMinScore = new { type = "number", description = "Drop reranked hits scoring below this (0..1). Omit to keep all." }
+                        rerankMinScore = new { type = "number", description = "Drop reranked hits scoring below this (0..1). Omit to keep all." },
+                        inferenceEndpointId = new { type = "string", description = "Inference endpoint id that answers chat in this scope (empty string clears it; default: the tenant's first active inference endpoint)." },
+                        queryEndpointId = new { type = "string", description = "Inference endpoint id that rewrites follow-ups, splits, and expands queries (empty string clears it; default: the scope's chat model)." },
+                        conversationRewrite = new { type = "boolean", description = "Rewrite chat follow-up questions into standalone queries (default: the server setting, on)." },
+                        queryExpansion = new { type = "string", @enum = new[] { "Off", "On", "Auto", "" }, description = "Expand queries with a drafted answer and keywords: Off, On, or Auto (when not reranked). Empty string uses the server default (Auto)." },
+                        queryDecomposition = new { type = "boolean", description = "Split multi-part questions into sub-queries (default: the server setting, off)." }
                     },
                     required = new[] { "tenantId", "name" }
                 },
@@ -422,6 +443,7 @@ namespace Isis.McpServer
                     long? chunkOverlapTokens = p?.GetInt64("chunkOverlapTokens");
                     if (chunkOverlapTokens.HasValue) body["chunkOverlapTokens"] = chunkOverlapTokens.Value;
                     AddRerankSettings(p, body);
+                    AddModelSettings(p, body);
                     string path = "/v1.0/api/tenants/" + Encode(Require(p, "tenantId")) + "/scopes";
                     return await ProxyAsync(HttpMethod.Post, path, JsonSerializer.Serialize(body), "scope_create", CurrentCredentials(), ct).ConfigureAwait(false);
                 });
@@ -643,7 +665,7 @@ namespace Isis.McpServer
 
             _Server.RegisterTool(
                 "scope_update",
-                "Update a scope's name, description, or rerank settings (store provider and dimensionality are immutable); settings not passed are kept. Required: tenantId, scopeId. Optional: name, description, rerankEndpointId (empty string removes it), rerankCandidates, rerankMinScore.",
+                "Update a scope's name, description, models, or retrieval settings (store provider and dimensionality are immutable); settings not passed are kept. Required: tenantId, scopeId. Optional: name, description, rerankEndpointId (empty string removes it), rerankCandidates, rerankMinScore, inferenceEndpointId and queryEndpointId (the models for chat and for query rewriting/expansion), conversationRewrite, queryExpansion (Off|On|Auto), queryDecomposition.",
                 new
                 {
                     type = "object",
@@ -655,7 +677,12 @@ namespace Isis.McpServer
                         description = new { type = "string" },
                         rerankEndpointId = new { type = "string", description = "Rerank endpoint id (rep_), or an empty string to stop reranking." },
                         rerankCandidates = new { type = "integer", description = "Candidates sent to the reranker (1..100)." },
-                        rerankMinScore = new { type = "number", description = "Drop reranked hits scoring below this (0..1)." }
+                        rerankMinScore = new { type = "number", description = "Drop reranked hits scoring below this (0..1)." },
+                        inferenceEndpointId = new { type = "string", description = "Inference endpoint id that answers chat in this scope (empty string clears it; default: the tenant's first active inference endpoint)." },
+                        queryEndpointId = new { type = "string", description = "Inference endpoint id that rewrites follow-ups, splits, and expands queries (empty string clears it; default: the scope's chat model)." },
+                        conversationRewrite = new { type = "boolean", description = "Rewrite chat follow-up questions into standalone queries (default: the server setting, on)." },
+                        queryExpansion = new { type = "string", @enum = new[] { "Off", "On", "Auto", "" }, description = "Expand queries with a drafted answer and keywords: Off, On, or Auto (when not reranked). Empty string uses the server default (Auto)." },
+                        queryDecomposition = new { type = "boolean", description = "Split multi-part questions into sub-queries (default: the server setting, off)." }
                     },
                     required = new[] { "tenantId", "scopeId" }
                 },
@@ -673,6 +700,7 @@ namespace Isis.McpServer
                     if (p?.GetString("name") != null) body["name"] = p.GetString("name");
                     if (p?.GetString("description") != null) body["description"] = p.GetString("description");
                     AddRerankSettings(p, body);
+                    AddModelSettings(p, body);
                     return await ProxyAsync(HttpMethod.Put, path, JsonSerializer.Serialize(body), "scope_update", credentials, ct).ConfigureAwait(false);
                 });
 

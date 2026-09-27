@@ -33,6 +33,7 @@ Latency and throughput depend on the machine. Compare them within this page, not
 | 6 | Hybrid fusion's RRF constant 60 → 20 after a sweep; embedding model profiles (nomic-embed-text chunks capped at 128 tokens); the cross-encoder seeded and attached to new scopes by the reference stack, with a circuit breaker; multi-query search and query decomposition (measured, off in chat by default); gpt-oss-20b measured as a prompted reranker |
 | 7 | Chat accepts the conversation's earlier messages and rewrites a follow-up into a standalone query before retrieval, searching both; a follow-up question dataset |
 | 8 | Weighted multi-query fusion with a small fusion constant (k = 5, was 60); opt-in query expansion (a drafted answer searched by vector, keywords searched as text); input validation across the API |
+| 9 | Per-scope models and query steps (chat model, query model, rewrite, expansion, decomposition), with expansion on by default for searches that are not reranked; RecallDB single-call hybrid search; Voltaic 2.1.13 |
 
 ## Retrieval
 
@@ -301,6 +302,33 @@ answered 0.989 of answerable questions correctly and declined 19 of 20 unanswera
 7, within the 4B judge's noise). The follow-up set, whose rewrite is fused with the question at the new constant,
 scored 0.969 against 0.906 in round 7, with evidence in the prompt for every question both times.
 
+### Round 9: per-scope models, single-call hybrid, and expansion by default
+
+Round 9 made the model for each job and the optional query steps scope settings, turned expansion on by default for
+searches that are not reranked (`queryExpansion: Auto`), and moved hybrid search to RecallDB's single call.
+
+**Single-call hybrid** returned the same rankings as the two-call path on every dataset, with and without the
+cross-encoder (isis-live 0.878, Atlas 0.835, SciFact 0.683, LongMemEval 0.911; reranked 0.925, 0.883, 0.712, 0.939).
+Latency is similar on this setup, where Isis and RecallDB share a host and the query embedding call dominates (p50
+107 to 135 ms single call, 94 to 166 ms two calls).
+
+**Expansion by default** did not reproduce round 8 on the agent-memory datasets:
+
+| Hybrid nDCG@10 | isis-live | Atlas | SciFact | LongMemEval |
+|---|---|---|---|---|
+| No expansion | 0.878 | 0.835 | 0.683 | 0.911 |
+| Expansion, round 8 run | 0.879 | 0.842 | 0.716 | 0.937 |
+| Expansion, round 9 run (the new default) | 0.873 | 0.827 | 0.723 | 0.926 |
+| Mean of the two runs | 0.876 | 0.835 | 0.720 | 0.932 |
+
+gemma3:4b drafts a different answer and keyword list on each run, so a single run moves by about 0.01. Across both
+runs, expansion reliably helps the public datasets (SciFact +0.037, LongMemEval +0.021) and is neutral on isis-live and
+Atlas, the agent-memory datasets. In Keyword and Semantic modes it helped keyword search consistently (isis-live 0.812
+to 0.836, Atlas 0.767 to 0.780, SciFact 0.594 to 0.614) and left semantic search unchanged. In chat, which already
+places the evidence in the prompt for 99 to 100% of questions, expansion changed nothing measurable except latency:
+p50 2.1 s to 4.1 s on isis-live (accuracy 0.956, every unanswerable question declined) and the follow-up set (accuracy
+0.938 against 0.969, one question, within the judge's noise).
+
 ### Choosing the recency weight
 
 The recency weight was chosen by sweeping it on all four datasets, reusing the same ingested scopes.
@@ -476,13 +504,12 @@ decomposition calls one at a time.
 ## What's next
 
 [RETRIEVAL_IMPROVEMENTS.md](../RETRIEVAL_IMPROVEMENTS.md) lists every fix considered, scored for value and simplicity,
-with what landed in each round and the current ranked list. After round 8 the results point at:
+with what landed in each round and the current ranked list. After round 9 the results point at:
 
-- **An opt-in high-precision mode** built on a larger chat model as the reranker, with a relevance cutoff chosen from
-  its score distributions; it is the strongest ranking and "nothing relevant" signal measured.
-- **Expansion where no reranker runs.** It now helps every dataset; the open questions are whether to enable it
-  automatically for scopes without a reranker, and whether it adds anything on top of the cross-encoder at k = 5.
-- **RecallDB single-call hybrid search and stored vectors**, which need a RecallDB server that reports its
-  capabilities in the benchmark stack.
-- **Wider evaluation**: more BEIR datasets with published baselines (NFCorpus, FiQA, ArguAna, SciDocs), the full
-  LongMemEval_S, a multi-hop set for decomposition, and a larger multi-turn set for follow-up rewriting.
+- **The expansion default.** It pays on public, general-knowledge corpora and not on agent memory, and costs 2 s per
+  search and per chat question. Keeping `Auto` for search but not chat, or `Off` by default, are the choices to weigh.
+- **A combined, calibrated "nothing relevant" signal** for scopes without a large reranking model.
+- **Stored vectors** for diversity and duplicate detection, now possible with the updated RecallDB.
+- **Wider evaluation**: more BEIR datasets with published baselines, the full LongMemEval_S, a multi-hop set for
+  decomposition, and a larger multi-turn set for follow-up rewriting. Averaging two or more runs of any step that uses a
+  small model, since its output varies between runs.

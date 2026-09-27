@@ -69,6 +69,7 @@ namespace Test.Shared
                 RetrievalSuite.Suite(),
                 RefinementSuite.Suite(),
                 ValidationSuite.Suite(),
+                ScopeModelsSuite.Suite(),
                 ServiceSuite.Suite(),
                 RestSuite.Suite(),
                 McpSuite.Suite(),

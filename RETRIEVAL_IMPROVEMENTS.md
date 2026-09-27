@@ -445,3 +445,29 @@ The current table replaces the round-6 table. Scores are value plus simplicity, 
 Outside retrieval, two findings from the validation audit need a product decision rather than a fix: restricting a
 filesystem scope's `targetPath` to a configured root (today it can point anywhere the server can write), and a minimum
 password length (which would affect the seeded default password).
+
+## Round 9 findings and the current table
+
+| Round-8 item | Result |
+|---|---|
+| 1. High-precision mode | **Done as configuration.** It needed no new mechanism: a scope's reranker can already be a large chat model (Ollama or OpenAI format) with a `rerankMinScore` cutoff. Round 9 made the model for every job a scope setting (chat model, query model, and the rewrite, expansion, and decomposition switches), like an assistant's settings in AssistantHub, across REST, MCP, the dashboard, and the database |
+| 2. Expansion by default without a reranker | **Done** (`queryExpansion: Auto`). A second run showed the round-8 gains on agent-memory data were within run-to-run noise: over two runs expansion is +0.037 on SciFact and +0.021 on LongMemEval, neutral on isis-live and Atlas, and adds 2 s per search and per chat question without improving chat |
+| 4. RecallDB single-call hybrid | **Done.** Identical rankings to the two-call path; similar latency on a shared host; the two-call path remains the fallback |
+
+What round 9 taught:
+
+- **Average repeated runs of anything a small model generates.** One run of expansion looked like a gain on every
+  dataset; two runs showed it is a gain only on the public datasets.
+- **Configuration was the missing piece for high precision**, not a new retrieval stage.
+
+The current table replaces the round-8 table. Scores are value plus simplicity, each 1 to 10.
+
+| Rank | Fix | Weak area | Value | Simplicity | Score |
+|---|---|---|---|---|---|
+| 1 | Revisit the expansion default: keep `Auto` for search but skip it in chat (no measurable chat gain, 2 s cost), or default to `Off` and recommend it for general-knowledge scopes | Latency without gain on agent memory | 5 | 9 | 14 |
+| 2 | Wider evaluation: BEIR NFCorpus, FiQA, ArguAna, and SciDocs with published baselines, the full LongMemEval_S, a multi-hop set, a larger multi-turn set, and two or more runs for model-generated steps | Confidence in every result above | 5 | 6 | 11 |
+| 3 | Abstention from a combined, calibrated signal (vector score, rerank score, and score gap) for scopes without a large reranking model | "Nothing relevant" | 6 | 4 | 10 |
+| 4 | Stored vectors in search results (RecallDB now returns them on request), so diversity and duplicate detection compare vectors | Diversity and similarity on whole memories | 4 | 5 | 9 |
+
+Two findings from the validation audit still need a product decision: restricting a filesystem scope's `targetPath`
+to a configured root, and a minimum password length.

@@ -28,8 +28,7 @@ namespace Isis.Server.Routes
         private readonly AuthorizationService _Authorization;
         private readonly MemoryService _MemoryService;
         private readonly LookupCache? _Cache;
-        private readonly QueryDecomposer? _Decomposer;
-        private readonly QueryExpander? _Expander;
+        private readonly QueryPreparer? _Preparer;
 
         #endregion
 
@@ -42,14 +41,13 @@ namespace Isis.Server.Routes
         /// <param name="authorization">The authorization service.</param>
         /// <param name="memoryService">The memory service.</param>
         /// <param name="cache">Optional lookup cache for scope reads.</param>
-        /// <param name="decomposer">Optional query decomposer used when a search sets decompose. Null ignores decompose.</param>
-        /// <param name="expander">Optional query expander used when a search sets expand. Null ignores expand.</param>
+        /// <param name="preparer">Optional query preparer that splits and expands searches per the request and the
+        /// scope. Null searches every query as given.</param>
         /// <exception cref="ArgumentNullException">Thrown when a required argument is null.</exception>
-        public MemoryRoutes(DatabaseDriverBase database, AuthorizationService authorization, MemoryService memoryService, LookupCache? cache = null, QueryDecomposer? decomposer = null, QueryExpander? expander = null)
+        public MemoryRoutes(DatabaseDriverBase database, AuthorizationService authorization, MemoryService memoryService, LookupCache? cache = null, QueryPreparer? preparer = null)
         {
             _Cache = cache;
-            _Decomposer = decomposer;
-            _Expander = expander;
+            _Preparer = preparer;
             _Database = database ?? throw new ArgumentNullException(nameof(database));
             _Authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
             _MemoryService = memoryService ?? throw new ArgumentNullException(nameof(memoryService));
@@ -206,42 +204,21 @@ namespace Isis.Server.Routes
             {
                 // Optional query splitting: an inference endpoint rewrites a multi-part question into sub-queries,
                 // which are searched alongside it. Without an endpoint the question is searched as given.
-                // Optional query expansion: the model drafts a hypothetical answer (searched by vector) and keywords
-                // (searched as text), fused below the query's own weight.
+                // Optional query steps, per the request and then the scope: split a multi-part question, and expand the
+                // query with a drafted answer (searched by vector) and keywords (searched as text), both fused below the
+                // query's own weight. Automatic expansion runs only when the search is not reranked.
                 string? modelNotice = null;
-                bool wantsDecompose = query.Decompose && _Decomposer != null;
-                bool wantsExpand = query.Expand && _Expander != null;
-                if (wantsDecompose || wantsExpand)
+                if (_Preparer != null)
                 {
-                    ModelEndpoint? inference = await ResolveInferenceEndpointAsync(tenantId, query.InferenceEndpointId, context.Token).ConfigureAwait(false);
-                    if (inference == null)
+                    bool reranked = !string.IsNullOrEmpty(scope.RerankEndpointId) && query.Rerank != false;
+                    bool decompose = _Preparer.ShouldDecompose(scope, query.Decompose);
+                    bool expand = _Preparer.ShouldExpand(scope, query.Expand, reranked);
+                    if (decompose || expand)
                     {
-                        modelNotice = "No active inference endpoint is available to split or expand the query; it was searched as given.";
-                    }
-                    else
-                    {
-                        if (wantsDecompose)
-                        {
-                            List<string> parts = await _Decomposer!.DecomposeAsync(inference, query.QueryText, context.Token).ConfigureAwait(false);
-                            if (parts.Count > 0)
-                            {
-                                List<string> merged = new List<string>(query.AdditionalQueries ?? new List<string>());
-                                merged.AddRange(parts);
-                                query.AdditionalQueries = merged;
-                            }
-                        }
-
-                        if (wantsExpand)
-                        {
-                            QueryExpansion expansion = await _Expander!.ExpandAsync(inference, query.QueryText, context.Token).ConfigureAwait(false);
-                            List<MemorySubQuery> forms = QueryExpander.ToSubQueries(expansion, query.Mode, query.ExpansionWeight ?? _MemoryService.ExpansionWeight);
-                            if (forms.Count > 0)
-                            {
-                                List<MemorySubQuery> merged = new List<MemorySubQuery>(query.SubQueries ?? new List<MemorySubQuery>());
-                                merged.AddRange(forms);
-                                query.SubQueries = merged;
-                            }
-                        }
+                        ModelEndpoint? queryEndpoint = await _Preparer.ResolveQueryEndpointAsync(scope, query.InferenceEndpointId, null, context.Token).ConfigureAwait(false);
+                        if (queryEndpoint == null && (query.Decompose == true || query.Expand == true))
+                            modelNotice = "No active inference endpoint is available to split or expand the query; it was searched as given.";
+                        await _Preparer.PrepareAsync(query, queryEndpoint, null, false, decompose, expand, context.Token).ConfigureAwait(false);
                     }
                 }
 
