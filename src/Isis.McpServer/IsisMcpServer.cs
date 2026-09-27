@@ -341,8 +341,8 @@ namespace Isis.McpServer
                 tenantId = new { type = "string" },
                 endpointId = new { type = "string", description = "Endpoint id (update only)." },
                 name = new { type = "string" },
-                kind = new { type = "string", description = "Embedding, Inference, or Rerank." },
-                apiFormat = new { type = "string", description = "Ollama, OpenAI, VLlm, or Gemini for embedding and inference; Tei or Cohere (or VLlm) for a cross-encoder rerank endpoint, or Ollama/OpenAI for a chat model used as a reranker." },
+                kind = new { type = "string", description = "Embedding or Inference. Every model that is not an embedding model is an inference endpoint, rerankers included (Rerank is accepted and stored as Inference)." },
+                apiFormat = new { type = "string", description = "Ollama, OpenAI, VLlm, or Gemini for embedding and chat models; Tei or Cohere for a cross-encoder, which can only rerank. A chat model in Ollama, OpenAI, or VLlm format can also rerank." },
                 baseUrl = new { type = "string", description = "Full base URL; the API path is appended (e.g. http://host:11434 or https://api.openai.com)." },
                 authType = new { type = "string", description = "None, BearerToken, ApiKeyHeader, QueryParam, BasicAuth, or AccessKeySecret." },
                 authHeaderName = new { type = "string", description = "Header name for ApiKeyHeader, or access-key header for AccessKeySecret." },
@@ -414,7 +414,7 @@ namespace Isis.McpServer
                         chunkStrategy = new { type = "string", description = "Chunk splitting strategy, for example FixedTokenCount (default), SentenceBased, ParagraphBased, Recursive." },
                         chunkMaxTokens = new { type = "integer", description = "Per-chunk token budget (0 = the embedding model's budget)." },
                         chunkOverlapTokens = new { type = "integer", description = "Token overlap between adjacent chunks (default 64)." },
-                        rerankEndpointId = new { type = "string", description = "Optional Rerank endpoint id (rep_); searches in the scope are then reranked by default." },
+                        rerankEndpointId = new { type = "string", description = "Optional inference endpoint that reranks the scope's searches: a cross-encoder (Tei or Cohere format), or a chat model for a slower, high-precision mode. Default: the tenant's first cross-encoder." },
                         rerankCandidates = new { type = "integer", description = "Candidates sent to the reranker (1..100, default 10)." },
                         rerankMinScore = new { type = "number", description = "Drop reranked hits scoring below this (0..1). Omit to keep all." },
                         inferenceEndpointId = new { type = "string", description = "Inference endpoint id that answers chat in this scope (empty string clears it; default: the tenant's first active inference endpoint)." },
@@ -450,8 +450,8 @@ namespace Isis.McpServer
 
             _Server.RegisterTool(
                 "endpoint_enumerate",
-                "List the tenant's configured model endpoints (embedding, inference, and rerank), each with its id, kind, model, and embedding dimensionality. Use this to find an embeddingEndpointId (and its dimensionality) BEFORE creating a RecallDb semantic scope. If no embedding endpoint is listed, create a Filesystem (keyword-only) scope instead. Required: tenantId. Optional: kind (Embedding, Inference, or Rerank).",
-                new { type = "object", properties = new { tenantId = new { type = "string" }, kind = new { type = "string", description = "Optional filter: Embedding, Inference, or Rerank." } }, required = new[] { "tenantId" } },
+                "List the tenant's configured model endpoints (embedding and inference, rerankers included), each with its id, kind, API format, model, and embedding dimensionality. Use this to find an embeddingEndpointId (and its dimensionality) BEFORE creating a RecallDb semantic scope. If no embedding endpoint is listed, create a Filesystem (keyword-only) scope instead. Required: tenantId. Optional: kind (Embedding, Inference, or Rerank).",
+                new { type = "object", properties = new { tenantId = new { type = "string" }, kind = new { type = "string", description = "Optional filter: Embedding or Inference (rerankers are inference endpoints)." } }, required = new[] { "tenantId" } },
                 async (RpcParameters? p, CancellationToken ct) =>
                 {
                     string path = "/v1.0/api/tenants/" + Encode(Require(p, "tenantId")) + "/endpoints";
@@ -675,7 +675,7 @@ namespace Isis.McpServer
                         scopeId = new { type = "string" },
                         name = new { type = "string" },
                         description = new { type = "string" },
-                        rerankEndpointId = new { type = "string", description = "Rerank endpoint id (rep_), or an empty string to stop reranking." },
+                        rerankEndpointId = new { type = "string", description = "Inference endpoint that reranks (a cross-encoder or a chat model), or an empty string to stop reranking." },
                         rerankCandidates = new { type = "integer", description = "Candidates sent to the reranker (1..100)." },
                         rerankMinScore = new { type = "number", description = "Drop reranked hits scoring below this (0..1)." },
                         inferenceEndpointId = new { type = "string", description = "Inference endpoint id that answers chat in this scope (empty string clears it; default: the tenant's first active inference endpoint)." },

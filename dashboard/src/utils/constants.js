@@ -48,11 +48,14 @@ export const FILESYSTEM_LAYOUT_LABELS = {
 };
 export const MEMORY_TYPES = ['User', 'Feedback', 'Project', 'Reference'];
 export const SEARCH_MODES = ['Keyword', 'Semantic', 'Hybrid'];
-export const ENDPOINT_KINDS = ['Embedding', 'Inference', 'Rerank'];
+export const ENDPOINT_KINDS = ['Embedding', 'Inference'];
 export const API_FORMATS = ['Ollama', 'OpenAI', 'VLlm', 'Gemini'];
-// Rerank endpoints speak a rerank API (Hugging Face TEI, or Cohere-compatible, also vLLM), or are a chat model
-// (Ollama or OpenAI) prompted to rate candidates.
-export const RERANK_API_FORMATS = ['Tei', 'Cohere', 'VLlm', 'Ollama', 'OpenAI'];
+// Every model that is not an embedding model is an inference endpoint. Chat formats answer chat and run query steps;
+// all but Gemini can also rerank by rating candidates in a prompt. Tei and Cohere are cross-encoders: rerank only.
+export const INFERENCE_API_FORMATS = ['Ollama', 'OpenAI', 'VLlm', 'Gemini', 'Tei', 'Cohere'];
+export const RERANK_ONLY_FORMATS = ['Tei', 'Cohere'];
+export const canChat = (format) => !RERANK_ONLY_FORMATS.includes(format);
+export const canRerank = (format) => format !== 'Gemini';
 export const HEALTH_METHODS = ['GET', 'HEAD'];
 export const AUTH_TYPES = ['None', 'BearerToken', 'ApiKeyHeader', 'QueryParam', 'BasicAuth', 'AccessKeySecret'];
 export const INSTRUCTION_MERGE_MODES = ['Append', 'Replace', 'Hide'];

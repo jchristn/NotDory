@@ -59,7 +59,7 @@ Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀──
                                 └───────────┘    └──────────────┘
    Embedding endpoint ◀─ Isis computes vectors
    Inference endpoint ◀─ Isis summarizes / compacts   (health-checked, dedup by method+URL+auth)
-   Rerank endpoint    ◀─ Isis reorders search candidates (cross-encoder, optional)
+   (rerankers are inference endpoints: a cross-encoder or a chat model reorders search candidates)
 ```
 
 - **RecallDB** is the system of record for memory content, embeddings, and retrieval, on a shared Postgres instance.

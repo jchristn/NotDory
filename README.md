@@ -90,8 +90,8 @@ Then:
 
 **Reranking (recommended).** A cross-encoder reranker is the largest retrieval improvement measured (see
 `benchmarks/RESULTS.md`). Start the stack with `--profile rerank` (CPU) or `--profile rerank-gpu` (NVIDIA GPU; pick the
-Text Embeddings Inference image tag for your GPU generation). Isis waits for the reranker to answer, seeds a Rerank
-endpoint, and attaches it to new semantic scopes. On CPU a reranked search takes roughly 0.3 to 0.5 s; on a GPU, tens
+Text Embeddings Inference image tag for your GPU generation). Isis waits for the reranker to answer, adds it as an
+inference endpoint (a cross-encoder), and attaches it to new semantic scopes. On CPU a reranked search takes roughly 0.3 to 0.5 s; on a GPU, tens
 of milliseconds. If the reranker is unreachable, searches fall back to retrieval order.
 
 ```bash
@@ -160,7 +160,7 @@ Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀──
                                 │ (shared)  │    │  db: recalldb│
                                 └───────────┘    └──────────────┘
    Embedding endpoint ◀─ Isis computes vectors
-   Rerank endpoint    ◀─ Isis reorders search candidates (cross-encoder, optional)
+   (rerankers are inference endpoints: a cross-encoder or a chat model reorders search candidates)
    Inference endpoint ◀─ chat answers; optional query rewriting, splitting, expansion   (all health-checked)
 ```
 

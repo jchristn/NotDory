@@ -1,13 +1,14 @@
 namespace Isis.Server.Services
 {
-    using System;
     using System.Net.Http;
-    using System.Threading;
     using System.Threading.Tasks;
+    using System.Threading;
+    using System;
     using Isis.Core.Database;
     using Isis.Core.Enums;
     using Isis.Core.Helpers;
     using Isis.Core.Models;
+    using Isis.Core.Recall;
     using Isis.Core.Security;
     using Isis.Server.Settings;
 
@@ -227,9 +228,13 @@ namespace Isis.Server.Services
             if (baseUrl.Length == 0) return false;
             string model = Environment.GetEnvironmentVariable("ISIS_DEFAULT_RERANK_MODEL") ?? "cross-encoder/ms-marco-MiniLM-L-6-v2";
 
-            EnumerationQuery query = new EnumerationQuery { MaxResults = 1 };
-            EnumerationResult<ModelEndpoint> existing = await database.ModelEndpoints.EnumerateAsync(DefaultTenantId, EndpointKindEnum.Rerank, query, token).ConfigureAwait(false);
-            if (existing.TotalRecords > 0) return false;
+            // Skip when the tenant already has a cross-encoder (a rerank-only inference endpoint).
+            EnumerationQuery query = new EnumerationQuery { MaxResults = 1000 };
+            EnumerationResult<ModelEndpoint> existing = await database.ModelEndpoints.EnumerateAsync(DefaultTenantId, EndpointKindEnum.Inference, query, token).ConfigureAwait(false);
+            foreach (ModelEndpoint endpoint in existing.Objects)
+            {
+                if (ApiFormatCapabilities.IsRerankOnly(endpoint.ApiFormat)) return false;
+            }
 
             DateTime deadline = DateTime.UtcNow.Add(maxWait);
             while (true)
@@ -257,10 +262,10 @@ namespace Isis.Server.Services
 
             ModelEndpoint rerank = new ModelEndpoint
             {
-                Id = IdGenerator.RerankEndpoint(),
+                Id = IdGenerator.InferenceEndpoint(),
                 TenantId = DefaultTenantId,
                 Name = "Default Rerank (TEI " + model + ")",
-                Kind = EndpointKindEnum.Rerank,
+                Kind = EndpointKindEnum.Inference,
                 ApiFormat = ApiFormatEnum.Tei,
                 BaseUrl = baseUrl,
                 AuthType = EndpointAuthTypeEnum.None,

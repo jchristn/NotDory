@@ -39,8 +39,7 @@ function Sidebar() {
       label: t('nav.groups.inference'),
       items: [
         { to: '/dashboard/endpoints/embedding', label: t('nav.embedding'), icon: IconCpu },
-        { to: '/dashboard/endpoints/inference', label: t('nav.inference'), icon: IconCpu },
-        { to: '/dashboard/endpoints/rerank', label: t('nav.rerank'), icon: IconCpu }
+        { to: '/dashboard/endpoints/inference', label: t('nav.inference'), icon: IconCpu }
       ]
     },
     {

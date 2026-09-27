@@ -71,7 +71,9 @@ namespace Isis.Core.Models
             }
             set
             {
-                _Kind = InputGuard.Defined(value, EndpointKindEnum.Embedding);
+                // Rerankers are ordinary inference endpoints; the legacy Rerank kind is stored as Inference.
+                EndpointKindEnum kind = InputGuard.Defined(value, EndpointKindEnum.Embedding);
+                _Kind = kind == EndpointKindEnum.Rerank ? EndpointKindEnum.Inference : kind;
             }
         }
 

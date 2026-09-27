@@ -28,13 +28,13 @@ namespace Isis.Core.Enums
 
         /// <summary>
         /// Hugging Face Text Embeddings Inference reranker API (<c>POST /rerank</c> with <c>query</c> and <c>texts</c>;
-        /// probe path <c>/health</c>). Rerank endpoints only.
+        /// probe path <c>/health</c>). A cross-encoder: rerank only.
         /// </summary>
         Tei,
 
         /// <summary>
         /// Cohere-compatible rerank API (<c>POST /v1/rerank</c> with <c>query</c> and <c>documents</c>, answering
-        /// <c>results[].relevance_score</c>), also served by Jina, Voyage, and several self-hosted rerankers. Rerank
+        /// <c>results[].relevance_score</c>), also served by vLLM, Jina, Voyage, and several self-hosted rerankers. A cross-encoder: rerank
         /// endpoints only.
         /// </summary>
         Cohere

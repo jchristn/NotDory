@@ -87,7 +87,6 @@ export const en = {
       chat: 'Chat with Memory',
       embedding: 'Embedding Endpoints',
       inference: 'Inference Endpoints',
-      rerank: 'Rerank Endpoints',
       collectionsRecall: 'Collections',
       requestHistory: 'Request History',
       operations: 'Operations',
@@ -178,7 +177,7 @@ export const en = {
       expansionAuto: 'Auto (when not reranked)',
       expansionOn: 'On',
       expansionOff: 'Off',
-      modelsHint: 'The chat model answers chat in this scope. The query model rewrites follow-up questions, splits multi-part questions, and drafts an answer and keywords to expand searches; it defaults to the chat model. A reranker can also be a large chat model (Ollama or OpenAI format) for a slower, high-precision mode. Unset values follow the server settings.'
+      modelsHint: 'The chat model answers chat in this scope. The query model rewrites follow-up questions, splits multi-part questions, and drafts an answer and keywords to expand searches; it defaults to the chat model. The reranker can be a cross-encoder (fast) or a large chat model (slower, high precision); cross-encoders only rerank, so they are not offered as chat or query models. Unset values follow the server settings.'
     },
     instructions: {
       title: 'Instructions',
@@ -321,12 +320,10 @@ export const en = {
       embeddingTitle: 'Embedding Endpoints',
       embeddingSubtitle: 'Endpoints Isis uses to vectorize memory bodies and queries.',
       inferenceTitle: 'Inference Endpoints',
-      inferenceSubtitle: 'Endpoints Isis uses for summaries, compaction, and chat.',
+      inferenceSubtitle: 'Every model that is not an embedding model: chat models, and cross-encoders (Tei or Cohere format) that only rerank. A scope chooses which endpoint answers chat, runs query steps, and reranks.',
+      rerankOnly: 'Rerank only',
       addEmbedding: 'Add embedding endpoint',
       addInference: 'Add inference endpoint',
-      rerankTitle: 'Rerank Endpoints',
-      rerankSubtitle: 'Cross-encoders that rescore search candidates; attach one to a scope to rerank its searches.',
-      addRerank: 'Add rerank endpoint',
       apiFormat: 'API format',
       baseUrl: 'Base URL',
       baseUrlHint: 'Full base URL; the API path (e.g. /v1/embeddings or /api/embed) is appended automatically.',

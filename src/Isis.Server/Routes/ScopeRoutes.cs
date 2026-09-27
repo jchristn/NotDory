@@ -1,18 +1,19 @@
 namespace Isis.Server.Routes
 {
-    using System;
     using System.Collections.Generic;
-    using System.Threading;
     using System.Threading.Tasks;
+    using System.Threading;
+    using System;
     using Isis.Core.Database;
     using Isis.Core.Enums;
     using Isis.Core.Models;
+    using Isis.Core.Recall;
     using Isis.Core.Security;
     using Isis.Server.Models;
     using Isis.Server.Services;
-    using WatsonWebserver;
-    using WatsonWebserver.Core;
     using WatsonWebserver.Core.OpenApi;
+    using WatsonWebserver.Core;
+    using WatsonWebserver;
 
     /// <summary>
     /// Scope routes, scoped to a tenant.
@@ -157,15 +158,16 @@ namespace Isis.Server.Routes
                 scope.EmbeddingEndpointId = endpoint.Id;
                 if (scope.Dimensionality <= 0) scope.Dimensionality = endpoint.Dimensionality;
 
-                // Reranking is the largest retrieval gain measured, so a new semantic scope uses the tenant's rerank
-                // endpoint when one exists (a search falls back to retrieval order if it is unreachable). Clear
-                // rerankEndpointId with an update to opt out.
+                // Reranking is the largest retrieval gain measured, so a new semantic scope uses the tenant's first active
+                // cross-encoder (a fast, rerank-only inference endpoint) when one exists; a search falls back to retrieval
+                // order if it is unreachable. A chat model is never attached automatically, because prompted reranking
+                // takes seconds per search. Clear rerankEndpointId with an update to opt out.
                 if (string.IsNullOrEmpty(scope.RerankEndpointId))
                 {
-                    EnumerationResult<ModelEndpoint> rerankers = await _Database.ModelEndpoints.EnumerateAsync(tenantId, EndpointKindEnum.Rerank, new EnumerationQuery { MaxResults = 100 }, context.Token).ConfigureAwait(false);
-                    foreach (ModelEndpoint reranker in rerankers.Objects)
+                    EnumerationResult<ModelEndpoint> inference = await _Database.ModelEndpoints.EnumerateAsync(tenantId, EndpointKindEnum.Inference, new EnumerationQuery { MaxResults = 1000 }, context.Token).ConfigureAwait(false);
+                    foreach (ModelEndpoint reranker in inference.Objects)
                     {
-                        if (!reranker.Active) continue;
+                        if (!reranker.Active || !ApiFormatCapabilities.IsRerankOnly(reranker.ApiFormat)) continue;
                         scope.RerankEndpointId = reranker.Id;
                         break;
                     }
@@ -190,19 +192,24 @@ namespace Isis.Server.Routes
 
         private async Task<string?> ValidateScopeEndpointsAsync(string tenantId, Scope scope, CancellationToken token)
         {
-            // Each model the scope names must exist in the tenant and be of the kind its job needs.
-            return await ValidateEndpointAsync(tenantId, scope.RerankEndpointId, EndpointKindEnum.Rerank, "rerankEndpointId", token).ConfigureAwait(false)
-                ?? await ValidateEndpointAsync(tenantId, scope.InferenceEndpointId, EndpointKindEnum.Inference, "inferenceEndpointId", token).ConfigureAwait(false)
-                ?? await ValidateEndpointAsync(tenantId, scope.QueryEndpointId, EndpointKindEnum.Inference, "queryEndpointId", token).ConfigureAwait(false);
+            // Each model the scope names must be an inference endpoint in the tenant whose API format can do the job:
+            // any reranking-capable format for the reranker, a text-generating (chat) format for the chat and query models.
+            return await ValidateEndpointAsync(tenantId, scope.RerankEndpointId, true, "rerankEndpointId", token).ConfigureAwait(false)
+                ?? await ValidateEndpointAsync(tenantId, scope.InferenceEndpointId, false, "inferenceEndpointId", token).ConfigureAwait(false)
+                ?? await ValidateEndpointAsync(tenantId, scope.QueryEndpointId, false, "queryEndpointId", token).ConfigureAwait(false);
         }
 
-        private async Task<string?> ValidateEndpointAsync(string tenantId, string? endpointId, EndpointKindEnum kind, string field, CancellationToken token)
+        private async Task<string?> ValidateEndpointAsync(string tenantId, string? endpointId, bool rerank, string field, CancellationToken token)
         {
             if (string.IsNullOrEmpty(endpointId)) return null;
 
             ModelEndpoint? endpoint = await _Database.ModelEndpoints.ReadAsync(tenantId, endpointId, token).ConfigureAwait(false);
             if (endpoint == null) return "The specified " + field + " was not found in this tenant.";
-            if (endpoint.Kind != kind) return "The specified " + field + " is a " + endpoint.Kind + " endpoint; a " + kind + " endpoint is required.";
+            if (endpoint.Kind != EndpointKindEnum.Inference) return "The specified " + field + " is an " + endpoint.Kind + " endpoint; an inference endpoint is required.";
+            if (rerank && !ApiFormatCapabilities.CanRerank(endpoint.ApiFormat))
+                return "The specified " + field + " uses the " + endpoint.ApiFormat + " format, which cannot rerank yet; choose a cross-encoder (Tei or Cohere) or a chat model (Ollama, OpenAI, or VLlm).";
+            if (!rerank && !ApiFormatCapabilities.CanChat(endpoint.ApiFormat))
+                return "The specified " + field + " is a " + endpoint.ApiFormat + " cross-encoder, which can only rerank; choose a chat model.";
             return null;
         }
 

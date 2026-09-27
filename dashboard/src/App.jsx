@@ -15,7 +15,6 @@ import SearchExplorerView from './views/SearchExplorerView';
 import ChatView from './views/ChatView';
 import EmbeddingEndpointsView from './views/EmbeddingEndpointsView';
 import InferenceEndpointsView from './views/InferenceEndpointsView';
-import RerankEndpointsView from './views/RerankEndpointsView';
 import CollectionsView from './views/CollectionsView';
 import RequestHistoryView from './views/RequestHistoryView';
 import OperationsView from './views/OperationsView';
@@ -71,7 +70,7 @@ function AppRoutes() {
         <Route path="chat" element={<ChatView />} />
         <Route path="endpoints/embedding" element={<EmbeddingEndpointsView />} />
         <Route path="endpoints/inference" element={<InferenceEndpointsView />} />
-        <Route path="endpoints/rerank" element={<RerankEndpointsView />} />
+        <Route path="endpoints/rerank" element={<Navigate to="/dashboard/endpoints/inference" replace />} />
         <Route path="collections" element={<CollectionsView />} />
         <Route path="request-history" element={<RequestHistoryView />} />
         <Route path="operations" element={<OperationsView />} />

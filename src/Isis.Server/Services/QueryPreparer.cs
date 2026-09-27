@@ -264,7 +264,7 @@ namespace Isis.Server.Services
         {
             if (_Database == null || string.IsNullOrEmpty(endpointId)) return null;
             ModelEndpoint? endpoint = await _Database.ModelEndpoints.ReadAsync(tenantId, endpointId, token).ConfigureAwait(false);
-            return endpoint != null && endpoint.Active && endpoint.Kind == EndpointKindEnum.Inference ? endpoint : null;
+            return endpoint != null && endpoint.Active && endpoint.Kind == EndpointKindEnum.Inference && ApiFormatCapabilities.CanChat(endpoint.ApiFormat) ? endpoint : null;
         }
 
         private async Task<ModelEndpoint?> FirstActiveInferenceAsync(string tenantId, CancellationToken token)
@@ -273,7 +273,8 @@ namespace Isis.Server.Services
             EnumerationResult<ModelEndpoint> endpoints = await _Database.ModelEndpoints.EnumerateAsync(tenantId, EndpointKindEnum.Inference, new EnumerationQuery { MaxResults = 1000 }, token).ConfigureAwait(false);
             foreach (ModelEndpoint candidate in endpoints.Objects)
             {
-                if (candidate.Active) return candidate;
+                // A cross-encoder is an inference endpoint too, but it cannot generate text.
+                if (candidate.Active && ApiFormatCapabilities.CanChat(candidate.ApiFormat)) return candidate;
             }
 
             return null;

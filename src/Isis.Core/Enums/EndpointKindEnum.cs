@@ -11,14 +11,15 @@ namespace Isis.Core.Enums
         Embedding,
 
         /// <summary>
-        /// An inference/completion endpoint. Used for memory hygiene (summaries, dedup, compaction)
-        /// and the chat-with-memory surface.
+        /// An inference endpoint: every model that is not an embedding model. A scope gives it jobs (chat answers, query
+        /// rewriting and expansion, reranking), and its API format decides which it can do (see
+        /// <c>ApiFormatCapabilities</c>): chat models do all of them, cross-encoders (Tei, Cohere) only rerank.
         /// </summary>
         Inference,
 
         /// <summary>
-        /// A reranking endpoint (a cross-encoder) that scores how well each candidate passage answers a query. Used
-        /// to reorder and threshold search results after retrieval.
+        /// Legacy value from when rerankers were a separate kind. Accepted on input and stored as
+        /// <see cref="Inference"/>; existing rep_ ids stay valid.
         /// </summary>
         Rerank
     }

@@ -1002,6 +1002,8 @@ namespace Isis.Server.Services
                 ? await _Cache.GetEndpointAsync(scope.TenantId, scope.RerankEndpointId, token).ConfigureAwait(false)
                 : await _Database.ModelEndpoints.ReadAsync(scope.TenantId, scope.RerankEndpointId, token).ConfigureAwait(false);
             if (endpoint == null) throw new InvalidOperationException("The scope's configured rerank endpoint was not found.");
+            if (endpoint.Kind != EndpointKindEnum.Inference || !ApiFormatCapabilities.CanRerank(endpoint.ApiFormat))
+                throw new InvalidOperationException("The scope's rerank endpoint (" + endpoint.ApiFormat + ") cannot rerank; choose a cross-encoder or a chat model.");
             if (!endpoint.Active)
             {
                 if (query.Rerank == true) throw new InvalidOperationException("The scope's rerank endpoint is inactive.");

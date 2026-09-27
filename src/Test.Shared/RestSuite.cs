@@ -605,15 +605,17 @@ namespace Test.Shared
             using HttpClient admin = h.AdminClient();
             HttpResponseMessage emb = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "emb", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "all-minilm", dimensionality = 384 }).ConfigureAwait(false);
             ExpectStatus(emb, HttpStatusCode.Created, "create embedding endpoint");
+            HttpResponseMessage chat = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "chat", kind = "Inference", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "gemma3:4b" }).ConfigureAwait(false);
+            ExpectStatus(chat, HttpStatusCode.Created, "create chat endpoint");
 
             HttpResponseMessage noRerank = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "recall-no-rerank" }).ConfigureAwait(false);
-            ExpectStatus(noRerank, HttpStatusCode.Created, "scope without a tenant reranker");
+            ExpectStatus(noRerank, HttpStatusCode.Created, "scope without a tenant cross-encoder");
             using (JsonDocument nd = await ReadJsonAsync(noRerank).ConfigureAwait(false))
             {
-                TestCase.Require(!nd.RootElement.TryGetProperty("rerankEndpointId", out JsonElement none) || none.ValueKind == JsonValueKind.Null, "Without a rerank endpoint the scope should not rerank.");
+                TestCase.Require(!nd.RootElement.TryGetProperty("rerankEndpointId", out JsonElement none) || none.ValueKind == JsonValueKind.Null, "A chat model should never be attached as the reranker automatically.");
             }
 
-            HttpResponseMessage rr = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "rr", kind = "Rerank", apiFormat = "Tei", baseUrl = "http://127.0.0.1:18800", model = "ms-marco" }).ConfigureAwait(false);
+            HttpResponseMessage rr = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "rr", kind = "Inference", apiFormat = "Tei", baseUrl = "http://127.0.0.1:18800", model = "ms-marco" }).ConfigureAwait(false);
             ExpectStatus(rr, HttpStatusCode.Created, "create rerank endpoint");
             string rerankId;
             using (JsonDocument rd = await ReadJsonAsync(rr).ConfigureAwait(false)) rerankId = rd.RootElement.GetProperty("id").GetString()!;
@@ -621,7 +623,7 @@ namespace Test.Shared
             HttpResponseMessage scope = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "recall-rerank" }).ConfigureAwait(false);
             ExpectStatus(scope, HttpStatusCode.Created, "scope with a tenant reranker");
             using JsonDocument sd = await ReadJsonAsync(scope).ConfigureAwait(false);
-            TestCase.Require(sd.RootElement.GetProperty("rerankEndpointId").GetString() == rerankId, "A new RecallDb scope should attach the tenant's rerank endpoint.");
+            TestCase.Require(sd.RootElement.GetProperty("rerankEndpointId").GetString() == rerankId, "A new RecallDb scope should attach the tenant's cross-encoder.");
         }
 
         private static async Task ScopeListAsync()
@@ -935,6 +937,20 @@ namespace Test.Shared
 
             HttpResponseMessage wrongKind = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "wrong", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "wrong"), queryEndpointId = embeddingId }).ConfigureAwait(false);
             ExpectStatus(wrongKind, HttpStatusCode.BadRequest, "query model that is an embedding endpoint");
+
+            HttpResponseMessage tei = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "ce", kind = "Inference", apiFormat = "Tei", baseUrl = "http://127.0.0.1:18800", model = "ms-marco" }).ConfigureAwait(false);
+            string teiId;
+            using (JsonDocument doc = await ReadJsonAsync(tei).ConfigureAwait(false)) teiId = doc.RootElement.GetProperty("id").GetString()!;
+            HttpResponseMessage gemini = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "gem", kind = "Inference", apiFormat = "Gemini", baseUrl = "https://generativelanguage.googleapis.com", model = "gemini" }).ConfigureAwait(false);
+            string geminiId;
+            using (JsonDocument doc = await ReadJsonAsync(gemini).ConfigureAwait(false)) geminiId = doc.RootElement.GetProperty("id").GetString()!;
+
+            HttpResponseMessage crossEncoderChat = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "ce-chat", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "ce-chat"), inferenceEndpointId = teiId }).ConfigureAwait(false);
+            ExpectStatus(crossEncoderChat, HttpStatusCode.BadRequest, "a cross-encoder as the chat model");
+            HttpResponseMessage geminiRerank = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "gem-rerank", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "gem-rerank"), rerankEndpointId = geminiId }).ConfigureAwait(false);
+            ExpectStatus(geminiRerank, HttpStatusCode.BadRequest, "a Gemini model as the reranker");
+            HttpResponseMessage chatRerank = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "chat-rerank", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "chat-rerank"), rerankEndpointId = inferenceId, rerankMinScore = 0.5 }).ConfigureAwait(false);
+            ExpectStatus(chatRerank, HttpStatusCode.Created, "a chat model as the reranker (high-precision mode)");
 
             HttpResponseMessage created = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "models", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "models"), inferenceEndpointId = inferenceId, queryEndpointId = inferenceId, queryExpansion = "On", conversationRewrite = false, queryDecomposition = true }).ConfigureAwait(false);
             ExpectStatus(created, HttpStatusCode.Created, "scope with models");

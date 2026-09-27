@@ -158,8 +158,8 @@ and resolves it to the id; an unknown category is an error, not an empty result.
 slow every search.
 
 **Implementation.** The rerank endpoint is the scope's `rerankEndpointId` unless the search sets `rerank: false`. New
-RecallDB scopes attach the tenant's first active Rerank endpoint automatically, and the reference stack seeds one when
-`ISIS_DEFAULT_RERANK_BASEURL` is set. After a rerank failure, searches skip that endpoint for 30 seconds
+RecallDB scopes attach the tenant's first active cross-encoder (an inference endpoint with the `Tei` or `Cohere` format)
+automatically, never a chat model, and the reference stack seeds one when `ISIS_DEFAULT_RERANK_BASEURL` is set. After a rerank failure, searches skip that endpoint for 30 seconds
 (`RerankCooldown`) and return retrieval order with a notice.
 
 ### 3.3 Candidate pool
@@ -303,15 +303,17 @@ settings in AssistantHub.
 | Job | Scope field | Resolution |
 |---|---|---|
 | Embedding | `embeddingEndpointId` | set at creation |
-| Reranking | `rerankEndpointId`, `rerankCandidates`, `rerankMinScore` | set at creation (tenant's first rerank endpoint) |
+| Reranking | `rerankEndpointId`, `rerankCandidates`, `rerankMinScore` | set at creation (tenant's first cross-encoder); any inference endpoint whose format can rerank |
 | Chat answers | `inferenceEndpointId` | request, then scope, then tenant's first active inference endpoint |
 | Query steps | `queryEndpointId` | request, then scope, then the scope's chat model, then the chat model in use, then tenant default |
 | Follow-up rewrite | `conversationRewrite` | scope, then `retrieval.chatConversationRewrite` (true) |
 | Expansion | `queryExpansion` | request `expand`, then scope, then `retrieval.queryExpansion` (`Auto`) |
 | Decomposition | `queryDecomposition` | request `decompose`, then scope, then `retrieval.queryDecomposition` (false) |
 
-A named endpoint that is inactive or of the wrong kind is skipped in favor of the next choice; scope create and update
-reject one that is missing or of the wrong kind. The dashboard's scope form exposes every field.
+Every model other than embedding is an inference endpoint; its API format decides which jobs it can take
+(`ApiFormatCapabilities`): chat formats answer chat, run query steps, and (except Gemini, for now) rerank by prompt;
+`Tei` and `Cohere` cross-encoders only rerank. A named endpoint that is inactive or cannot do the job is skipped in
+favor of the next choice; scope create and update reject one that is missing or cannot do the job. The dashboard's scope form exposes every field.
 
 ---
 

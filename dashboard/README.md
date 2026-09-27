@@ -52,7 +52,7 @@ src/
 
 Grouped by workflow: Memory (Home, Scopes → categories/memories, Memories,
 Instructions) · Recall (Search, Chat with Memory) · Inference (Embedding,
-Inference, and Rerank endpoints) · Collections (RecallDB pass-through) ·
+and Inference endpoints; rerankers, cross-encoders included, are inference endpoints) · Collections (RecallDB pass-through) ·
 Observability (Request History, Operations, API Explorer) · System (Settings) ·
 Administration (Users and Credentials for tenant admins; Tenants for system
 admins).

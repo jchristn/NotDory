@@ -280,7 +280,7 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes`.
 | `chunkStrategy` | string | No | `FixedTokenCount` | Chunk splitting strategy (e.g. `FixedTokenCount`, `SentenceBased`, `ParagraphBased`, `Recursive`) |
 | `chunkMaxTokens` | integer | No | 0 | Per-chunk token budget (0 = use the embedding model's resolved budget) |
 | `chunkOverlapTokens` | integer | No | 64 | Token overlap between adjacent chunks |
-| `rerankEndpointId` | string | No | null | A `Rerank` endpoint (`rep_` id); searches in the scope are then reranked by default |
+| `rerankEndpointId` | string | No | the tenant's first cross-encoder | An inference endpoint that reranks the scope's searches: a cross-encoder (`Tei` or `Cohere` format), or a chat model for a slower, high-precision mode |
 | `rerankCandidates` | integer | No | 10 | Candidates the reranker scores before the top results are kept (1..100) |
 | `rerankMinScore` | number | No | null | Drop reranked hits scoring below this (0..1), so a question with no relevant memory returns nothing |
 | `inferenceEndpointId` | string | No | null | Inference endpoint that answers chat in this scope (null: the tenant's first active one) |
@@ -335,7 +335,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/endpoints` (optional `kind` filter).
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `tenantId` | string | Yes | n/a | Tenant identifier from `whoami` |
-| `kind` | string | No | all | Filter by endpoint kind: `Embedding`, `Inference`, or `Rerank` (a Rerank endpoint's `apiFormat` is `Tei` or `Cohere` for a cross-encoder, or `Ollama`/`OpenAI` for a chat model prompted to rate candidates) |
+| `kind` | string | No | all | Filter by endpoint kind: `Embedding` or `Inference`. Rerankers are inference endpoints: `apiFormat` `Tei` or `Cohere` marks a cross-encoder (rerank only); `Ollama`, `OpenAI`, and `VLlm` models can chat and rerank. `Rerank` is accepted and lists inference endpoints |
 
 #### Guidance
 

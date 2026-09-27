@@ -15,8 +15,8 @@ namespace Isis.Core.Recall
     /// <summary>
     /// Calls a configured rerank endpoint to score how well each candidate passage answers a query. Supports the Hugging
     /// Face Text Embeddings Inference API (<see cref="ApiFormatEnum.Tei"/>) and the Cohere-compatible API
-    /// (<see cref="ApiFormatEnum.Cohere"/>, also used for <see cref="ApiFormatEnum.VLlm"/>), both served by cross-encoders,
-    /// and a chat model (<see cref="ApiFormatEnum.Ollama"/> or <see cref="ApiFormatEnum.OpenAI"/>) prompted to rate every
+    /// (<see cref="ApiFormatEnum.Cohere"/>, also served by vLLM for cross-encoders), both served by cross-encoders, and a
+    /// chat model (<see cref="ApiFormatEnum.Ollama"/>, <see cref="ApiFormatEnum.OpenAI"/>, or <see cref="ApiFormatEnum.VLlm"/>) prompted to rate every
     /// passage in one call.
     /// </summary>
     public class RerankService
@@ -65,10 +65,12 @@ namespace Isis.Core.Recall
 
             bool tei = endpoint.ApiFormat == ApiFormatEnum.Tei;
             bool chatOllama = endpoint.ApiFormat == ApiFormatEnum.Ollama;
-            bool chatOpenAi = endpoint.ApiFormat == ApiFormatEnum.OpenAI;
-            if (!tei && !chatOllama && !chatOpenAi && endpoint.ApiFormat != ApiFormatEnum.Cohere && endpoint.ApiFormat != ApiFormatEnum.VLlm)
+            // VLlm is a chat format for inference endpoints, so it reranks by prompt like OpenAI; a cross-encoder served
+            // by vLLM uses its Cohere-compatible rerank API (the Cohere format).
+            bool chatOpenAi = endpoint.ApiFormat == ApiFormatEnum.OpenAI || endpoint.ApiFormat == ApiFormatEnum.VLlm;
+            if (!ApiFormatCapabilities.CanRerank(endpoint.ApiFormat))
             {
-                throw new NotSupportedException("API format " + endpoint.ApiFormat + " has no rerank API; use Tei, Cohere, or a chat model (Ollama or OpenAI).");
+                throw new NotSupportedException("API format " + endpoint.ApiFormat + " cannot rerank yet; use a cross-encoder (Tei or Cohere) or a chat model (Ollama, OpenAI, or VLlm).");
             }
 
             string model = string.IsNullOrEmpty(endpoint.Model) ? "default" : endpoint.Model!;

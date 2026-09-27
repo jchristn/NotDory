@@ -86,7 +86,7 @@ namespace Isis.Server.Routes
 
             EndpointKindEnum? kind = null;
             string? kindText = RouteHelpers.Query(context, "kind");
-            if (!string.IsNullOrEmpty(kindText) && Enum.TryParse(kindText, true, out EndpointKindEnum parsed) && Enum.IsDefined(parsed)) kind = parsed;
+            if (!string.IsNullOrEmpty(kindText) && Enum.TryParse(kindText, true, out EndpointKindEnum parsed) && Enum.IsDefined(parsed)) kind = parsed == EndpointKindEnum.Rerank ? EndpointKindEnum.Inference : parsed;
 
             EnumerationResult<ModelEndpoint> result = await _Database.ModelEndpoints.EnumerateAsync(tenantId, kind, RouteHelpers.Enumeration(context), context.Token).ConfigureAwait(false);
             await RouteHelpers.JsonAsync(context, 200, result).ConfigureAwait(false);

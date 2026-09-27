@@ -12,34 +12,32 @@ import CodeViewer from '../components/CodeViewer';
 import StatusBadge from '../components/StatusBadge';
 import HealthHistogram from '../components/HealthHistogram';
 import { ErrorBanner } from '../components/States';
-import { API_FORMATS, RERANK_API_FORMATS, HEALTH_METHODS, AUTH_TYPES } from '../utils/constants';
+import { API_FORMATS, INFERENCE_API_FORMATS, RERANK_ONLY_FORMATS, HEALTH_METHODS, AUTH_TYPES } from '../utils/constants';
 import { formatDateTime } from '../i18n/formatters';
 
 // Per-format presets applied when the API format changes. baseUrl is a full URL onto which the
 // format-specific path is appended; authType seeds the auth block appropriately for the provider.
 const FORMAT_DEFAULTS = {
-  Ollama: { baseUrl: 'http://localhost:11434', healthCheckUrl: '/api/tags', healthCheckUseAuth: false, authType: 'None' },
+  Ollama: { baseUrl: 'http://127.0.0.1:11434', healthCheckUrl: '/api/tags', healthCheckUseAuth: false, authType: 'None' },
   OpenAI: { baseUrl: 'https://api.openai.com', healthCheckUrl: '/v1/models', healthCheckUseAuth: true, authType: 'BearerToken' },
-  VLlm: { baseUrl: 'http://localhost:8000', healthCheckUrl: '/v1/models', healthCheckUseAuth: false, authType: 'None' },
+  VLlm: { baseUrl: 'http://127.0.0.1:8000', healthCheckUrl: '/v1/models', healthCheckUseAuth: false, authType: 'None' },
   Gemini: { baseUrl: 'https://generativelanguage.googleapis.com', healthCheckUrl: '/v1beta/models', healthCheckUseAuth: true, authType: 'QueryParam', authQueryParam: 'key' },
-  Tei: { baseUrl: 'http://localhost:8080', healthCheckUrl: '/health', healthCheckUseAuth: false, authType: 'None' },
+  Tei: { baseUrl: 'http://127.0.0.1:8080', healthCheckUrl: '/health', healthCheckUseAuth: false, authType: 'None' },
   Cohere: { baseUrl: 'https://api.cohere.com', healthCheckUrl: '/v1/models', healthCheckUseAuth: true, authType: 'BearerToken' }
 };
 
 // Per-kind labels (title, subtitle, add button) as i18n keys.
 const KIND_LABELS = {
   Embedding: { title: 'endpoints.embeddingTitle', subtitle: 'endpoints.embeddingSubtitle', add: 'endpoints.addEmbedding' },
-  Inference: { title: 'endpoints.inferenceTitle', subtitle: 'endpoints.inferenceSubtitle', add: 'endpoints.addInference' },
-  Rerank: { title: 'endpoints.rerankTitle', subtitle: 'endpoints.rerankSubtitle', add: 'endpoints.addRerank' }
+  Inference: { title: 'endpoints.inferenceTitle', subtitle: 'endpoints.inferenceSubtitle', add: 'endpoints.addInference' }
 };
 
 function emptyForm(kind) {
-  const rerank = kind === 'Rerank';
   return {
     name: '',
     kind,
-    apiFormat: rerank ? 'Tei' : 'Ollama',
-    baseUrl: rerank ? 'http://localhost:8080' : 'http://localhost:11434',
+    apiFormat: 'Ollama',
+    baseUrl: 'http://127.0.0.1:11434',
     authType: 'None',
     authHeaderName: '',
     authSecretHeaderName: '',
@@ -49,7 +47,7 @@ function emptyForm(kind) {
     model: '',
     dimensionality: kind === 'Embedding' ? 1536 : '',
     maxInputTokens: kind === 'Embedding' ? 0 : '',
-    healthCheckUrl: rerank ? '/health' : '/api/tags',
+    healthCheckUrl: '/api/tags',
     healthCheckMethod: 'GET',
     healthCheckIntervalMs: 5000,
     healthCheckExpectedStatusCode: 200,
@@ -155,7 +153,7 @@ function EndpointForm({ kind, initial, onSubmit, onClose, t }) {
           <div className="field">
             <label>{t('endpoints.apiFormat')}</label>
             <select value={form.apiFormat} onChange={(e) => changeFormat(e.target.value)}>
-              {(kind === 'Rerank' ? RERANK_API_FORMATS : API_FORMATS).map((f) => (
+              {(kind === 'Inference' ? INFERENCE_API_FORMATS : API_FORMATS).map((f) => (
                 <option key={f} value={f}>
                   {f}
                 </option>
@@ -542,7 +540,16 @@ function EndpointsView({ kind }) {
       render: (e) => <CopyableId value={e.id || e.Id} />
     },
     { key: 'name', label: t('common.name'), pinned: true },
-    { key: 'apiFormat', label: t('endpoints.apiFormat'), render: (e) => <StatusBadge tone="info">{e.apiFormat}</StatusBadge> },
+    {
+      key: 'apiFormat',
+      label: t('endpoints.apiFormat'),
+      render: (e) => (
+        <>
+          <StatusBadge tone="info">{e.apiFormat}</StatusBadge>{' '}
+          {RERANK_ONLY_FORMATS.includes(e.apiFormat) && <StatusBadge tone="neutral">{t('endpoints.rerankOnly')}</StatusBadge>}
+        </>
+      )
+    },
     { key: 'model', label: t('endpoints.model'), cellClass: 'cell-mono', render: (e) => e.model || '—' },
     {
       key: 'endpoint',

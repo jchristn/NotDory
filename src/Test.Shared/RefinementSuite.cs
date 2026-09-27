@@ -44,7 +44,9 @@ namespace Test.Shared
                     TestCase.Sync("refinement", "query-new-defaults", "MemorySearchQuery: new options default off, clamp, and survive Clone", QueryNewDefaults),
                     TestCase.Sync("refinement", "scope-rerank-defaults", "Scope: rerank settings default to none, 10 candidates, no minimum, and validate", ScopeRerankDefaults),
                     TestCase.Async("refinement", "scope-rerank-round-trip", "Scope rerank settings persist through the database", ScopeRerankRoundTripAsync),
-                    TestCase.Async("refinement", "rerank-endpoint-prefix", "A Rerank endpoint gets a rep_ id", RerankEndpointPrefixAsync),
+                    TestCase.Async("refinement", "rerank-endpoint-prefix", "A legacy Rerank endpoint is stored as Inference and its rep_ id stays valid", RerankEndpointPrefixAsync),
+                    TestCase.Async("refinement", "migration-008-rerank-kind", "Migration 008 turns Rerank endpoints into Inference, and VLlm rerankers into Cohere", Migration008Async),
+                    TestCase.Sync("refinement", "format-capabilities", "ApiFormatCapabilities: chat formats chat and rerank, cross-encoders only rerank, Gemini does not rerank yet", FormatCapabilities),
                     TestCase.Async("refinement", "migration-005-adds-columns", "Migration 005 adds the supersession columns to an older memories table", Migration005AddsColumnsAsync),
                     TestCase.Async("refinement", "migration-006-adds-columns", "Migration 006 adds the rerank columns to an older scopes table", Migration006AddsColumnsAsync),
                     TestCase.Async("refinement", "supersedes-marks-target", "Upsert with supersedes marks the named memory as replaced", SupersedesMarksTargetAsync),
@@ -228,11 +230,55 @@ namespace Test.Shared
             Tenant tenant = await t.Db.Tenants.CreateAsync(new Tenant { Name = "Acme" }).ConfigureAwait(false);
             ModelEndpoint endpoint = RerankEndpoint(ApiFormatEnum.Tei);
             endpoint.TenantId = tenant.Id;
+            endpoint.Kind = EndpointKindEnum.Rerank;
+            TestCase.Require(endpoint.Kind == EndpointKindEnum.Inference, "The legacy Rerank kind should be stored as Inference.");
             ModelEndpoint created = await t.Db.ModelEndpoints.CreateAsync(endpoint).ConfigureAwait(false);
-            TestCase.Require(created.Id.StartsWith("rep_", StringComparison.Ordinal), "A Rerank endpoint id should start with rep_, got " + created.Id + ".");
-            ModelEndpoint? read = await t.Db.ModelEndpoints.ReadAsync(tenant.Id, created.Id).ConfigureAwait(false);
-            TestCase.Require(read != null && read.Kind == EndpointKindEnum.Rerank && read.ApiFormat == ApiFormatEnum.Tei, "The Rerank kind and Tei format should persist.");
-            TestCase.Require(IdGenerator.Endpoint(EndpointKindEnum.Rerank).StartsWith("rep_", StringComparison.Ordinal), "IdGenerator.Endpoint(Rerank) should use rep_.");
+
+            // A reranker created before the kinds merged keeps its rep_ id; it must still read and update normally.
+            const string legacyId = "rep_legacy0000000000000000000000";
+            await t.Db.ExecuteQueryAsync("UPDATE model_endpoints SET id = '" + legacyId + "' WHERE id = '" + created.Id + "';", true).ConfigureAwait(false);
+            ModelEndpoint? read = await t.Db.ModelEndpoints.ReadAsync(tenant.Id, legacyId).ConfigureAwait(false);
+            TestCase.Require(read != null && read.Kind == EndpointKindEnum.Inference && read.ApiFormat == ApiFormatEnum.Tei, "An existing rep_ id should still resolve, as an Inference endpoint with the Tei format.");
+            read!.Name = "renamed";
+            await t.Db.ModelEndpoints.UpdateAsync(read).ConfigureAwait(false);
+            TestCase.Require((await t.Db.ModelEndpoints.ReadAsync(tenant.Id, legacyId).ConfigureAwait(false))?.Name == "renamed", "A rep_ endpoint should still update in place.");
+            TestCase.Require(IdGenerator.Endpoint(EndpointKindEnum.Inference).StartsWith("iep_", StringComparison.Ordinal), "New inference endpoints, rerankers included, should get iep_ ids.");
+        }
+
+        private static async Task Migration008Async()
+        {
+            using TempSqlite t = await TempSqlite.CreateAsync().ConfigureAwait(false);
+            Tenant tenant = await t.Db.Tenants.CreateAsync(new Tenant { Name = "Acme" }).ConfigureAwait(false);
+            ModelEndpoint tei = RerankEndpoint(ApiFormatEnum.Tei);
+            tei.TenantId = tenant.Id;
+            tei.Id = "rep_tei000000000000000000000000";
+            await t.Db.ModelEndpoints.CreateAsync(tei).ConfigureAwait(false);
+            ModelEndpoint vllm = RerankEndpoint(ApiFormatEnum.VLlm);
+            vllm.TenantId = tenant.Id;
+            vllm.Id = "rep_vllm00000000000000000000000";
+            await t.Db.ModelEndpoints.CreateAsync(vllm).ConfigureAwait(false);
+            // Put the rows back in the old shape, as a database written before the kinds merged would hold them.
+            await t.Db.ExecuteQueryAsync("UPDATE model_endpoints SET kind = 'Rerank' WHERE id IN ('" + tei.Id + "', '" + vllm.Id + "');", true).ConfigureAwait(false);
+
+            Migration008RerankEndpointsAreInference migration = new Migration008RerankEndpointsAreInference();
+            await migration.ApplyAsync(t.Db, _ => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
+            await migration.ApplyAsync(t.Db, _ => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
+
+            ModelEndpoint? teiRead = await t.Db.ModelEndpoints.ReadAsync(tenant.Id, tei.Id).ConfigureAwait(false);
+            ModelEndpoint? vllmRead = await t.Db.ModelEndpoints.ReadAsync(tenant.Id, vllm.Id).ConfigureAwait(false);
+            TestCase.Require(teiRead != null && teiRead.Kind == EndpointKindEnum.Inference && teiRead.ApiFormat == ApiFormatEnum.Tei, "A Tei reranker should become an Inference endpoint with the Tei format.");
+            TestCase.Require(vllmRead != null && vllmRead.Kind == EndpointKindEnum.Inference && vllmRead.ApiFormat == ApiFormatEnum.Cohere, "A VLlm reranker called the Cohere-compatible API, so it should become Cohere.");
+            EnumerationResult<ModelEndpoint> legacy = await t.Db.ModelEndpoints.EnumerateAsync(tenant.Id, EndpointKindEnum.Rerank, new EnumerationQuery { MaxResults = 10 }).ConfigureAwait(false);
+            TestCase.Require(legacy.Objects.Count == 0, "No Rerank-kind rows should remain.");
+        }
+
+        private static void FormatCapabilities()
+        {
+            foreach (ApiFormatEnum chat in new[] { ApiFormatEnum.Ollama, ApiFormatEnum.OpenAI, ApiFormatEnum.VLlm })
+                TestCase.Require(ApiFormatCapabilities.CanChat(chat) && ApiFormatCapabilities.CanRerank(chat) && !ApiFormatCapabilities.IsRerankOnly(chat), chat + " should chat and rerank.");
+            foreach (ApiFormatEnum crossEncoder in new[] { ApiFormatEnum.Tei, ApiFormatEnum.Cohere })
+                TestCase.Require(!ApiFormatCapabilities.CanChat(crossEncoder) && ApiFormatCapabilities.CanRerank(crossEncoder) && ApiFormatCapabilities.IsRerankOnly(crossEncoder), crossEncoder + " should only rerank.");
+            TestCase.Require(ApiFormatCapabilities.CanChat(ApiFormatEnum.Gemini) && !ApiFormatCapabilities.CanRerank(ApiFormatEnum.Gemini), "Gemini should chat but not rerank yet.");
         }
 
         private static async Task Migration005AddsColumnsAsync()
@@ -1186,8 +1232,9 @@ namespace Test.Shared
 
                 Environment.SetEnvironmentVariable("ISIS_DEFAULT_RERANK_BASEURL", "http://127.0.0.1:9/");
                 TestCase.Require(await DefaultSeeder.SeedRerankEndpointAsync(t.Db, new HttpClient(healthy), TimeSpan.Zero).ConfigureAwait(false), "A reachable reranker should be seeded.");
-                EnumerationResult<ModelEndpoint> seeded = await t.Db.ModelEndpoints.EnumerateAsync(DefaultSeeder.DefaultTenantId, EndpointKindEnum.Rerank, new EnumerationQuery { MaxResults = 10 }).ConfigureAwait(false);
-                TestCase.Require(seeded.Objects.Count == 1 && seeded.Objects[0].ApiFormat == ApiFormatEnum.Tei && seeded.Objects[0].BaseUrl == "http://127.0.0.1:9" && seeded.Objects[0].TimeoutMs == 3000, "The seeded endpoint should be a TEI reranker with a short timeout.");
+                EnumerationResult<ModelEndpoint> seeded = await t.Db.ModelEndpoints.EnumerateAsync(DefaultSeeder.DefaultTenantId, EndpointKindEnum.Inference, new EnumerationQuery { MaxResults = 10 }).ConfigureAwait(false);
+                List<ModelEndpoint> crossEncoders = seeded.Objects.Where(e => e.ApiFormat == ApiFormatEnum.Tei).ToList();
+                TestCase.Require(crossEncoders.Count == 1 && crossEncoders[0].BaseUrl == "http://127.0.0.1:9" && crossEncoders[0].TimeoutMs == 3000, "The seeded endpoint should be a TEI cross-encoder (an inference endpoint) with a short timeout.");
                 TestCase.Require(!await DefaultSeeder.SeedRerankEndpointAsync(t.Db, new HttpClient(healthy), TimeSpan.Zero).ConfigureAwait(false), "Seeding should be idempotent.");
             }
             finally

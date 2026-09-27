@@ -147,7 +147,7 @@ namespace Test.Benchmark.Runners
                 JsonObject rerank = new JsonObject
                 {
                     ["name"] = "bench-rerank-" + Sanitize(rerankModel),
-                    ["kind"] = "Rerank",
+                    ["kind"] = "Inference",
                     ["apiFormat"] = rerankFormat,
                     ["baseUrl"] = rerankUrl,
                     ["model"] = rerankModel,

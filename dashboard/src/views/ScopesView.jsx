@@ -19,7 +19,9 @@ import {
   CHUNKING_MODES,
   CHUNKING_MODE_LABELS,
   CHUNK_STRATEGIES,
-  QUERY_EXPANSION_MODES
+  QUERY_EXPANSION_MODES,
+  canChat,
+  canRerank
 } from '../utils/constants';
 
 const EMPTY = {
@@ -331,8 +333,10 @@ function ScopesView() {
 
   const [scopes, setScopes] = useState([]);
   const [endpoints, setEndpoints] = useState([]);
-  const [rerankEndpoints, setRerankEndpoints] = useState([]);
   const [inferenceEndpoints, setInferenceEndpoints] = useState([]);
+  // Every non-embedding model is an inference endpoint; each picker offers the ones whose format can do that job.
+  const rerankEndpoints = inferenceEndpoints.filter((ep) => canRerank(ep.apiFormat));
+  const chatEndpoints = inferenceEndpoints.filter((ep) => canChat(ep.apiFormat));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null); // scope object or EMPTY sentinel
@@ -357,12 +361,6 @@ function ScopesView() {
       setEndpoints(eps.items || []);
     } catch {
       setEndpoints([]);
-    }
-    try {
-      const reps = await apiClient.listEndpoints(tenantId, 'Rerank', { maxResults: 1000 });
-      setRerankEndpoints(reps.items || []);
-    } catch {
-      setRerankEndpoints([]);
     }
     try {
       const ieps = await apiClient.listEndpoints(tenantId, 'Inference', { maxResults: 1000 });
@@ -498,7 +496,7 @@ function ScopesView() {
           initial={editing}
           endpoints={endpoints}
           rerankEndpoints={rerankEndpoints}
-          inferenceEndpoints={inferenceEndpoints}
+          inferenceEndpoints={chatEndpoints}
           t={t}
           onSubmit={handleSubmit}
           onClose={() => setShowForm(false)}

@@ -241,14 +241,21 @@ or `AccessKeySecret` (with `authHeaderName`/`authKeyId` + `authSecretHeaderName`
 embedding endpoint may set `maxInputTokens` to override the token budget used when chunking oversized
 memories (0 = resolve the budget automatically from the API format and model name).
 
-An endpoint's `kind` is `Embedding`, `Inference`, or `Rerank` (ids are prefixed `eep_`, `iep_`, and `rep_`). A
-**Rerank** endpoint is a cross-encoder that scores how well each candidate answers the query. Its `apiFormat` is
-`Tei` (Hugging Face Text Embeddings Inference: `POST {baseUrl}/rerank` with `query` and `texts`, health path
-`/health`) or `Cohere` (`POST {baseUrl}/v1/rerank` with `model`, `query`, and `documents`, answering
-`results[].relevance_score`; also served by vLLM, Jina, and other Cohere-compatible rerankers). A chat model can also
-serve as a reranker with `apiFormat` `Ollama` or `OpenAI`: Isis sends the query and the numbered candidates in one chat
-call, asks for a 0 to 10 rating of each, and divides by 10. On the benchmarks a small chat model (gemma3:4b) ranked
-worse than no reranker at all, so prefer a cross-encoder; the chat-model path is for larger models.
+An endpoint's `kind` is `Embedding` or `Inference` (ids are prefixed `eep_` and `iep_`). Every model that is not an
+embedding model is an inference endpoint, configured with the same fields, and a scope decides which endpoint does
+which job (answering chat, query steps, reranking). The endpoint's `apiFormat` decides which jobs it can do:
+
+| `apiFormat` | Chat and query steps | Reranking |
+| --- | --- | --- |
+| `Ollama`, `OpenAI`, `VLlm` | yes | yes, by prompt: Isis sends the query and the numbered candidates in one chat call, asks for a 0 to 10 rating of each, and divides by 10 |
+| `Gemini` | yes | not yet |
+| `Tei` | no | yes: a cross-encoder behind Hugging Face Text Embeddings Inference (`POST {baseUrl}/rerank` with `query` and `texts`; health path `/health`) |
+| `Cohere` | no | yes: a Cohere-compatible rerank API (`POST {baseUrl}/v1/rerank` with `model`, `query`, and `documents`, answering `results[].relevance_score`), also served by vLLM, Jina, and Voyage for cross-encoders |
+
+A cross-encoder is fast (about 0.3 s per search on CPU) and is what new scopes attach automatically. A large chat
+model reranks best (gpt-oss-20b scored highest of everything measured) at several seconds per search; a small one
+(gemma3:4b) ranked worse than no reranker. `Rerank` is still accepted as a kind on input and stored as `Inference`;
+endpoints created as `Rerank` before keep their `rep_` ids.
 
 Model calls (embedding, rerank, and inference) are retried with backoff when the endpoint answers 429, 502, or 503.
 An endpoint still unavailable after the retries is reported to the caller as **503** `ServiceUnavailable`, which is
@@ -264,12 +271,12 @@ setting `retrieval.embeddingParallelism` (default 4) bounds how many chunks of o
 A memory that overflows is embedded as several chunks under the hood; upsert, read, search, and delete all
 continue to operate on the whole memory, and search returns one hit per memory regardless of chunking.
 
-Reranking is also configured on the **scope**: `rerankEndpointId` (a `Rerank` endpoint in the tenant; a new RecallDb
-scope created without one attaches the tenant's first active Rerank endpoint, and an update that clears it turns
-reranking off), `rerankCandidates` (how many retrieved candidates the reranker scores before the top
+Reranking is also configured on the **scope**: `rerankEndpointId` (an inference endpoint whose format can rerank; a
+new RecallDb scope created without one attaches the tenant's first active cross-encoder, never a chat model, and an
+update that clears it turns reranking off), `rerankCandidates` (how many retrieved candidates the reranker scores before the top
 `topK` are kept; 1 to 100, default 10), and `rerankMinScore` (drop reranked hits scoring below it, so a question with
 no relevant memory returns nothing; null keeps every hit). Creating or updating a scope with a `rerankEndpointId` that
-is missing or not a `Rerank` endpoint returns 400. `PUT` replaces the whole scope, so send every field you want to
+is missing or cannot rerank returns 400, as does naming a cross-encoder as the chat or query model. `PUT` replaces the whole scope, so send every field you want to
 keep (read the scope first).
 
 A scope also names the model for each remaining job and which optional query steps run. Every field is optional;

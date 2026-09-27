@@ -140,11 +140,13 @@ namespace Test.Shared
             ModelEndpoint query = await CreateAsync(t, tenant.Id, "query", EndpointKindEnum.Inference, true).ConfigureAwait(false);
             ModelEndpoint inactive = await CreateAsync(t, tenant.Id, "off", EndpointKindEnum.Inference, false).ConfigureAwait(false);
             ModelEndpoint embedding = await CreateAsync(t, tenant.Id, "emb", EndpointKindEnum.Embedding, true).ConfigureAwait(false);
+            ModelEndpoint crossEncoder = await CreateAsync(t, tenant.Id, "ce", EndpointKindEnum.Inference, true, ApiFormatEnum.Tei).ConfigureAwait(false);
             QueryPreparer preparer = Preparer(t.Db, t.Db);
 
             // The tenant-default cases use a second tenant with exactly one active inference endpoint, since "first"
             // follows the enumeration order rather than creation order.
             Tenant other = await t.Db.Tenants.CreateAsync(new Tenant { Name = "Other" }).ConfigureAwait(false);
+            await CreateAsync(t, other.Id, "ce", EndpointKindEnum.Inference, true, ApiFormatEnum.Tei).ConfigureAwait(false);
             ModelEndpoint otherDefault = await CreateAsync(t, other.Id, "default", EndpointKindEnum.Inference, true).ConfigureAwait(false);
             ModelEndpoint otherInactive = await CreateAsync(t, other.Id, "off", EndpointKindEnum.Inference, false).ConfigureAwait(false);
             Scope plain = new Scope { TenantId = other.Id, Name = "p" };
@@ -157,6 +159,7 @@ namespace Test.Shared
             TestCase.Require((await preparer.ResolveQueryEndpointAsync(configured, null, null).ConfigureAwait(false))?.Id == query.Id, "Query steps should use the scope's query model.");
             TestCase.Require((await preparer.ResolveChatEndpointAsync(configured, tenantDefault.Id).ConfigureAwait(false))?.Id == tenantDefault.Id, "A requested endpoint should win.");
             TestCase.Require(await preparer.ResolveChatEndpointAsync(configured, embedding.Id).ConfigureAwait(false) == null, "A requested endpoint of the wrong kind should resolve to nothing.");
+            TestCase.Require(await preparer.ResolveChatEndpointAsync(configured, crossEncoder.Id).ConfigureAwait(false) == null, "A cross-encoder cannot answer chat.");
 
             Scope chatOnly = new Scope { TenantId = tenant.Id, Name = "o", InferenceEndpointId = chat.Id };
             TestCase.Require((await preparer.ResolveQueryEndpointAsync(chatOnly, null, null).ConfigureAwait(false))?.Id == chat.Id, "Without a query model, query steps should use the scope's chat model.");
@@ -165,9 +168,9 @@ namespace Test.Shared
             TestCase.Require((await preparer.ResolveQueryEndpointAsync(stale, null, chat).ConfigureAwait(false))?.Id == chat.Id, "Inactive or wrong-kind scope endpoints should be skipped in favor of the chat model in use.");
         }
 
-        private static async Task<ModelEndpoint> CreateAsync(TempSqlite t, string tenantId, string name, EndpointKindEnum kind, bool active)
+        private static async Task<ModelEndpoint> CreateAsync(TempSqlite t, string tenantId, string name, EndpointKindEnum kind, bool active, ApiFormatEnum format = ApiFormatEnum.OpenAI)
         {
-            ModelEndpoint endpoint = new ModelEndpoint { TenantId = tenantId, Name = name, Kind = kind, ApiFormat = ApiFormatEnum.OpenAI, BaseUrl = "http://127.0.0.1:9", Model = "m", Active = active };
+            ModelEndpoint endpoint = new ModelEndpoint { TenantId = tenantId, Name = name, Kind = kind, ApiFormat = format, BaseUrl = "http://127.0.0.1:9", Model = "m", Active = active };
             endpoint.Id = IdGenerator.Endpoint(kind);
             await Task.Delay(5).ConfigureAwait(false);
             return await t.Db.ModelEndpoints.CreateAsync(endpoint).ConfigureAwait(false);

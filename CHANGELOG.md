@@ -16,6 +16,16 @@ All notable changes to Isis are documented here. This project adheres to
 - **Multi-query search.** `additionalQueries` (up to 4) are searched alongside `queryText` and the rankings fused;
   `decompose: true` has an inference endpoint split the question first, and the response lists the `queries` run
   (REST and MCP `memory_search`). Chat can decompose questions too; it is off by default (see per-scope models below).
+- **Rerankers are inference endpoints.** The separate `Rerank` endpoint kind and its dashboard page are gone: every
+  model that is not an embedding model is an inference endpoint, configured the same way, and a scope picks which one
+  answers chat, runs query steps, and reranks. The API format decides what an endpoint can do: `Ollama`, `OpenAI`, and
+  `VLlm` chat models can also rerank by prompt, and `Tei` and `Cohere` cross-encoders only rerank. The same chat model
+  can now answer chat and rerank without being registered twice. Migration `2026-09-27-rerank-endpoints-are-inference`
+  converts stored Rerank endpoints (keeping their `rep_` ids; `VLlm` rerankers, which called vLLM's Cohere-compatible
+  API, become `Cohere`). `Rerank` is still accepted as a kind on input and stored as `Inference`. New scopes attach the
+  tenant's first cross-encoder automatically, never a chat model, and scope validation rejects a cross-encoder as the
+  chat or query model and Gemini as a reranker (not supported yet). `VLlm` endpoints used as rerankers now rerank by
+  prompt; use `Cohere` for a vLLM-served cross-encoder.
 - **Per-scope models and query steps.** A scope names the model for each job, like an assistant's settings in
   AssistantHub: `inferenceEndpointId` (chat answers) and `queryEndpointId` (follow-up rewriting, splitting, and
   expansion), next to the existing embedding and rerank endpoints, plus `conversationRewrite`, `queryExpansion` (`Off`,

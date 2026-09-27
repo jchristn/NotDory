@@ -151,7 +151,7 @@ Match every write to a category and follow that category's `instructions`. When 
 | `instructions` | `tenantId` (required); `scopeId` | Read the tenant's standing memory manual (or a scope's effective instructions). Call right after `whoami`. |
 | `scope_enumerate` | `tenantId` (required) | List the memory scopes in a tenant. |
 | `scope_create` | `tenantId`, `name` (required); `description`, `storeProvider`, `embeddingEndpointId`, `dimensionality`, `filesystemLayout`, `targetPath` | Create a scope when none fits (typically once per project). |
-| `endpoint_enumerate` | `tenantId` (required); `kind` | List model endpoints (`Embedding`/`Inference`/`Rerank`) -- e.g. to choose an `embeddingEndpointId`, or to confirm whether semantic (RecallDb) scopes are possible. |
+| `endpoint_enumerate` | `tenantId` (required); `kind` | List model endpoints (`Embedding`/`Inference`; rerankers are inference endpoints) -- e.g. to choose an `embeddingEndpointId`, or to confirm whether semantic (RecallDb) scopes are possible. |
 | `guide` | `tenantId`, `scopeId` (required) | The scope's categories, their usage instructions, and store capabilities. Call before writing. |
 | `category_enumerate` | `tenantId`, `scopeId` (required) | List categories in a scope, including usage instructions. |
 | `category_create` | `tenantId`, `scopeId`, `name` (required); `description`, `instructions` | Create a category. Supply `instructions`. |
