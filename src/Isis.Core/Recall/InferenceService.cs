@@ -200,33 +200,9 @@ namespace Isis.Core.Recall
 
         private CompletionClientBase CreateClient(ModelEndpoint endpoint)
         {
-            string baseUrl = endpoint.GetBaseUrl();
-
-            CompletionClientBase client;
-            if (endpoint.ApiFormat == ApiFormatEnum.Gemini)
-            {
-                // Gemini presents its credential via PolyPrompt's native "?key=" query handling, so hand the
-                // secret to the client directly rather than through the generic auth handler.
-                HttpClient transport = new HttpClient(_Transport, false) { Timeout = Timeout.InfiniteTimeSpan };
-                client = new GeminiClient(baseUrl, endpoint.AuthSecret ?? string.Empty, null, transport);
-            }
-            else
-            {
-                // All other formats: apply Isis's generic auth (bearer / header / query / basic / access-secret)
-                // via a per-endpoint delegating handler over the shared transport, and pass a null key so
-                // PolyPrompt does not also add its own Authorization header.
-                HttpClient transport = new HttpClient(new EndpointAuthHandler(endpoint, _Transport), false) { Timeout = Timeout.InfiniteTimeSpan };
-                client = endpoint.ApiFormat == ApiFormatEnum.Ollama
-                    ? new OllamaClient(baseUrl, null, null, transport)
-                    : new OpenAiClient(baseUrl, null, null, transport);
-            }
-
-            if (!string.IsNullOrEmpty(endpoint.Model)) client.Model = endpoint.Model;
-            // Streaming a reasoning model can take a while before and between tokens; give the client a
-            // generous budget so PolyPrompt does not cancel the stream. Actual cancellation flows through the
-            // request's CancellationToken.
-            client.TimeoutMs = Math.Max(endpoint.TimeoutMs, 600000);
-            return client;
+            // Streaming a reasoning model can take a while before and between tokens; give the client a generous budget
+            // so PolyPrompt does not cancel the stream. Actual cancellation flows through the request's CancellationToken.
+            return ModelClientFactory.Create(endpoint, _Transport, Math.Max(endpoint.TimeoutMs, 600000));
         }
 
         private static ChatCompletionOptions CreateOptions(string systemPrompt)

@@ -247,10 +247,12 @@ which job (answering chat, query steps, reranking). The endpoint's `apiFormat` d
 
 | `apiFormat` | Chat and query steps | Reranking |
 | --- | --- | --- |
-| `Ollama`, `OpenAI`, `VLlm` | yes | yes, by prompt: Isis sends the query and the numbered candidates in one chat call, asks for a 0 to 10 rating of each, and divides by 10 |
-| `Gemini` | yes | not yet |
+| `Ollama`, `OpenAI`, `VLlm`, `Gemini` | yes | yes, by prompt: Isis sends the query and the numbered candidates in one chat call, asks for a 0 to 10 rating of each, and divides by 10 |
 | `Tei` | no | yes: a cross-encoder behind Hugging Face Text Embeddings Inference (`POST {baseUrl}/rerank` with `query` and `texts`; health path `/health`) |
-| `Cohere` | no | yes: a Cohere-compatible rerank API (`POST {baseUrl}/v1/rerank` with `model`, `query`, and `documents`, answering `results[].relevance_score`), also served by vLLM, Jina, and Voyage for cross-encoders |
+| `Cohere` | no | yes: Cohere's rerank API (`POST {baseUrl}/v2/rerank` with `model`, `query`, and `documents`, answering `results[].relevance_score`), also served by vLLM for cross-encoders |
+
+Every model call, whatever the job, goes through PolyPrompt with the endpoint's authentication, the transient-retry
+policy, and its timeout.
 
 A cross-encoder is fast (about 0.3 s per search on CPU) and is what new scopes attach automatically. A large chat
 model reranks best (gpt-oss-20b scored highest of everything measured) at several seconds per search; a small one

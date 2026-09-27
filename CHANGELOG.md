@@ -24,8 +24,13 @@ All notable changes to Isis are documented here. This project adheres to
   converts stored Rerank endpoints (keeping their `rep_` ids; `VLlm` rerankers, which called vLLM's Cohere-compatible
   API, become `Cohere`). `Rerank` is still accepted as a kind on input and stored as `Inference`. New scopes attach the
   tenant's first cross-encoder automatically, never a chat model, and scope validation rejects a cross-encoder as the
-  chat or query model and Gemini as a reranker (not supported yet). `VLlm` endpoints used as rerankers now rerank by
-  prompt; use `Cohere` for a vLLM-served cross-encoder.
+  chat or query model. `VLlm` endpoints used as rerankers now rerank by prompt; use `Cohere` for a vLLM-served
+  cross-encoder.
+- **PolyPrompt 2.7.0 for every model call.** Reranking now goes through PolyPrompt like chat and query steps: `Tei`
+  and `Cohere` cross-encoders use its `RerankAsync` (TEI with truncation and 0 to 1 scores; Cohere through its v2
+  rerank API, `/v2/rerank`, instead of `/v1/rerank`), and chat models are prompted through its chat API at temperature
+  0, so `Gemini` models can rerank too. A shared `ModelClientFactory` gives every job the same authentication, retry,
+  and timeout handling. Reranked benchmark scores are unchanged.
 - **Per-scope models and query steps.** A scope names the model for each job, like an assistant's settings in
   AssistantHub: `inferenceEndpointId` (chat answers) and `queryEndpointId` (follow-up rewriting, splitting, and
   expansion), next to the existing embedding and rerank endpoints, plus `conversationRewrite`, `queryExpansion` (`Off`,

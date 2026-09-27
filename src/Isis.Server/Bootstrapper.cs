@@ -84,7 +84,7 @@ namespace Isis.Server
                 RecallDbAdminKey = settings.RecallDb.AdminApiKey,
                 VerbexEndpoint = settings.Verbex.Endpoint
             };
-            RerankService rerankService = new RerankService(embeddingClient);
+            RerankService rerankService = new RerankService(new TransientRetryHandler(new SocketsHttpHandler()));
             MemoryService memoryService = new MemoryService(database, embeddingService, storeOptions, lookupCache, rerankService);
             memoryService.DuplicateCheckEnabled = settings.Retrieval.DuplicateCheckEnabled;
             memoryService.DuplicateSimilarityThreshold = settings.Retrieval.DuplicateSimilarityThreshold;

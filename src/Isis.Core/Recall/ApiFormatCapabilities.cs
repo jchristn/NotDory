@@ -4,9 +4,9 @@ namespace Isis.Core.Recall
 
     /// <summary>
     /// What an inference endpoint can do, decided by its API format. Every inference endpoint is configured the same
-    /// way; the format decides which jobs a scope may give it: chat models (Ollama, OpenAI, vLLM, Gemini) answer chat
-    /// and run query steps, and all but Gemini can also rerank by rating candidates in a prompt; cross-encoders (TEI and
-    /// Cohere-compatible rerank APIs) only rerank.
+    /// way; the format decides which jobs a scope may give it: chat models (Ollama, OpenAI, vLLM, Gemini) answer chat,
+    /// run query steps, and rerank by rating candidates in a prompt; cross-encoders (TEI and Cohere rerank APIs) only
+    /// rerank. Every format is served through PolyPrompt.
     /// </summary>
     public static class ApiFormatCapabilities
     {
@@ -30,7 +30,7 @@ namespace Isis.Core.Recall
         /// <returns>True when the format can rerank.</returns>
         public static bool CanRerank(ApiFormatEnum format)
         {
-            return format == ApiFormatEnum.Tei || format == ApiFormatEnum.Cohere || format == ApiFormatEnum.Ollama || format == ApiFormatEnum.OpenAI || format == ApiFormatEnum.VLlm;
+            return format == ApiFormatEnum.Tei || format == ApiFormatEnum.Cohere || CanChat(format);
         }
 
         /// <summary>

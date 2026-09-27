@@ -34,7 +34,7 @@ namespace Isis.Core.Enums
 
         /// <summary>
         /// Cohere-compatible rerank API (<c>POST /v1/rerank</c> with <c>query</c> and <c>documents</c>, answering
-        /// <c>results[].relevance_score</c>), also served by vLLM, Jina, Voyage, and several self-hosted rerankers. A cross-encoder: rerank
+        /// <c>results[].relevance_score</c>), Cohere's v2 rerank API (<c>/v2/rerank</c>), also served by vLLM. A cross-encoder: rerank
         /// endpoints only.
         /// </summary>
         Cohere

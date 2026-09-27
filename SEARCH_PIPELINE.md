@@ -253,14 +253,16 @@ stage does nothing. The main query's result supplies the effective mode and noti
 **Rationale.** A cross-encoder reads the query and each candidate together, so it judges relevance far better than
 either retrieval leg, at a latency that only allows scoring a short candidate list.
 
-**Implementation.** `RerankService` (`src/Isis.Core/Recall/RerankService.cs`).
+**Implementation.** `RerankService` (`src/Isis.Core/Recall/RerankService.cs`), through PolyPrompt like every other model
+call (`ModelClientFactory`).
 
 1. `minScore`, if set, drops candidates below the fused score.
 2. The candidates (title plus up to 1,200 characters) and the original query (never an extra query) go to the rerank
    endpoint:
-   - **Cross-encoders** (`Tei`, `Cohere`, and vLLM): scores in 0 to 1. The reference stack serves
-     `cross-encoder/ms-marco-MiniLM-L-6-v2`.
-   - **Chat models** (`Ollama`, `OpenAI`): one prompt rates every candidate 0 to 10, divided by 10. Small models rank
+   - **Cross-encoders** (`Tei`, and `Cohere` for Cohere's v2 rerank API or a vLLM-served cross-encoder): PolyPrompt's
+     `RerankAsync`, scores in 0 to 1. The reference stack serves `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+   - **Chat models** (`Ollama`, `OpenAI`, `VLlm`, `Gemini`): one prompt at temperature 0 rates every candidate 0 to 10,
+     divided by 10. Small models rank
      worse than no reranker (gemma3:4b lowered every dataset); large ones rank best of all (gpt-oss-20b, section 7),
      at several seconds per search.
 3. Hits are reordered by rerank score and carry `rerankScore`. `minRerankScore` (or the scope's `rerankMinScore`) then
@@ -311,7 +313,7 @@ settings in AssistantHub.
 | Decomposition | `queryDecomposition` | request `decompose`, then scope, then `retrieval.queryDecomposition` (false) |
 
 Every model other than embedding is an inference endpoint; its API format decides which jobs it can take
-(`ApiFormatCapabilities`): chat formats answer chat, run query steps, and (except Gemini, for now) rerank by prompt;
+(`ApiFormatCapabilities`): chat formats answer chat, run query steps, and rerank by prompt;
 `Tei` and `Cohere` cross-encoders only rerank. A named endpoint that is inactive or cannot do the job is skipped in
 favor of the next choice; scope create and update reject one that is missing or cannot do the job. The dashboard's scope form exposes every field.
 

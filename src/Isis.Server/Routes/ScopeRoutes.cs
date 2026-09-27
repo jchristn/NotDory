@@ -207,7 +207,7 @@ namespace Isis.Server.Routes
             if (endpoint == null) return "The specified " + field + " was not found in this tenant.";
             if (endpoint.Kind != EndpointKindEnum.Inference) return "The specified " + field + " is an " + endpoint.Kind + " endpoint; an inference endpoint is required.";
             if (rerank && !ApiFormatCapabilities.CanRerank(endpoint.ApiFormat))
-                return "The specified " + field + " uses the " + endpoint.ApiFormat + " format, which cannot rerank yet; choose a cross-encoder (Tei or Cohere) or a chat model (Ollama, OpenAI, or VLlm).";
+                return "The specified " + field + " uses the " + endpoint.ApiFormat + " format, which cannot rerank; choose a cross-encoder (Tei or Cohere) or a chat model.";
             if (!rerank && !ApiFormatCapabilities.CanChat(endpoint.ApiFormat))
                 return "The specified " + field + " is a " + endpoint.ApiFormat + " cross-encoder, which can only rerank; choose a chat model.";
             return null;

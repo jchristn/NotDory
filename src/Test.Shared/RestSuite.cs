@@ -948,7 +948,9 @@ namespace Test.Shared
             HttpResponseMessage crossEncoderChat = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "ce-chat", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "ce-chat"), inferenceEndpointId = teiId }).ConfigureAwait(false);
             ExpectStatus(crossEncoderChat, HttpStatusCode.BadRequest, "a cross-encoder as the chat model");
             HttpResponseMessage geminiRerank = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "gem-rerank", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "gem-rerank"), rerankEndpointId = geminiId }).ConfigureAwait(false);
-            ExpectStatus(geminiRerank, HttpStatusCode.BadRequest, "a Gemini model as the reranker");
+            ExpectStatus(geminiRerank, HttpStatusCode.Created, "a Gemini chat model as the reranker");
+            HttpResponseMessage embeddingRerank = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "emb-rerank", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "emb-rerank"), rerankEndpointId = embeddingId }).ConfigureAwait(false);
+            ExpectStatus(embeddingRerank, HttpStatusCode.BadRequest, "an embedding endpoint as the reranker");
             HttpResponseMessage chatRerank = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "chat-rerank", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "chat-rerank"), rerankEndpointId = inferenceId, rerankMinScore = 0.5 }).ConfigureAwait(false);
             ExpectStatus(chatRerank, HttpStatusCode.Created, "a chat model as the reranker (high-precision mode)");
 

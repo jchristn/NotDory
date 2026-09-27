@@ -3,6 +3,7 @@ namespace Isis.Core.Recall
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Net;
     using System.Net.Http;
     using System.Text;
     using System.Text.Json;
@@ -11,19 +12,22 @@ namespace Isis.Core.Recall
     using Isis.Core.Enums;
     using Isis.Core.Models;
     using Isis.Core.Observability;
+    using PolyPrompt.Clients;
+    using PolyPrompt.Models;
+    using PolyPrompt.Options;
 
     /// <summary>
-    /// Calls a configured rerank endpoint to score how well each candidate passage answers a query. Supports the Hugging
-    /// Face Text Embeddings Inference API (<see cref="ApiFormatEnum.Tei"/>) and the Cohere-compatible API
-    /// (<see cref="ApiFormatEnum.Cohere"/>, also served by vLLM for cross-encoders), both served by cross-encoders, and a
-    /// chat model (<see cref="ApiFormatEnum.Ollama"/>, <see cref="ApiFormatEnum.OpenAI"/>, or <see cref="ApiFormatEnum.VLlm"/>) prompted to rate every
-    /// passage in one call.
+    /// Scores how well each candidate passage answers a query, through PolyPrompt like every other model call. A
+    /// cross-encoder (<see cref="ApiFormatEnum.Tei"/> or <see cref="ApiFormatEnum.Cohere"/>) scores the passages
+    /// through its rerank API; a chat model (<see cref="ApiFormatEnum.Ollama"/>, <see cref="ApiFormatEnum.OpenAI"/>,
+    /// <see cref="ApiFormatEnum.VLlm"/>, or <see cref="ApiFormatEnum.Gemini"/>) is prompted to rate every passage in one
+    /// call. Scores are 0 to 1 either way.
     /// </summary>
     public class RerankService
     {
         #region Private-Members
 
-        private readonly HttpClient _HttpClient;
+        private readonly HttpMessageHandler _Transport;
 
         #endregion
 
@@ -32,11 +36,11 @@ namespace Isis.Core.Recall
         /// <summary>
         /// Instantiate the rerank service.
         /// </summary>
-        /// <param name="httpClient">The HTTP client used to call endpoints.</param>
-        /// <exception cref="ArgumentNullException">Thrown when httpClient is null.</exception>
-        public RerankService(HttpClient httpClient)
+        /// <param name="transport">The shared HTTP transport (typically a retrying handler); not disposed by the service.</param>
+        /// <exception cref="ArgumentNullException">Thrown when transport is null.</exception>
+        public RerankService(HttpMessageHandler transport)
         {
-            _HttpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _Transport = transport ?? throw new ArgumentNullException(nameof(transport));
         }
 
         #endregion
@@ -46,69 +50,26 @@ namespace Isis.Core.Recall
         /// <summary>
         /// Score each passage against the query.
         /// </summary>
-        /// <param name="endpoint">The rerank endpoint to call.</param>
+        /// <param name="endpoint">The inference endpoint that reranks.</param>
         /// <param name="query">The query text.</param>
         /// <param name="passages">The candidate passages.</param>
         /// <param name="token">Cancellation token.</param>
-        /// <returns>One score per passage, in the order the passages were given. Higher is more relevant; TEI and
-        /// Cohere-compatible endpoints answer in the range 0 to 1.</returns>
+        /// <returns>One score per passage, in the order the passages were given, from 0 to 1 (higher is more relevant).
+        /// A passage a cross-encoder did not score gets 0.</returns>
         /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
-        /// <exception cref="NotSupportedException">Thrown when the endpoint's API format has no rerank API.</exception>
+        /// <exception cref="NotSupportedException">Thrown when the endpoint's API format cannot rerank.</exception>
         /// <exception cref="ModelEndpointUnavailableException">Thrown when the endpoint is still at capacity or unavailable after retries.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when the endpoint returns an error or an unparseable response.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the endpoint returns an error or an unusable reply.</exception>
         public async Task<double[]> RerankAsync(ModelEndpoint endpoint, string query, IReadOnlyList<string> passages, CancellationToken token = default)
         {
             if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
             if (query == null) throw new ArgumentNullException(nameof(query));
             if (passages == null) throw new ArgumentNullException(nameof(passages));
             if (passages.Count == 0) return new double[0];
-
-            bool tei = endpoint.ApiFormat == ApiFormatEnum.Tei;
-            bool chatOllama = endpoint.ApiFormat == ApiFormatEnum.Ollama;
-            // VLlm is a chat format for inference endpoints, so it reranks by prompt like OpenAI; a cross-encoder served
-            // by vLLM uses its Cohere-compatible rerank API (the Cohere format).
-            bool chatOpenAi = endpoint.ApiFormat == ApiFormatEnum.OpenAI || endpoint.ApiFormat == ApiFormatEnum.VLlm;
             if (!ApiFormatCapabilities.CanRerank(endpoint.ApiFormat))
-            {
-                throw new NotSupportedException("API format " + endpoint.ApiFormat + " cannot rerank yet; use a cross-encoder (Tei or Cohere) or a chat model (Ollama, OpenAI, or VLlm).");
-            }
+                throw new NotSupportedException("API format " + endpoint.ApiFormat + " cannot rerank.");
 
             string model = string.IsNullOrEmpty(endpoint.Model) ? "default" : endpoint.Model!;
-            string path;
-            object payload;
-            if (tei)
-            {
-                path = "/rerank";
-                payload = new { query = query, texts = passages, truncate = true, raw_scores = false };
-            }
-            else if (chatOllama)
-            {
-                path = "/api/chat";
-                payload = new
-                {
-                    model = model,
-                    stream = false,
-                    format = "json",
-                    options = new { temperature = 0 },
-                    messages = new[] { new { role = "user", content = ChatPrompt(query, passages) } }
-                };
-            }
-            else if (chatOpenAi)
-            {
-                path = "/v1/chat/completions";
-                payload = new
-                {
-                    model = model,
-                    temperature = 0,
-                    messages = new[] { new { role = "user", content = ChatPrompt(query, passages) } }
-                };
-            }
-            else
-            {
-                path = "/v1/rerank";
-                payload = new { model = model, query = query, documents = passages, top_n = passages.Count };
-            }
-
             string endpointHost = ResolveHost(endpoint.GetBaseUrl());
             long telemetryStart = Stopwatch.GetTimestamp();
             string telemetryOutcome = "success";
@@ -118,20 +79,15 @@ namespace Isis.Core.Recall
 
             try
             {
+                // The endpoint's timeout bounds the whole call, so a slow reranker falls back to retrieval order rather
+                // than holding up the search.
+                int timeoutMs = endpoint.TimeoutMs > 0 ? endpoint.TimeoutMs : 60000;
                 using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                cts.CancelAfter(endpoint.TimeoutMs > 0 ? endpoint.TimeoutMs : 60000);
+                cts.CancelAfter(timeoutMs);
+                using CompletionClientBase client = ModelClientFactory.Create(endpoint, _Transport, timeoutMs);
 
-                using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, endpoint.GetBaseUrl() + path);
-                request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                EndpointAuthenticator.Apply(request, endpoint);
-
-                HttpResponseMessage response = await _HttpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
-                string body = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
-                if (TransientRetryHandler.IsTransient(response.StatusCode)) throw new ModelEndpointUnavailableException("Rerank endpoint is temporarily unavailable (" + (int)response.StatusCode + "): " + body, (int)response.StatusCode);
-                if (!response.IsSuccessStatusCode) throw new InvalidOperationException("Rerank endpoint returned " + (int)response.StatusCode + ": " + body);
-
-                if (chatOllama || chatOpenAi) return ParseChatScores(body, chatOllama, passages.Count);
-                return ParseScores(body, tei, passages.Count);
+                if (ApiFormatCapabilities.IsRerankOnly(endpoint.ApiFormat)) return await CrossEncoderAsync(client, endpoint, query, passages, cts.Token).ConfigureAwait(false);
+                return await PromptedAsync(client, query, passages, cts.Token).ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -148,42 +104,17 @@ namespace Isis.Core.Recall
             }
         }
 
-        #endregion
-
-        #region Private-Methods
-
-        private static string ChatPrompt(string query, IReadOnlyList<string> passages)
+        /// <summary>
+        /// Read the scores out of a chat model's rating reply. The reply should be {"scores": [...]} with ratings from 0
+        /// to 10; a bare array or text around the JSON is tolerated. Ratings are returned as 0 to 1.
+        /// </summary>
+        /// <param name="reply">The model's reply text.</param>
+        /// <param name="count">The number of passages rated.</param>
+        /// <returns>One score per passage, from 0 to 1.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the reply holds no usable scores or the wrong number.</exception>
+        public static double[] ParseRatings(string? reply, int count)
         {
-            StringBuilder sb = new StringBuilder();
-            sb.Append("Rate how well each numbered passage answers the query, from 0 (irrelevant) to 10 (answers it directly). ");
-            sb.Append("Judge only relevance to the query. Reply with JSON only, in the form {\"scores\": [s1, s2, ...]}, with exactly ");
-            sb.Append(passages.Count).Append(" numbers in passage order.\n\nQuery: ").Append(query).Append("\n\n");
-            for (int i = 0; i < passages.Count; i++)
-            {
-                sb.Append("Passage ").Append(i + 1).Append(":\n").Append(passages[i]).Append("\n\n");
-            }
-
-            return sb.ToString();
-        }
-
-        private static double[] ParseChatScores(string json, bool ollama, int count)
-        {
-            // The chat reply is the model's text; it should be {"scores": [...]}, but tolerate a bare array or text around
-            // the JSON. Scores are 0 to 10 and are returned as 0 to 1 so they are comparable with cross-encoder scores.
-            string content;
-            try
-            {
-                using JsonDocument document = JsonDocument.Parse(json);
-                JsonElement root = document.RootElement;
-                content = ollama
-                    ? root.GetProperty("message").GetProperty("content").GetString() ?? string.Empty
-                    : root.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? string.Empty;
-            }
-            catch (Exception e) when (e is JsonException || e is KeyNotFoundException || e is InvalidOperationException || e is IndexOutOfRangeException)
-            {
-                throw new InvalidOperationException("Unable to read the rerank model's reply: " + e.Message);
-            }
-
+            string content = reply ?? string.Empty;
             int start = content.IndexOfAny(new[] { '{', '[' });
             int end = Math.Max(content.LastIndexOf('}'), content.LastIndexOf(']'));
             if (start < 0 || end <= start) throw new InvalidOperationException("The rerank model's reply contained no JSON scores.");
@@ -212,53 +143,66 @@ namespace Isis.Core.Recall
             }
         }
 
+        #endregion
+
+        #region Private-Methods
+
+        private static async Task<double[]> CrossEncoderAsync(CompletionClientBase client, ModelEndpoint endpoint, string query, IReadOnlyList<string> passages, CancellationToken token)
+        {
+            // TEI returns sigmoid scores in 0..1 when raw scores are off, and truncates passages longer than the model's
+            // window; Cohere-compatible APIs answer relevance scores in 0..1.
+            RerankOptions options = endpoint.ApiFormat == ApiFormatEnum.Tei
+                ? new TeiRerankOptions { RawScores = false, Truncate = true }
+                : new RerankOptions();
+            if (!string.IsNullOrEmpty(endpoint.Model)) options.Model = endpoint.Model;
+
+            RerankResponse response = await client.RerankAsync(query, new List<string>(passages), options, token).ConfigureAwait(false);
+            if (!response.Success) ThrowFor(response.StatusCode, response.Error);
+
+            double[] scores = new double[passages.Count];
+            foreach (RerankResult result in response.Results)
+            {
+                if (result.Index >= 0 && result.Index < scores.Length) scores[result.Index] = result.Score;
+            }
+
+            return scores;
+        }
+
+        private static async Task<double[]> PromptedAsync(CompletionClientBase client, string query, IReadOnlyList<string> passages, CancellationToken token)
+        {
+            ChatCompletionOptions options = new ChatCompletionOptions { Temperature = 0 };
+            ChatResponse response = await client.ChatAsync(ChatPrompt(query, passages), options, token).ConfigureAwait(false);
+            if (!response.Success) ThrowFor(response.StatusCode ?? 0, response.Error);
+            return ParseRatings(response.Text, passages.Count);
+        }
+
+        private static void ThrowFor(int statusCode, string? error)
+        {
+            string detail = string.IsNullOrEmpty(error) ? "no detail" : error!;
+            if (TransientRetryHandler.IsTransient((HttpStatusCode)statusCode))
+                throw new ModelEndpointUnavailableException("Rerank endpoint is temporarily unavailable (" + statusCode + "): " + detail, statusCode);
+            throw new InvalidOperationException("Rerank endpoint returned " + statusCode + ": " + detail);
+        }
+
+        private static string ChatPrompt(string query, IReadOnlyList<string> passages)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("Rate how well each numbered passage answers the query, from 0 (irrelevant) to 10 (answers it directly). ");
+            sb.Append("Judge only relevance to the query. Reply with JSON only, in the form {\"scores\": [s1, s2, ...]}, with exactly ");
+            sb.Append(passages.Count).Append(" numbers in passage order.\n\nQuery: ").Append(query).Append("\n\n");
+            for (int i = 0; i < passages.Count; i++)
+            {
+                sb.Append("Passage ").Append(i + 1).Append(":\n").Append(passages[i]).Append("\n\n");
+            }
+
+            return sb.ToString();
+        }
+
         private static string ResolveHost(string url)
         {
             if (string.IsNullOrEmpty(url)) return "unknown";
             if (Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) return uri.Host;
             return "unknown";
-        }
-
-        private static double[] ParseScores(string json, bool tei, int count)
-        {
-            // Both APIs answer a list of (index, score) sorted by score, not by input order, and may omit passages
-            // (Cohere's top_n). Map back to input order; an omitted passage scores 0.
-            double[] scores = new double[count];
-            try
-            {
-                using JsonDocument document = JsonDocument.Parse(json);
-                JsonElement root = document.RootElement;
-                JsonElement results;
-                string scoreProperty;
-
-                if (tei)
-                {
-                    results = root;
-                    scoreProperty = "score";
-                }
-                else
-                {
-                    if (!root.TryGetProperty("results", out results)) throw new InvalidOperationException("Missing 'results' array.");
-                    scoreProperty = "relevance_score";
-                }
-
-                if (results.ValueKind != JsonValueKind.Array) throw new InvalidOperationException("Expected an array of rerank results.");
-
-                foreach (JsonElement item in results.EnumerateArray())
-                {
-                    if (!item.TryGetProperty("index", out JsonElement indexElement)) throw new InvalidOperationException("A rerank result is missing 'index'.");
-                    if (!item.TryGetProperty(scoreProperty, out JsonElement scoreElement)) throw new InvalidOperationException("A rerank result is missing '" + scoreProperty + "'.");
-                    int index = indexElement.GetInt32();
-                    if (index < 0 || index >= count) throw new InvalidOperationException("A rerank result index " + index + " is out of range.");
-                    scores[index] = scoreElement.GetDouble();
-                }
-
-                return scores;
-            }
-            catch (JsonException e)
-            {
-                throw new InvalidOperationException("Unable to parse rerank response: " + e.Message);
-            }
         }
 
         #endregion

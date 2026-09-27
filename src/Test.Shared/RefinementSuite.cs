@@ -46,7 +46,7 @@ namespace Test.Shared
                     TestCase.Async("refinement", "scope-rerank-round-trip", "Scope rerank settings persist through the database", ScopeRerankRoundTripAsync),
                     TestCase.Async("refinement", "rerank-endpoint-prefix", "A legacy Rerank endpoint is stored as Inference and its rep_ id stays valid", RerankEndpointPrefixAsync),
                     TestCase.Async("refinement", "migration-008-rerank-kind", "Migration 008 turns Rerank endpoints into Inference, and VLlm rerankers into Cohere", Migration008Async),
-                    TestCase.Sync("refinement", "format-capabilities", "ApiFormatCapabilities: chat formats chat and rerank, cross-encoders only rerank, Gemini does not rerank yet", FormatCapabilities),
+                    TestCase.Sync("refinement", "format-capabilities", "ApiFormatCapabilities: chat formats chat and rerank by prompt, cross-encoders only rerank", FormatCapabilities),
                     TestCase.Async("refinement", "migration-005-adds-columns", "Migration 005 adds the supersession columns to an older memories table", Migration005AddsColumnsAsync),
                     TestCase.Async("refinement", "migration-006-adds-columns", "Migration 006 adds the rerank columns to an older scopes table", Migration006AddsColumnsAsync),
                     TestCase.Async("refinement", "supersedes-marks-target", "Upsert with supersedes marks the named memory as replaced", SupersedesMarksTargetAsync),
@@ -69,7 +69,7 @@ namespace Test.Shared
                     TestCase.Async("refinement", "rerank-chat-ollama", "RerankService (chat model, Ollama): prompts once and maps 0-10 scores to 0-1", RerankChatOllamaAsync),
                     TestCase.Async("refinement", "rerank-chat-openai", "RerankService (chat model, OpenAI): reads choices and tolerates text around the JSON", RerankChatOpenAiAsync),
                     TestCase.Async("refinement", "rerank-chat-bad-count", "RerankService (chat model): a wrong number of scores is an error", RerankChatBadCountAsync),
-                    TestCase.Async("refinement", "rerank-unsupported-format", "RerankService rejects formats without a rerank API", RerankUnsupportedFormatAsync),
+                    TestCase.Async("refinement", "rerank-unsupported-format", "RerankService: every format can rerank; an unusable chat reply is an error", RerankUnsupportedFormatAsync),
                     TestCase.Async("refinement", "rerank-error-status", "RerankService surfaces an endpoint error", RerankErrorStatusAsync),
                     TestCase.Async("refinement", "search-rerank-reorders", "Search: a scope with a rerank endpoint reorders hits by rerank score", SearchRerankReordersAsync),
                     TestCase.Async("refinement", "search-rerank-cutoff", "Search: minRerankScore (query or scope) drops weak reranked hits", SearchRerankCutoffAsync),
@@ -278,7 +278,7 @@ namespace Test.Shared
                 TestCase.Require(ApiFormatCapabilities.CanChat(chat) && ApiFormatCapabilities.CanRerank(chat) && !ApiFormatCapabilities.IsRerankOnly(chat), chat + " should chat and rerank.");
             foreach (ApiFormatEnum crossEncoder in new[] { ApiFormatEnum.Tei, ApiFormatEnum.Cohere })
                 TestCase.Require(!ApiFormatCapabilities.CanChat(crossEncoder) && ApiFormatCapabilities.CanRerank(crossEncoder) && ApiFormatCapabilities.IsRerankOnly(crossEncoder), crossEncoder + " should only rerank.");
-            TestCase.Require(ApiFormatCapabilities.CanChat(ApiFormatEnum.Gemini) && !ApiFormatCapabilities.CanRerank(ApiFormatEnum.Gemini), "Gemini should chat but not rerank yet.");
+            TestCase.Require(ApiFormatCapabilities.CanChat(ApiFormatEnum.Gemini) && ApiFormatCapabilities.CanRerank(ApiFormatEnum.Gemini), "Gemini should chat and rerank by prompt.");
         }
 
         private static async Task Migration005AddsColumnsAsync()
@@ -595,7 +595,7 @@ namespace Test.Shared
         private static async Task RerankTeiAsync()
         {
             using StubResponseHandler handler = new StubResponseHandler("[{\"index\":1,\"score\":0.9},{\"index\":0,\"score\":0.2}]");
-            RerankService service = new RerankService(new HttpClient(handler));
+            RerankService service = new RerankService(handler);
             double[] scores = await service.RerankAsync(RerankEndpoint(ApiFormatEnum.Tei), "q", new List<string> { "first", "second", "third" }).ConfigureAwait(false);
             TestCase.Require(scores.Length == 3 && scores[0] == 0.2 && scores[1] == 0.9 && scores[2] == 0.0, "Scores should map back to input order, with omitted passages at 0.");
             TestCase.Require(handler.LastRequestUri != null && handler.LastRequestUri.AbsolutePath == "/rerank", "Tei should post to /rerank, got " + handler.LastRequestUri + ".");
@@ -608,10 +608,10 @@ namespace Test.Shared
         private static async Task RerankCohereAsync()
         {
             using StubResponseHandler handler = new StubResponseHandler("{\"results\":[{\"index\":0,\"relevance_score\":0.7},{\"index\":1,\"relevance_score\":0.1}]}");
-            RerankService service = new RerankService(new HttpClient(handler));
+            RerankService service = new RerankService(handler);
             double[] scores = await service.RerankAsync(RerankEndpoint(ApiFormatEnum.Cohere), "q", new List<string> { "first", "second" }).ConfigureAwait(false);
             TestCase.Require(scores[0] == 0.7 && scores[1] == 0.1, "Cohere scores should come from relevance_score.");
-            TestCase.Require(handler.LastRequestUri != null && handler.LastRequestUri.AbsolutePath == "/v1/rerank", "Cohere should post to /v1/rerank.");
+            TestCase.Require(handler.LastRequestUri != null && handler.LastRequestUri.AbsolutePath == "/v2/rerank", "Cohere should post to /v2/rerank, got " + handler.LastRequestUri + ".");
             string body = handler.LastRequestBody ?? string.Empty;
             TestCase.Require(body.Contains("\"documents\"", StringComparison.Ordinal) && body.Contains("\"model\":\"ms-marco\"", StringComparison.Ordinal), "Cohere should send documents and the model.");
         }
@@ -620,19 +620,19 @@ namespace Test.Shared
         {
             string reply = JsonSerializer.Serialize(new { message = new { role = "assistant", content = "{\"scores\": [2, 9, 12]}" }, done = true });
             using StubResponseHandler handler = new StubResponseHandler(reply);
-            RerankService service = new RerankService(new HttpClient(handler));
+            RerankService service = new RerankService(handler);
             double[] scores = await service.RerankAsync(RerankEndpoint(ApiFormatEnum.Ollama), "cache ttl", new List<string> { "first", "second", "third" }).ConfigureAwait(false);
             TestCase.Require(scores.Length == 3 && scores[0] == 0.2 && scores[1] == 0.9 && scores[2] == 1.0, "Chat scores should be divided by 10 and clamped to 1.");
             TestCase.Require(handler.LastRequestUri != null && handler.LastRequestUri.AbsolutePath == "/api/chat" && handler.RequestCount == 1, "Ollama chat reranking should make one /api/chat call.");
             string body = handler.LastRequestBody ?? string.Empty;
-            TestCase.Require(body.Contains("Passage 3", StringComparison.Ordinal) && body.Contains("cache ttl", StringComparison.Ordinal) && body.Contains("\"format\":\"json\"", StringComparison.Ordinal), "The prompt should number every passage, include the query, and ask for JSON.");
+            TestCase.Require(body.Contains("Passage 3", StringComparison.Ordinal) && body.Contains("cache ttl", StringComparison.Ordinal) && body.Contains("scores", StringComparison.Ordinal), "The prompt should number every passage, include the query, and ask for JSON scores.");
         }
 
         private static async Task RerankChatOpenAiAsync()
         {
             string reply = JsonSerializer.Serialize(new { choices = new[] { new { message = new { role = "assistant", content = "Here you go: [7, 1]" } } } });
             using StubResponseHandler handler = new StubResponseHandler(reply);
-            RerankService service = new RerankService(new HttpClient(handler));
+            RerankService service = new RerankService(handler);
             double[] scores = await service.RerankAsync(RerankEndpoint(ApiFormatEnum.OpenAI), "q", new List<string> { "a", "b" }).ConfigureAwait(false);
             TestCase.Require(scores[0] == 0.7 && scores[1] == 0.1, "A bare array inside text should parse.");
             TestCase.Require(handler.LastRequestUri != null && handler.LastRequestUri.AbsolutePath == "/v1/chat/completions", "OpenAI chat reranking should call /v1/chat/completions.");
@@ -642,27 +642,30 @@ namespace Test.Shared
         {
             string reply = JsonSerializer.Serialize(new { message = new { role = "assistant", content = "{\"scores\": [5]}" } });
             using StubResponseHandler handler = new StubResponseHandler(reply);
-            RerankService service = new RerankService(new HttpClient(handler));
+            RerankService service = new RerankService(handler);
             await TestCase.ThrowsAsync<InvalidOperationException>(() => service.RerankAsync(RerankEndpoint(ApiFormatEnum.Ollama), "q", new List<string> { "a", "b" }), "One score for two passages should throw.").ConfigureAwait(false);
         }
 
         private static async Task RerankUnsupportedFormatAsync()
         {
             using StubResponseHandler handler = new StubResponseHandler("[]");
-            RerankService service = new RerankService(new HttpClient(handler));
-            await TestCase.ThrowsAsync<NotSupportedException>(() => service.RerankAsync(RerankEndpoint(ApiFormatEnum.Gemini), "q", new List<string> { "a" }), "Gemini has no rerank API here.").ConfigureAwait(false);
+            RerankService service = new RerankService(handler);
+            await TestCase.ThrowsAsync<InvalidOperationException>(() => service.RerankAsync(RerankEndpoint(ApiFormatEnum.OpenAI), "q", new List<string> { "a" }), "A chat reply without usable scores should be an error.").ConfigureAwait(false);
+            foreach (ApiFormatEnum format in Enum.GetValues<ApiFormatEnum>())
+                TestCase.Require(ApiFormatCapabilities.CanRerank(format), format + " should be able to rerank through PolyPrompt.");
+            TestCase.Require(RerankService.ParseRatings("{\"scores\": [3, 11]}", 2)[1] == 1.0, "Ratings should be clamped to 10 and scaled to 1.");
         }
 
         private static async Task RerankErrorStatusAsync()
         {
             using StubResponseHandler handler = new StubResponseHandler("{\"error\":\"overloaded\"}", HttpStatusCode.ServiceUnavailable);
-            RerankService service = new RerankService(new HttpClient(handler));
+            RerankService service = new RerankService(handler);
             await TestCase.ThrowsAsync<InvalidOperationException>(() => service.RerankAsync(RerankEndpoint(ApiFormatEnum.Tei), "q", new List<string> { "a" }), "An error status should throw.").ConfigureAwait(false);
         }
 
         private static async Task<FilesystemFixture> RerankFixtureAsync(TempSqlite t, StubResponseHandler handler)
         {
-            FilesystemFixture f = await FixtureAsync(t, new RerankService(new HttpClient(handler))).ConfigureAwait(false);
+            FilesystemFixture f = await FixtureAsync(t, new RerankService(handler)).ConfigureAwait(false);
             ModelEndpoint endpoint = RerankEndpoint(ApiFormatEnum.Tei);
             endpoint.TenantId = f.Scope.TenantId;
             endpoint = await t.Db.ModelEndpoints.CreateAsync(endpoint).ConfigureAwait(false);
