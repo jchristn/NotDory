@@ -207,7 +207,8 @@ CREATE TABLE IF NOT EXISTS request_history (
     responsebody LONGTEXT,
     durationms DOUBLE NOT NULL DEFAULT 0,
     createdutc VARCHAR(40) NOT NULL,
-    INDEX idx_reqhistory_tenant_created (tenantid, createdutc)
+    INDEX idx_reqhistory_tenant_created (tenantid, createdutc),
+    INDEX idx_reqhistory_created (createdutc)
 );
 
 CREATE TABLE IF NOT EXISTS operation_events (
@@ -225,7 +226,8 @@ CREATE TABLE IF NOT EXISTS operation_events (
     durationms DOUBLE NOT NULL DEFAULT 0,
     createdutc VARCHAR(40) NOT NULL,
     INDEX idx_opevents_tenant_created (tenantid, createdutc),
-    INDEX idx_opevents_resource_created (resourcetype, createdutc)
+    INDEX idx_opevents_resource_created (resourcetype, createdutc),
+    INDEX idx_opevents_created (createdutc)
 );
 
 CREATE TABLE IF NOT EXISTS permissions (

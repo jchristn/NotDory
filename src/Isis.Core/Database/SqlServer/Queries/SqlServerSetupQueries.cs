@@ -207,7 +207,8 @@ IF OBJECT_ID(N'dbo.request_history', N'U') IS NULL CREATE TABLE request_history 
     responsebody NVARCHAR(MAX),
     durationms FLOAT NOT NULL DEFAULT 0,
     createdutc NVARCHAR(40) NOT NULL,
-    INDEX idx_reqhistory_tenant_created (tenantid, createdutc)
+    INDEX idx_reqhistory_tenant_created (tenantid, createdutc),
+    INDEX idx_reqhistory_created (createdutc)
 );
 
 IF OBJECT_ID(N'dbo.operation_events', N'U') IS NULL CREATE TABLE operation_events (
@@ -225,7 +226,8 @@ IF OBJECT_ID(N'dbo.operation_events', N'U') IS NULL CREATE TABLE operation_event
     durationms FLOAT NOT NULL DEFAULT 0,
     createdutc NVARCHAR(40) NOT NULL,
     INDEX idx_opevents_tenant_created (tenantid, createdutc),
-    INDEX idx_opevents_resource_created (resourcetype, createdutc)
+    INDEX idx_opevents_resource_created (resourcetype, createdutc),
+    INDEX idx_opevents_created (createdutc)
 );
 
 IF OBJECT_ID(N'dbo.permissions', N'U') IS NULL CREATE TABLE permissions (

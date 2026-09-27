@@ -228,52 +228,14 @@ namespace Isis.Server
         /// </summary>
         private async Task ExceptionRouteAsync(HttpContextBase context, Exception e)
         {
-            int status;
-            string error;
-            string message;
-            if (e is RequestTooLargeException)
-            {
-                status = 413;
-                error = "PayloadTooLarge";
-                message = e.Message;
-            }
-            else if (e is ModelEndpointUnavailableException)
-            {
-                status = 503;
-                error = "ServiceUnavailable";
-                message = e.Message;
-            }
-            else if (e is ArgumentException || e is InvalidOperationException || e is FormatException)
-            {
-                status = 400;
-                error = "BadRequest";
-                message = e.Message;
-            }
-            else if (e is NotSupportedException || e is NotImplementedException)
-            {
-                status = 501;
-                error = "NotImplemented";
-                message = e.Message;
-            }
-            else if (e is HttpRequestException || (e is TaskCanceledException && !context.Token.IsCancellationRequested) || e is TimeoutException)
-            {
-                status = 503;
-                error = "ServiceUnavailable";
-                message = "A backing service (memory store, database, or model endpoint) could not be reached or timed out.";
-            }
-            else
-            {
-                status = 500;
-                error = "InternalError";
-                message = "An unexpected error occurred. It has been logged.";
-            }
+            ErrorClassification classified = ErrorClassifier.Classify(e, context.Token.IsCancellationRequested);
 
             _Log?.Invoke("unhandled " + e.GetType().Name + " on " + context.Request.Method + " " + context.Request.Url.RawWithQuery + ": " + e);
             if (context.Response.ResponseSent) return;
 
             try
             {
-                await RouteHelpers.ErrorAsync(context, status, error, message).ConfigureAwait(false);
+                await RouteHelpers.ErrorAsync(context, classified.StatusCode, classified.Error, classified.Message).ConfigureAwait(false);
             }
             catch (Exception sendFailure)
             {

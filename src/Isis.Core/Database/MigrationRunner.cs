@@ -29,7 +29,8 @@ namespace Isis.Core.Database
             new Migration005MemorySupersession(),
             new Migration006ScopeRerank(),
             new Migration007ScopeModels(),
-            new Migration008RerankEndpointsAreInference()
+            new Migration008RerankEndpointsAreInference(),
+            new Migration009HistoryCreatedIndexes()
         };
 
         #endregion

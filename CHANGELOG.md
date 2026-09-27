@@ -164,6 +164,14 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Fixed
 
+- **A busy database answers 503, not 500.** A transient database error (a shared Postgres at its connection limit,
+  a pool that waited past its timeout, a restart) now returns a retryable 503 `ServiceUnavailable` instead of a 500
+  `InternalError`; the mapping moved to `ErrorClassifier`, with tests.
+- **Request history and operation events are indexed by time.** The admin listings across tenants and the retention
+  sweep scanned and sorted the whole table, the largest in the database once bodies are captured; migration
+  `2026-09-27-history-created-indexes` adds `createdutc` indexes to both tables.
+- **The Docker stack's Postgres allows 300 connections.** Isis and RecallDB share it and each pools up to 100
+  connections, so the default of 100 left no headroom during large ingests.
 - **Crashes and runaway work on bad input:** a null entry in `subQueries` returned 500; a huge `tokenBudget` overflowed
   while trimming snippets; a null memory `metadata` threw partway through an upsert; a null settings section saved
   through the settings route broke the next start; a retention sweep interval over about 24 days stopped the retention

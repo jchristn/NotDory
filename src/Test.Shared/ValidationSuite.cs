@@ -3,6 +3,8 @@ namespace Test.Shared
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Net.Http;
+    using System.Threading.Tasks;
     using System.Text.Json;
     using Isis.Core.Database;
     using Isis.Core.Enums;
@@ -12,6 +14,7 @@ namespace Test.Shared
     using Isis.Core.Stores;
     using Isis.Core.Stores.RecallDb;
     using Isis.Server.Models;
+    using Isis.Server.Routes;
     using Isis.Server.Services;
     using Isis.Server.Settings;
     using Touchstone.Core;
@@ -42,7 +45,8 @@ namespace Test.Shared
                     TestCase.Sync("validation", "chat-request", "ChatRequest and ChatTurn: history cleanup and caps, question length, topK clamp, role normalization", ChatRequestCase),
                     TestCase.Sync("validation", "settings", "Settings: null sections become defaults and out-of-range values clamp", SettingsCase),
                     TestCase.Sync("validation", "services", "Service and core setters reject NaN and out-of-range values", ServicesCase),
-                    TestCase.Sync("validation", "endpoint-and-scope", "ModelEndpoint and Scope: health-check, timeout, and chunk settings clamp", EndpointAndScopeCase)
+                    TestCase.Sync("validation", "endpoint-and-scope", "ModelEndpoint and Scope: health-check, timeout, and chunk settings clamp", EndpointAndScopeCase),
+                    TestCase.Sync("validation", "error-classifier", "ErrorClassifier: transient database errors and unreachable services are 503, bad input 400, the rest 500", ErrorClassifierCase)
                 });
         }
 
@@ -160,6 +164,20 @@ namespace Test.Shared
             TestCase.Require(new ModelEndpoint { TimeoutMs = 0 }.TimeoutMs == 60000, "A zero timeout should mean the default.");
             Scope scope = new Scope { ChunkOverlapTokens = 100000, ChunkMaxTokens = 100000, RerankMinScore = double.NaN, ChunkStrategy = null! };
             TestCase.Require(scope.ChunkOverlapTokens == 1024 && scope.ChunkMaxTokens == 8192 && scope.RerankMinScore == null && scope.ChunkStrategy == "FixedTokenCount", "Scope chunk and rerank settings should clamp or fall back.");
+        }
+
+        private static void ErrorClassifierCase()
+        {
+            TestCase.Require(ErrorClassifier.Classify(new StubDbException("too many clients already", true), false).StatusCode == 503, "A transient database error should be a retryable 503.");
+            TestCase.Require(ErrorClassifier.Classify(new StubDbException("syntax error", false), false).StatusCode == 500, "A permanent database error should stay a 500.");
+            TestCase.Require(ErrorClassifier.Classify(new ModelEndpointUnavailableException("busy", 429), false).StatusCode == 503, "An unavailable model endpoint should be a 503 even though it is an InvalidOperationException.");
+            TestCase.Require(ErrorClassifier.Classify(new InvalidOperationException("bad"), false).StatusCode == 400, "Bad input should be a 400.");
+            TestCase.Require(ErrorClassifier.Classify(new HttpRequestException("refused"), false).StatusCode == 503, "An unreachable backing service should be a 503.");
+            TestCase.Require(ErrorClassifier.Classify(new TaskCanceledException(), false).StatusCode == 503, "A timeout should be a 503.");
+            TestCase.Require(ErrorClassifier.Classify(new TaskCanceledException(), true).StatusCode == 500, "A client cancellation is not a timeout.");
+            ErrorClassification fault = ErrorClassifier.Classify(new NullReferenceException("secret detail"), false);
+            TestCase.Require(fault.StatusCode == 500 && fault.Error == "InternalError" && !fault.Message.Contains("secret", StringComparison.Ordinal), "An unexpected fault should be a 500 without its details.");
+            TestCase.Throws<ArgumentNullException>(() => ErrorClassifier.Classify(null!, false), "A null exception should be rejected.");
         }
 
         #endregion
