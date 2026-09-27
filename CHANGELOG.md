@@ -130,6 +130,11 @@ All notable changes to Isis are documented here. This project adheres to
   Docker image binds `*`). MCP clients that pinged without a credential or before `initialize` need updating.
 - **Dependencies.** Microsoft.Data.SqlClient 7.1.0, Microsoft.Data.Sqlite.Core 10.0.12, MySqlConnector 2.6.2,
   Watson 7.2.0, and OpenTelemetry 1.19.x.
+- **RecallDb.Sdk 0.2.3.** A category-filtered vector search asks RecallDB for `EfSearch` 1000 when the server reports
+  `search.vector.ef-search`: the filter applies to the vector index's nearest rows, and RecallDB measured a selective
+  filter returning 0 of 10 hits at the default scan size and 9 of 10 at 1000. RecallDB now answers 409 for an existing
+  document key; an upsert that meets one (another writer recreated the memory between Isis's delete and create)
+  clears the memory's documents and writes once more.
 - **RecallDb.Sdk 0.2.2.** Exposes RecallDB's single-call hybrid search, per-leg ranks, stored vectors on request, and
   a capabilities list, which Isis does not use yet. Behavior changes that reach Isis: existence checks throw on any
   status other than 200 or 404, so a failing or unauthorized RecallDB is reported as an error instead of "missing",

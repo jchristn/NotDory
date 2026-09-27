@@ -215,7 +215,10 @@ legs separately.
 
 1. **Two legs, concurrently.** A vector search (cosine similarity) and a full-text search (any-term matching, ranked),
    each for `max(topK x 4, 20)` chunk documents, with the category label filter. Fetching well beyond topK leaves
-   enough distinct memories after chunks collapse. Latency is the slower leg, not the sum.
+   enough distinct memories after chunks collapse. Latency is the slower leg, not the sum. The vector index yields
+   its nearest rows before the label filter applies, so a selective category filter can leave the vector leg short;
+   when the server reports `search.vector.ef-search`, a filtered search asks for `EfSearch` 1000, pgvector's
+   maximum, so enough of the nearest rows survive the filter.
 2. **Weighted reciprocal-rank fusion.** Each chunk scores `(1 - w) / (k + vectorRank) + w / (k + textRank)`, with text
    weight `w` (0.5) and constant `k` (20). RRF uses ranks, not raw scores, because cosine similarity and text rank are
    on unrelated scales.

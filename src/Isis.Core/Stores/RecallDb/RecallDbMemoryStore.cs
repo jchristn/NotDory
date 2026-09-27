@@ -4,6 +4,7 @@ namespace Isis.Core.Stores.RecallDb
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
+    using System.Net;
     using System.Threading;
     using System.Threading.Tasks;
     using global::RecallDb.Sdk;
@@ -46,6 +47,11 @@ namespace Isis.Core.Stores.RecallDb
         #endregion
 
         #region Private-Members
+
+        // The HNSW candidate list for category-filtered vector searches: pgvector's maximum, so the filter still leaves
+        // enough nearest neighbors (RecallDB measured a filter keeping 95 of 13,716 chunks returning 0 of 10 at the
+        // default and 9 of 10 at 1000).
+        private const int _FilteredEfSearch = 1000;
 
         private readonly RecallDbClient? _Client;
 
@@ -206,14 +212,16 @@ namespace Isis.Core.Stores.RecallDb
                 // Clear any prior documents for this memory so an update (which may re-chunk into a different
                 // count) never leaves orphaned chunk documents behind.
                 await DeleteByParentAsync(client, scope, memory.Id, token).ConfigureAwait(false);
-
-                if (single)
+                try
                 {
-                    await client.CreateDocumentAsync(scope.TenantId, scope.RecallCollectionId, documents[0], token).ConfigureAwait(false);
+                    await CreateDocumentsAsync(client, scope, documents, token).ConfigureAwait(false);
                 }
-                else
+                catch (RecallDbException e) when (e.StatusCode == HttpStatusCode.Conflict)
                 {
-                    await client.CreateDocumentBatchAsync(scope.TenantId, scope.RecallCollectionId, documents, token).ConfigureAwait(false);
+                    // Another writer (such as a second Isis node) recreated this memory's documents between the delete and
+                    // the create; RecallDB rejects an existing document key with 409. Clear and write once more.
+                    await DeleteByParentAsync(client, scope, memory.Id, token).ConfigureAwait(false);
+                    await CreateDocumentsAsync(client, scope, documents, token).ConfigureAwait(false);
                 }
 
                 return memory.Id;
@@ -377,6 +385,12 @@ namespace Isis.Core.Stores.RecallDb
                 ? new LabelFilter { Required = new List<string> { query.CategoryFilter! } }
                 : null;
 
+            // A category filter is applied to the vector index's candidates, not before the scan, so a selective one can
+            // leave the vector leg short of results; widen the scan for filtered searches when the server allows it.
+            int? efSearch = labelFilter != null && wantSemantic && await SupportsAsync(client, RecallCapabilities.VectorEfSearch, token).ConfigureAwait(false)
+                ? _FilteredEfSearch
+                : null;
+
             List<FusedDocument> documents;
             SearchModeEnum effectiveMode;
 
@@ -387,10 +401,10 @@ namespace Isis.Core.Stores.RecallDb
                 // settings as HybridFusion. Older servers, or a failed call, use the two-call path.
                 List<FusedDocument>? serverFused = null;
                 if (ServerSideHybrid && await SupportsServerHybridAsync(client, query.RecencyWeight > 0.0, token).ConfigureAwait(false))
-                    serverFused = await ServerHybridSearchAsync(client, scope, query, queryEmbedding!, labelFilter, topK, fetch, token).ConfigureAwait(false);
+                    serverFused = await ServerHybridSearchAsync(client, scope, query, queryEmbedding!, labelFilter, efSearch, topK, fetch, token).ConfigureAwait(false);
 
                 activity?.SetTag("isis.hybrid.path", serverFused != null ? "server" : "client");
-                documents = serverFused ?? await ClientHybridSearchAsync(client, scope, query, queryEmbedding!, labelFilter, topK, fetch, token).ConfigureAwait(false);
+                documents = serverFused ?? await ClientHybridSearchAsync(client, scope, query, queryEmbedding!, labelFilter, efSearch, topK, fetch, token).ConfigureAwait(false);
                 effectiveMode = SearchModeEnum.Hybrid;
             }
             else
@@ -398,7 +412,7 @@ namespace Isis.Core.Stores.RecallDb
                 SearchQuery single = new SearchQuery { MaxResults = fetch, LabelFilter = labelFilter };
                 if (wantSemantic)
                 {
-                    single.Vector = new VectorQuery { SearchType = "CosineSimilarity", Embeddings = queryEmbedding!.ToList() };
+                    single.Vector = new VectorQuery { SearchType = "CosineSimilarity", Embeddings = queryEmbedding!.ToList(), EfSearch = efSearch };
                     effectiveMode = SearchModeEnum.Semantic;
                 }
                 else
@@ -505,6 +519,27 @@ namespace Isis.Core.Stores.RecallDb
             }
         }
 
+        private static async Task CreateDocumentsAsync(RecallDbClient client, Scope scope, List<DocumentRecord> documents, CancellationToken token)
+        {
+            if (documents.Count == 1)
+                await client.CreateDocumentAsync(scope.TenantId, scope.RecallCollectionId!, documents[0], token).ConfigureAwait(false);
+            else
+                await client.CreateDocumentBatchAsync(scope.TenantId, scope.RecallCollectionId!, documents, token).ConfigureAwait(false);
+        }
+
+        private static async Task<bool> SupportsAsync(RecallDbClient client, string capability, CancellationToken token)
+        {
+            // The SDK caches the server's capability list per client; a server that predates the list supports none.
+            try
+            {
+                return await client.SupportsAsync(capability, false, token).ConfigureAwait(false);
+            }
+            catch (Exception e) when (!(e is OperationCanceledException && token.IsCancellationRequested))
+            {
+                return false;
+            }
+        }
+
         private static async Task<bool> SupportsServerHybridAsync(RecallDbClient client, bool needsRecency, CancellationToken token)
         {
             // The SDK caches the server's capability list per client; a server that predates the list supports none.
@@ -520,13 +555,13 @@ namespace Isis.Core.Stores.RecallDb
             }
         }
 
-        private static async Task<List<FusedDocument>?> ServerHybridSearchAsync(RecallDbClient client, Scope scope, MemorySearchQuery query, float[] queryEmbedding, LabelFilter? labelFilter, int topK, int fetch, CancellationToken token)
+        private static async Task<List<FusedDocument>?> ServerHybridSearchAsync(RecallDbClient client, Scope scope, MemorySearchQuery query, float[] queryEmbedding, LabelFilter? labelFilter, int? efSearch, int topK, int fetch, CancellationToken token)
         {
             SearchQuery search = new SearchQuery
             {
                 MaxResults = topK,
                 LabelFilter = labelFilter,
-                Vector = new VectorQuery { SearchType = "CosineSimilarity", Embeddings = queryEmbedding.ToList() },
+                Vector = new VectorQuery { SearchType = "CosineSimilarity", Embeddings = queryEmbedding.ToList(), EfSearch = efSearch },
                 FullText = new FullTextQuery { Query = query.QueryText, TextWeight = query.TextWeight ?? HybridFusion.DefaultTextWeight },
                 Hybrid = new HybridQuery
                 {
@@ -567,7 +602,7 @@ namespace Isis.Core.Stores.RecallDb
             return GroupByParent(fused, topK);
         }
 
-        private static async Task<List<FusedDocument>> ClientHybridSearchAsync(RecallDbClient client, Scope scope, MemorySearchQuery query, float[] queryEmbedding, LabelFilter? labelFilter, int topK, int fetch, CancellationToken token)
+        private static async Task<List<FusedDocument>> ClientHybridSearchAsync(RecallDbClient client, Scope scope, MemorySearchQuery query, float[] queryEmbedding, LabelFilter? labelFilter, int? efSearch, int topK, int fetch, CancellationToken token)
         {
             // Hybrid = UNION of a vector-only and a full-text-only search, fused by reciprocal rank. RecallDB's older
             // combined query applied the text query as a required filter, dropping strong vector matches that share no
@@ -576,7 +611,7 @@ namespace Isis.Core.Stores.RecallDb
             {
                 MaxResults = fetch,
                 LabelFilter = labelFilter,
-                Vector = new VectorQuery { SearchType = "CosineSimilarity", Embeddings = queryEmbedding.ToList() }
+                Vector = new VectorQuery { SearchType = "CosineSimilarity", Embeddings = queryEmbedding.ToList(), EfSearch = efSearch }
             };
             SearchQuery textQuery = new SearchQuery
             {

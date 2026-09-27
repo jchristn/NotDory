@@ -109,7 +109,9 @@ namespace Test.Shared
                     TestCase.Async("refinement", "search-sub-query-weight", "Search: weighted sub-queries add results below the main query; weight 0 drops them", SearchSubQueryWeightAsync),
                     TestCase.Sync("refinement", "query-weight-settings", "Query weights: defaults (additional 1.0, expansion 0.5) and validation", QueryWeightSettings),
                     TestCase.Async("refinement", "server-hybrid-single-call", "RecallDB store: a capable server gets one hybrid call with Isis's fusion settings and collapse", ServerHybridSingleCallAsync),
-                    TestCase.Async("refinement", "server-hybrid-fallbacks", "RecallDB store: no capability, the switch off, or a failed call use the two-call path", ServerHybridFallbacksAsync)
+                    TestCase.Async("refinement", "server-hybrid-fallbacks", "RecallDB store: no capability, the switch off, or a failed call use the two-call path", ServerHybridFallbacksAsync),
+                    TestCase.Async("refinement", "filtered-ef-search", "RecallDB store: a category-filtered vector search widens the HNSW scan only when the server supports it", FilteredEfSearchAsync),
+                    TestCase.Async("refinement", "upsert-conflict-retry", "RecallDB store: an upsert that meets a 409 clears the memory's documents and writes once more", UpsertConflictRetryAsync)
                 });
         }
 
@@ -1158,6 +1160,63 @@ namespace Test.Shared
             }
 
             TestCase.Require(new Isis.Server.Settings.RetrievalSettings().ServerSideHybrid, "Server-side hybrid should default on.");
+        }
+
+        private static async Task FilteredEfSearchAsync()
+        {
+            float[] embedding = new float[] { 0.1f, 0.2f, 0.3f };
+            string efHealth = _CapableHealth.Replace("\"search.collapse\"", "\"search.collapse\",\"search.vector.ef-search\"", StringComparison.Ordinal);
+            foreach (SearchModeEnum mode in new[] { SearchModeEnum.Hybrid, SearchModeEnum.Semantic })
+            {
+                RoutingStubHandler filtered = RecallStub(efHealth, HttpStatusCode.OK);
+                using (RecallDbClient client = new RecallDbClient("http://127.0.0.1:9", "key", filtered))
+                {
+                    await new RecallDbMemoryStore(client).SearchAsync(RecallScope(), new MemorySearchQuery { QueryText = "alpha", Mode = mode, TopK = 5, CategoryFilter = "cat_x" }, embedding).ConfigureAwait(false);
+                }
+
+                List<string> sent = filtered.Requests.Where(q => q.Contains("/search", StringComparison.Ordinal) && q.Contains("\"Vector\"", StringComparison.OrdinalIgnoreCase)).ToList();
+                TestCase.Require(sent.Count > 0 && sent.All(q => q.Contains("\"EfSearch\":1000", StringComparison.OrdinalIgnoreCase)), mode + ": a filtered vector search should ask for EfSearch 1000: " + string.Join(" | ", sent));
+            }
+
+            RoutingStubHandler unfiltered = RecallStub(efHealth, HttpStatusCode.OK);
+            using (RecallDbClient client = new RecallDbClient("http://127.0.0.1:9", "key", unfiltered))
+            {
+                await new RecallDbMemoryStore(client).SearchAsync(RecallScope(), new MemorySearchQuery { QueryText = "alpha", Mode = SearchModeEnum.Hybrid, TopK = 5 }, embedding).ConfigureAwait(false);
+            }
+
+            TestCase.Require(unfiltered.Requests.All(q => !q.Contains("EfSearch\":1", StringComparison.OrdinalIgnoreCase)), "An unfiltered search should leave the scan size to the server.");
+
+            RoutingStubHandler older = RecallStub(_CapableHealth, HttpStatusCode.OK);
+            using (RecallDbClient client = new RecallDbClient("http://127.0.0.1:9", "key", older))
+            {
+                await new RecallDbMemoryStore(client).SearchAsync(RecallScope(), new MemorySearchQuery { QueryText = "alpha", Mode = SearchModeEnum.Hybrid, TopK = 5, CategoryFilter = "cat_x" }, embedding).ConfigureAwait(false);
+            }
+
+            TestCase.Require(older.Requests.All(q => !q.Contains("EfSearch\":1", StringComparison.OrdinalIgnoreCase)), "A server without the capability should not be sent EfSearch.");
+        }
+
+        private static async Task UpsertConflictRetryAsync()
+        {
+            int creates = 0;
+            RoutingStubHandler handler = new RoutingStubHandler((method, path, body) =>
+            {
+                if (method == "HEAD") return new KeyValuePair<HttpStatusCode, string>(HttpStatusCode.NotFound, string.Empty);
+                if (method == "PUT" && path.EndsWith("/documents", StringComparison.Ordinal))
+                {
+                    creates++;
+                    return creates == 1
+                        ? new KeyValuePair<HttpStatusCode, string>(HttpStatusCode.Conflict, "{\"Error\":\"Conflict\",\"Message\":\"DocumentKey exists\"}")
+                        : new KeyValuePair<HttpStatusCode, string>(HttpStatusCode.Created, "{\"DocumentKey\":\"mem_a\"}");
+                }
+
+                return new KeyValuePair<HttpStatusCode, string>(HttpStatusCode.OK, "{}");
+            });
+
+            using RecallDbClient client = new RecallDbClient("http://127.0.0.1:9", "key", handler);
+            Memory memory = new Memory { Id = "mem_a", Slug = "alpha", CategoryId = "cat_x", Body = "alpha text" };
+            List<MemoryChunk> chunks = new List<MemoryChunk> { new MemoryChunk { Ordinal = 0, Text = "alpha text", Embedding = new float[] { 0.1f, 0.2f, 0.3f } } };
+            string key = await new RecallDbMemoryStore(client).UpsertAsync(RecallScope(), memory, chunks).ConfigureAwait(false);
+            TestCase.Require(key == "mem_a" && creates == 2, "The upsert should retry once after a 409, got " + creates + " creates.");
         }
 
         private static void ModelProfiles()
