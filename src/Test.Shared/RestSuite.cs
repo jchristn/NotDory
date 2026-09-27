@@ -102,6 +102,7 @@ namespace Test.Shared
                     TestCase.Async("rest", "scope-create-verbex-rejected", "POST /scopes with the unwired Verbex provider is a bad request", ScopeCreateVerbexRejectedAsync),
                     TestCase.Async("rest", "scope-models", "POST/PUT /scopes validate and persist the chat and query models and query settings", ScopeModelsAsync),
                     TestCase.Async("rest", "endpoint-invalid-base-url", "Endpoint create, update, and batch create reject a non-http base URL", EndpointInvalidBaseUrlAsync),
+                    TestCase.Async("rest", "endpoint-health-check-url", "Endpoint health check URL accepts a path or a full http URL and rejects other schemes", EndpointHealthCheckUrlAsync),
                     TestCase.Async("rest", "memory-search-category-name", "POST /memories/search filters by category name", MemorySearchCategoryByNameAsync),
                     TestCase.Async("rest", "memory-search-category-id", "POST /memories/search filters by category id", MemorySearchCategoryByIdAsync),
                     TestCase.Async("rest", "memory-search-category-unknown", "POST /memories/search with an unknown category is a bad request", MemorySearchCategoryUnknownAsync),
@@ -980,6 +981,20 @@ namespace Test.Shared
             ExpectStatus(relative, HttpStatusCode.BadRequest, "relative base URL");
             HttpResponseMessage batch = await PostAsync(admin, EndpointsPath(h.TenantId) + "/batch", new { items = new object[] { new { name = "ok", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "m" }, new { name = "bad", kind = "Embedding", apiFormat = "Ollama", baseUrl = "nope", model = "m" } } }).ConfigureAwait(false);
             ExpectStatus(batch, HttpStatusCode.BadRequest, "batch with an invalid base URL");
+        }
+
+        private static async Task EndpointHealthCheckUrlAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient admin = h.AdminClient();
+            HttpResponseMessage full = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "proxied", kind = "Inference", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:8900/v1.0/api/gpt-oss-20b/", model = "gpt-oss:20b", healthCheckUrl = "http://127.0.0.1:8900/" }).ConfigureAwait(false);
+            ExpectStatus(full, HttpStatusCode.Created, "a full health check URL");
+            string body = await full.Content.ReadAsStringAsync().ConfigureAwait(false);
+            TestCase.Require(body.Contains("\"healthCheckUrl\": \"http://127.0.0.1:8900/\"", StringComparison.Ordinal) || body.Contains("\"healthCheckUrl\":\"http://127.0.0.1:8900/\"", StringComparison.Ordinal), "The full health check URL should be stored as given, got " + body);
+            HttpResponseMessage path = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "pathed", kind = "Inference", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "m", healthCheckUrl = "/api/tags" }).ConfigureAwait(false);
+            ExpectStatus(path, HttpStatusCode.Created, "a health check path");
+            HttpResponseMessage ftp = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "bad", kind = "Inference", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "m", healthCheckUrl = "ftp://127.0.0.1/" }).ConfigureAwait(false);
+            ExpectStatus(ftp, HttpStatusCode.BadRequest, "an ftp health check URL");
         }
 
         private static async Task MemorySearchEmptyQueryAsync()

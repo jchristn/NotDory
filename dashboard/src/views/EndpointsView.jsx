@@ -265,7 +265,8 @@ function EndpointForm({ kind, initial, onSubmit, onClose, t }) {
         <div className="field-row">
           <div className="field">
             <label>{t('endpoints.healthCheckUrl')}</label>
-            <input value={form.healthCheckUrl} onChange={(e) => set('healthCheckUrl', e.target.value)} />
+            <input value={form.healthCheckUrl} onChange={(e) => set('healthCheckUrl', e.target.value)} placeholder="/api/tags" />
+            <span className="field-hint">{t('endpoints.healthCheckUrlHint')}</span>
           </div>
           <div className="field" style={{ maxWidth: 120 }}>
             <label>{t('endpoints.healthCheckMethod')}</label>

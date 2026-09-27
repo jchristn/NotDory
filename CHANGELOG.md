@@ -7,6 +7,10 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Added
 
+- **Full health check URLs.** An endpoint's `healthCheckUrl` can be a full http or https URL used as-is, as well as a
+  path appended to the base URL, so an endpoint whose base URL points at one model behind a proxy (for example
+  `http://proxy:8900/v1.0/api/gpt-oss-20b/`) can check the proxy itself (`http://proxy:8900/`). Other schemes are
+  rejected with 400. The dashboard's endpoint form explains both forms.
 - **Benchmark harness (`src/Test.Benchmark`, `benchmarks/`).** A black-box REST/MCP harness with `retrieval`, `chat`,
   `agent`, `load`, `stub`, `prepare`, and `compare` commands, an isolated pgvector + RecallDB stack, hand-labelled
   datasets (`isis-live`, `atlas`), converters for BEIR and LongMemEval, and a CI regression gate. The first baseline

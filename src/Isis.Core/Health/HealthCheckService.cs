@@ -205,10 +205,7 @@ namespace Isis.Core.Health
 
         private static string BuildProbeUrl(ModelEndpoint endpoint)
         {
-            string baseUrl = endpoint.GetBaseUrl();
-            string path = string.IsNullOrEmpty(endpoint.HealthCheckUrl) ? "/" : endpoint.HealthCheckUrl;
-            if (!path.StartsWith("/", StringComparison.Ordinal)) path = "/" + path;
-            return baseUrl + path;
+            return endpoint.GetHealthCheckUrl();
         }
 
         #endregion

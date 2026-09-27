@@ -8,6 +8,7 @@ namespace Test.Shared
     using System.Text.Json;
     using Isis.Core.Database;
     using Isis.Core.Enums;
+    using Isis.Core.Health;
     using Isis.Core.Helpers;
     using Isis.Core.Models;
     using Isis.Core.Recall;
@@ -46,6 +47,7 @@ namespace Test.Shared
                     TestCase.Sync("validation", "settings", "Settings: null sections become defaults and out-of-range values clamp", SettingsCase),
                     TestCase.Sync("validation", "services", "Service and core setters reject NaN and out-of-range values", ServicesCase),
                     TestCase.Sync("validation", "endpoint-and-scope", "ModelEndpoint and Scope: health-check, timeout, and chunk settings clamp", EndpointAndScopeCase),
+                    TestCase.Sync("validation", "health-check-url", "ModelEndpoint: the health check URL is a path on the base URL or a full http URL used as-is", HealthCheckUrlCase),
                     TestCase.Sync("validation", "error-classifier", "ErrorClassifier: transient database errors and unreachable services are 503, bad input 400, the rest 500", ErrorClassifierCase)
                 });
         }
@@ -164,6 +166,19 @@ namespace Test.Shared
             TestCase.Require(new ModelEndpoint { TimeoutMs = 0 }.TimeoutMs == 60000, "A zero timeout should mean the default.");
             Scope scope = new Scope { ChunkOverlapTokens = 100000, ChunkMaxTokens = 100000, RerankMinScore = double.NaN, ChunkStrategy = null! };
             TestCase.Require(scope.ChunkOverlapTokens == 1024 && scope.ChunkMaxTokens == 8192 && scope.RerankMinScore == null && scope.ChunkStrategy == "FixedTokenCount", "Scope chunk and rerank settings should clamp or fall back.");
+        }
+
+        private static void HealthCheckUrlCase()
+        {
+            ModelEndpoint path = new ModelEndpoint { BaseUrl = "http://127.0.0.1:8900/v1.0/api/gpt-oss-20b/", HealthCheckUrl = "api/tags" };
+            TestCase.Require(path.GetHealthCheckUrl() == "http://127.0.0.1:8900/v1.0/api/gpt-oss-20b/api/tags", "A path should be appended to the base URL, got " + path.GetHealthCheckUrl() + ".");
+            ModelEndpoint full = new ModelEndpoint { BaseUrl = "http://127.0.0.1:8900/v1.0/api/gpt-oss-20b/", HealthCheckUrl = " http://127.0.0.1:8900/ " };
+            TestCase.Require(full.GetHealthCheckUrl() == "http://127.0.0.1:8900/", "A full URL should be used as-is, got " + full.GetHealthCheckUrl() + ".");
+            ModelEndpoint other = new ModelEndpoint { BaseUrl = "http://127.0.0.1:8900/v1.0/api/gemma3-4b/", HealthCheckUrl = "http://127.0.0.1:8900/" };
+            TestCase.Require(HealthCheckService.BuildKey(full) == HealthCheckService.BuildKey(other), "Endpoints behind one proxy with the same full health check URL should share a probe.");
+            TestCase.Require(new ModelEndpoint { BaseUrl = "http://127.0.0.1:11434", HealthCheckUrl = "" }.GetHealthCheckUrl() == "http://127.0.0.1:11434/", "An empty health check URL should probe the base URL's root.");
+            TestCase.Throws<ArgumentException>(() => new ModelEndpoint { HealthCheckUrl = "ftp://127.0.0.1/" }, "A non-http scheme should be rejected.");
+            TestCase.Throws<ArgumentException>(() => new ModelEndpoint { HealthCheckUrl = "http://" }, "A URL without a host should be rejected.");
         }
 
         private static void ErrorClassifierCase()

@@ -241,6 +241,12 @@ or `AccessKeySecret` (with `authHeaderName`/`authKeyId` + `authSecretHeaderName`
 embedding endpoint may set `maxInputTokens` to override the token budget used when chunking oversized
 memories (0 = resolve the budget automatically from the API format and model name).
 
+The health check requests **`healthCheckUrl`** with `healthCheckMethod` (`GET` or `HEAD`) and expects
+`healthCheckExpectedStatusCode`. It is either a path appended to the base URL (default `/`; for example `/api/tags`) or
+a full http or https URL used as-is, for when the base URL points at one model behind a proxy: an endpoint with base
+URL `http://proxy.example.com:8900/v1.0/api/gpt-oss-20b/` can check `http://proxy.example.com:8900/`. Endpoints whose
+checks resolve to the same URL, method, and credentials share one probe. Any other scheme is rejected with 400.
+
 An endpoint's `kind` is `Embedding` or `Inference` (ids are prefixed `eep_` and `iep_`). Every model that is not an
 embedding model is an inference endpoint, configured with the same fields, and a scope decides which endpoint does
 which job (answering chat, query steps, reranking). The endpoint's `apiFormat` decides which jobs it can do:
@@ -523,6 +529,7 @@ field's default.
 | Batch `ids` | 1,000; batch `items` 100 |
 | Scope `chunkMaxTokens`, `chunkOverlapTokens` | clamped to 8,192 and 1,024 (overlap is also kept below half a chunk) |
 | Endpoint `baseUrl` | an absolute http or https URL (create, update, and batch create) |
+| Endpoint `healthCheckUrl` | a path, or an absolute http or https URL; up to 2048 characters |
 | Endpoint `timeoutMs`, health-check interval and timeout | 1 s to 1 h (0 means 60 s); 1 s to 1 h; 0.1 to 60 s |
 
 Server settings are clamped the same way when the settings file is read, so an out-of-range value never stops the

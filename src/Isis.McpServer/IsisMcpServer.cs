@@ -352,7 +352,7 @@ namespace Isis.McpServer
                 authSecret = new { type = "string", description = "Bearer token / header value / query value / password / secret key." },
                 model = new { type = "string" },
                 dimensionality = new { type = "integer", description = "Embedding vector dimension (embedding endpoints)." },
-                healthCheckUrl = new { type = "string" },
+                healthCheckUrl = new { type = "string", description = "Health check target: a path appended to baseUrl (e.g. /api/tags) or a full http(s) URL used as-is." },
                 active = new { type = "boolean" }
             };
         }

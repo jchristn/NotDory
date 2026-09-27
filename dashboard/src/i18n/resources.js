@@ -364,6 +364,7 @@ export const en = {
       lastCheck: 'Last check',
       lastError: 'Last error',
       healthCheckUrl: 'Health check URL',
+      healthCheckUrlHint: 'A path added to the base URL (for example /api/tags), or a full URL used as-is (for example http://proxy.example.com:8900/) when the base URL points at one model behind a proxy.',
       healthCheckMethod: 'Method',
       healthCheckInterval: 'Interval (ms)',
       healthCheckStatus: 'Expected status',

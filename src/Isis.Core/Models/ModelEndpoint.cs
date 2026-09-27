@@ -224,8 +224,11 @@ namespace Isis.Core.Models
         public bool Active { get; set; } = true;
 
         /// <summary>
-        /// The health-check path appended to the base URL. Default "/".
+        /// What the health check requests: either a path appended to the base URL (for example "/api/tags"), or a full
+        /// http or https URL used as-is (for example "http://proxy.example.com:8900/" when the base URL points at one
+        /// model behind a proxy). Default "/".
         /// </summary>
+        /// <exception cref="ArgumentException">Thrown when the value has a scheme that is not an absolute http or https URL.</exception>
         public string HealthCheckUrl
         {
             get
@@ -234,7 +237,16 @@ namespace Isis.Core.Models
             }
             set
             {
-                _HealthCheckUrl = string.IsNullOrWhiteSpace(value) ? "/" : InputGuard.MaxLength(value.Trim(), 2048, nameof(HealthCheckUrl))!;
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    _HealthCheckUrl = "/";
+                    return;
+                }
+
+                string trimmed = InputGuard.MaxLength(value.Trim(), 2048, nameof(HealthCheckUrl))!;
+                if (trimmed.Contains("://", StringComparison.Ordinal) && !IsAbsoluteHttpUrl(trimmed))
+                    throw new ArgumentException("The health check URL must be a path such as /health or a full http or https URL.", nameof(HealthCheckUrl));
+                _HealthCheckUrl = trimmed;
             }
         }
 
@@ -378,6 +390,29 @@ namespace Isis.Core.Models
         public string GetBaseUrl()
         {
             return String.IsNullOrEmpty(BaseUrl) ? String.Empty : BaseUrl.TrimEnd('/');
+        }
+
+        /// <summary>
+        /// Get the URL the health check requests: <see cref="HealthCheckUrl"/> itself when it is a full http or https
+        /// URL, otherwise that path appended to the base URL.
+        /// </summary>
+        /// <returns>The health check URL.</returns>
+        public string GetHealthCheckUrl()
+        {
+            if (IsAbsoluteHttpUrl(HealthCheckUrl)) return HealthCheckUrl;
+            string path = HealthCheckUrl.StartsWith("/", StringComparison.Ordinal) ? HealthCheckUrl : "/" + HealthCheckUrl;
+            return GetBaseUrl() + path;
+        }
+
+        #endregion
+
+        #region Private-Methods
+
+        private static bool IsAbsoluteHttpUrl(string value)
+        {
+            return Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
+                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                && !string.IsNullOrEmpty(uri.Host);
         }
 
         #endregion
