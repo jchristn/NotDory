@@ -86,7 +86,7 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Changed
 
-- **Retrieval improvements** (see `RETRIEVAL_IMPROVEMENTS.md`):
+- **Retrieval improvements** (see `archive/RETRIEVAL_IMPROVEMENTS.md`):
   - Hybrid scores are now fused and normalized to 0..1. Hits carry `vectorScore`, `textScore`, `vectorRank`, and
     `textRank`, and search accepts a `minScore` threshold (REST and MCP).
   - A recency signal (`recencyWeight`, default 0.1, 0 disables) favors the newer of two similar memories.

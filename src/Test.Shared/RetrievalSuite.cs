@@ -20,7 +20,7 @@ namespace Test.Shared
     using Touchstone.Core;
 
     /// <summary>
-    /// Touchstone suite for the retrieval improvements in RETRIEVAL_IMPROVEMENTS.md: hybrid fusion (normalized scores,
+    /// Touchstone suite for the retrieval improvements in archive/RETRIEVAL_IMPROVEMENTS.md: hybrid fusion (normalized scores,
     /// per-leg evidence, recency), chunk headers, the search score threshold, the chat retrieval depth and prompt, the
     /// update-not-duplicate guidance in the default instructions, and ingest robustness against invalid Unicode.
     /// </summary>

@@ -227,7 +227,7 @@ expansion) and which optional steps run, from REST, MCP, or the dashboard.
 On the benchmark suite, hybrid retrieval reaches nDCG@10 of 0.84 to 0.91 on the memory-style datasets, or 0.88 to 0.94
 with the cross-encoder, and beats the published BM25 and dense-model baselines on BEIR SciFact. See
 [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) for every stage with its rationale, implementation, and measured effect, and
-[RETRIEVAL_IMPROVEMENTS.md](RETRIEVAL_IMPROVEMENTS.md) for what has been tried and what is next.
+[RETRIEVAL_IMPROVEMENTS.md](archive/RETRIEVAL_IMPROVEMENTS.md) for what has been tried and what is next.
 
 ## Projects
 

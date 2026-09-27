@@ -26,7 +26,7 @@ Latency and throughput depend on the machine. Compare them within this page, not
 |---|---|
 | 0 | First baseline, run against the code as it was when the harness was written |
 | 1 | Nine Isis defects fixed (see [Defects found](#defects-found-by-the-benchmarks)); chat grounds on whole chunks instead of 240-character snippets; Voltaic 1.1.0 so Claude Code can see Isis tools; RecallDB patched upstream so keyword search matches any term instead of requiring every term |
-| 2 | The retrieval improvements in [RETRIEVAL_IMPROVEMENTS.md](../RETRIEVAL_IMPROVEMENTS.md): fused and normalized hybrid scores, a recency signal, chunk headers, deeper chat retrieval, a stricter chat prompt, and update-not-duplicate guidance, plus four ingest robustness fixes found while measuring |
+| 2 | The retrieval improvements in [RETRIEVAL_IMPROVEMENTS.md](../archive/RETRIEVAL_IMPROVEMENTS.md): fused and normalized hybrid scores, a recency signal, chunk headers, deeper chat retrieval, a stricter chat prompt, and update-not-duplicate guidance, plus four ingest robustness fixes found while measuring |
 | 3 | Explicit supersession, optional cross-encoder reranking with a relevance cutoff, link expansion (on in chat), result diversity, similar-memory flags on upsert, and a lookup cache. Reranking, diversity, and the cutoff are off unless configured, so the plain "Round 3" column is the default configuration and "+ rerank" is a scope with a reranker attached |
 | 4 | TextChunker 0.3.1 (span-based chunking, token counts that match the embedding runtime); Isis's chunking workarounds removed and its token margin cut from 4% to 1%; every dataset re-ingested |
 | 5 | Chunks default to 75% of the model budget (capped at 256 tokens); retries on 429/502/503 with 503 reported for an endpoint still at capacity; 10 rerank candidates by default; embedding task prefixes; prompted chat-model reranking. Every model call (all-minilm, nomic-embed-text, gemma3:4b) ran on one GPU host instead of the laptop |
@@ -503,7 +503,7 @@ decomposition calls one at a time.
 
 ## What's next
 
-[RETRIEVAL_IMPROVEMENTS.md](../RETRIEVAL_IMPROVEMENTS.md) lists every fix considered, scored for value and simplicity,
+[RETRIEVAL_IMPROVEMENTS.md](../archive/RETRIEVAL_IMPROVEMENTS.md) lists every fix considered, scored for value and simplicity,
 with what landed in each round and the current ranked list. After round 9 the results point at:
 
 - **The expansion default.** It pays on public, general-knowledge corpora and not on agent memory, and costs 2 s per

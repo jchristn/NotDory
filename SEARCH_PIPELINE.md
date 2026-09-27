@@ -3,7 +3,7 @@
 How Isis stores memories for retrieval and finds them again: every component on the write path and the read path, in
 the order a request meets them, with the reason each step exists, how it is implemented, and where it lives. Measured
 effects come from the benchmark suite ([benchmarks/RESULTS.md](benchmarks/RESULTS.md)); the ranked list of changes
-still to make is in [RETRIEVAL_IMPROVEMENTS.md](RETRIEVAL_IMPROVEMENTS.md).
+still to make is in [RETRIEVAL_IMPROVEMENTS.md](archive/RETRIEVAL_IMPROVEMENTS.md).
 
 ## Contents
 

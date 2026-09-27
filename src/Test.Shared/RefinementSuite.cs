@@ -22,7 +22,7 @@ namespace Test.Shared
     using Touchstone.Core;
 
     /// <summary>
-    /// Touchstone suite for the round-3 retrieval work in RETRIEVAL_IMPROVEMENTS.md: memory supersession, link
+    /// Touchstone suite for the round-3 retrieval work in archive/RETRIEVAL_IMPROVEMENTS.md: memory supersession, link
     /// expansion, result diversity, reranking with a relevance cutoff, the similarity report on upsert, and the lookup
     /// cache.
     /// </summary>
