@@ -340,14 +340,17 @@ host), with embeddings, query steps, and reranking on the same GPU host as befor
 accuracy was 0.944 on isis-live (every unanswerable question declined) and 0.969 on the follow-up set, within one
 question of local. Search p50 was 130 to 320 ms without expansion and 2.0 to 3.1 s with it.
 
-**Chat models as rerankers.** Since round 9 any inference endpoint can rerank: a chat model rates the candidates 0 to
-10 in one prompt. Hybrid nDCG@10, reranking the top 10, expansion off (the default when a scope reranks):
+**Chat models as rerankers.** Round 6 found gpt-oss-20b the best reranker; round 10 repeated it on the deployment
+through the merged endpoint model (any inference endpoint can rerank, a chat model rating the candidates 0 to 10 in
+one prompt) and measured which model sizes work. Hybrid nDCG@10, reranking the top 10, expansion off (the default when
+a scope reranks):
 
 | Reranker | isis-live | Atlas | SciFact | LongMemEval | Search p50 |
 |---|---|---|---|---|---|
 | None | 0.878 | 0.835 | 0.683 | 0.911 | 0.1 to 0.3 s |
 | ms-marco-MiniLM-L-6-v2 cross-encoder (round 9) | 0.925 | 0.883 | 0.712 | 0.939 | 0.6 to 0.9 s (CPU) |
 | **gpt-oss:20b** | **0.977** | **0.921** | **0.738** | **0.948** | 6 to 11 s |
+| gpt-oss-20b, round 6 | 0.974 | 0.915 | 0.751 | 0.959 | 7 to 10 s |
 | qwen3:14b | 0.968 | | | | 21 s |
 | phi4:14b | 0.943 | | | | 13 s |
 | gemma3:12b | 0.922 | | | | 3.0 s |
@@ -355,8 +358,9 @@ question of local. Search p50 was 130 to 320 ms without expansion and 2.0 to 3.1
 | gemma3:4b | 0.748 | | | | 1.4 s |
 | qwen3:8b | (timed out; retrieval order) | | | | |
 
-gpt-oss:20b is the best reranker measured on every dataset, ahead of the cross-encoder by 0.03 to 0.05 and of no
-reranking by 0.04 to 0.10; on isis-live it helped 25 queries and hurt 2. Rating by prompt needs a capable model: gemma3:12b
+gpt-oss:20b reproduces round 6 within about 0.01 (its ratings vary a little run to run) and stays the best reranker
+measured on every dataset, ahead of the cross-encoder by 0.03 to 0.05 and of no reranking by 0.04 to 0.10; on
+isis-live it helped 25 queries and hurt 2. Rating by prompt needs a capable model: gemma3:12b
 matches the cross-encoder, and models of 7B and below rate too coarsely to help (gemma3:4b rated its top candidate 9 or
 10 for 75 of 110 queries and hurt 41 of them). Thinking models pay for their reasoning in latency; qwen3:8b thought
 long enough on ten passages that its calls timed out, and after the first failure the reranker cool-down returned

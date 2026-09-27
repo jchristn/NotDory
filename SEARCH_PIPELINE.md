@@ -266,8 +266,9 @@ call (`ModelClientFactory`).
      `RerankAsync`, scores in 0 to 1. The reference stack serves `cross-encoder/ms-marco-MiniLM-L-6-v2`.
    - **Chat models** (`Ollama`, `OpenAI`, `VLlm`, `Gemini`): one prompt at temperature 0 rates every candidate 0 to 10,
      divided by 10. Small models rank
-     worse than no reranker (gemma3:4b lowered every dataset); large ones rank best of all (gpt-oss-20b, section 7),
-     at several seconds per search.
+     worse than no reranker (gemma3:4b lowered every dataset); large ones rank best of all (gpt-oss-20b, section 8),
+     at several seconds per search. On isis-live gemma3:12b matched the cross-encoder, phi4:14b and qwen3:14b beat it
+     at 13 and 21 s per search, and 7B models made results worse; thinking models can outlast the endpoint timeout.
 3. Hits are reordered by rerank score and carry `rerankScore`. `minRerankScore` (or the scope's `rerankMinScore`) then
    drops hits below it, so a question with no relevant memory can return nothing.
 4. A failure returns retrieval order with a notice and starts the cooldown (section 3.2).
