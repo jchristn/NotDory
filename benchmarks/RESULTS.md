@@ -329,6 +329,40 @@ places the evidence in the prompt for 99 to 100% of questions, expansion changed
 p50 2.1 s to 4.1 s on isis-live (accuracy 0.956, every unanswerable question declined) and the follow-up set (accuracy
 0.938 against 0.969, one question, within the judge's noise).
 
+### Round 10: a Docker deployment, and chat models as rerankers
+
+Round 10 ran the benchmark against the published Docker images (Isis and RecallDB sharing one Postgres, on a separate
+host), with embeddings, query steps, and reranking on the same GPU host as before.
+
+**The deployment reproduces the local results.** Hybrid nDCG@10 without expansion was 0.875, 0.836, 0.684, and 0.911
+(local 0.878, 0.835, 0.683, 0.911). With the default expansion, the mean of two runs was 0.878, 0.832, 0.721, and 0.934
+(local 0.876, 0.835, 0.720, 0.932), again helping SciFact and LongMemEval and neutral on isis-live and Atlas. Chat
+accuracy was 0.944 on isis-live (every unanswerable question declined) and 0.969 on the follow-up set, within one
+question of local. Search p50 was 130 to 320 ms without expansion and 2.0 to 3.1 s with it.
+
+**Chat models as rerankers.** Since round 9 any inference endpoint can rerank: a chat model rates the candidates 0 to
+10 in one prompt. Hybrid nDCG@10, reranking the top 10, expansion off (the default when a scope reranks):
+
+| Reranker | isis-live | Atlas | SciFact | LongMemEval | Search p50 |
+|---|---|---|---|---|---|
+| None | 0.878 | 0.835 | 0.683 | 0.911 | 0.1 to 0.3 s |
+| ms-marco-MiniLM-L-6-v2 cross-encoder (round 9) | 0.925 | 0.883 | 0.712 | 0.939 | 0.6 to 0.9 s (CPU) |
+| **gpt-oss:20b** | **0.977** | **0.921** | **0.738** | **0.948** | 6 to 11 s |
+| qwen3:14b | 0.968 | | | | 21 s |
+| phi4:14b | 0.943 | | | | 13 s |
+| gemma3:12b | 0.922 | | | | 3.0 s |
+| qwen2.5:7b | 0.847 | | | | 1.4 s |
+| gemma3:4b | 0.748 | | | | 1.4 s |
+| qwen3:8b | (timed out; retrieval order) | | | | |
+
+gpt-oss:20b is the best reranker measured on every dataset, ahead of the cross-encoder by 0.03 to 0.05 and of no
+reranking by 0.04 to 0.10; on isis-live it helped 25 queries and hurt 2. Rating by prompt needs a capable model: gemma3:12b
+matches the cross-encoder, and models of 7B and below rate too coarsely to help (gemma3:4b rated its top candidate 9 or
+10 for 75 of 110 queries and hurt 41 of them). Thinking models pay for their reasoning in latency; qwen3:8b thought
+long enough on ten passages that its calls timed out, and after the first failure the reranker cool-down returned
+retrieval order. Chat-model reranking costs seconds per search, which suits recall for an agent's context (chat p50
+is already about 4 s) more than interactive search; a GPU cross-encoder stays the low-latency option.
+
 ### Choosing the recency weight
 
 The recency weight was chosen by sweeping it on all four datasets, reusing the same ingested scopes.
