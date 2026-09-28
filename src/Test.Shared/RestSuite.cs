@@ -3,6 +3,7 @@ namespace Test.Shared
     using System;
     using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
     using System.Net;
     using System.Net.Http;
     using System.Text;
@@ -103,6 +104,11 @@ namespace Test.Shared
                     TestCase.Async("rest", "scope-create-verbex-rejected", "POST /scopes with the unwired Verbex provider is a bad request", ScopeCreateVerbexRejectedAsync),
                     TestCase.Async("rest", "scope-models", "POST/PUT /scopes validate and persist the chat and query models and query settings", ScopeModelsAsync),
                     TestCase.Async("rest", "endpoint-invalid-base-url", "Endpoint create, update, and batch create reject a non-http base URL", EndpointInvalidBaseUrlAsync),
+                    TestCase.Async("rest", "agent-protocol-read", "GET /agent-protocol is public and lists the default server instructions and every tool description", AgentProtocolReadAsync),
+                    TestCase.Async("rest", "agent-protocol-edit", "PUT /agent-protocol: admin only, unknown tools rejected, edits saved to the settings file and used by session start, reset restores defaults", AgentProtocolEditAsync),
+                    TestCase.Async("rest", "session-start", "POST /session matches the project's scope and returns protocol, categories, instructions, and recent memories; GET format=text renders markdown", SessionStartAsync),
+                    TestCase.Async("rest", "session-start-choice", "Session start without a match or project lists scopes, and creates the project's scope when asked", SessionStartChoiceAsync),
+                    TestCase.Async("rest", "memory-upsert-category-name", "Memory upsert accepts a category name (created once) and rejects an unknown cat_ id", MemoryUpsertCategoryNameAsync),
                     TestCase.Async("rest", "endpoint-reasoning", "Endpoint reasoning setting round-trips through create and update and defaults to Default", EndpointReasoningRestAsync),
                     TestCase.Async("rest", "endpoint-health-check-url", "Endpoint health check URL accepts a path or a full http URL and rejects other schemes", EndpointHealthCheckUrlAsync),
                     TestCase.Async("rest", "memory-search-category-name", "POST /memories/search filters by category name", MemorySearchCategoryByNameAsync),
@@ -983,6 +989,106 @@ namespace Test.Shared
             ExpectStatus(relative, HttpStatusCode.BadRequest, "relative base URL");
             HttpResponseMessage batch = await PostAsync(admin, EndpointsPath(h.TenantId) + "/batch", new { items = new object[] { new { name = "ok", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "m" }, new { name = "bad", kind = "Embedding", apiFormat = "Ollama", baseUrl = "nope", model = "m" } } }).ConfigureAwait(false);
             ExpectStatus(batch, HttpStatusCode.BadRequest, "batch with an invalid base URL");
+        }
+
+        private static async Task AgentProtocolReadAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient anonymous = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + h.Port) };
+            HttpResponseMessage r = await anonymous.GetAsync("/v1.0/api/agent-protocol").ConfigureAwait(false);
+            ExpectStatus(r, HttpStatusCode.OK, "anonymous agent protocol read");
+            JsonNode protocol = JsonNode.Parse(await r.Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(protocol["serverInstructions"]?.GetValue<string>() == Isis.Core.Helpers.AgentProtocol.ServerInstructions && protocol["serverInstructionsOverridden"]?.GetValue<bool>() == false, "The default instructions should be reported as not overridden.");
+            JsonArray tools = protocol["tools"]!.AsArray();
+            TestCase.Require(tools.Count == Isis.Core.Helpers.AgentToolCatalog.Defaults.Count && tools[0]?["name"]?.GetValue<string>() == "session_start", "Every tool should be listed, session_start first.");
+            TestCase.Require(tools.All(t => t?["description"]?.GetValue<string>() == t?["defaultDescription"]?.GetValue<string>() && t?["overridden"]?.GetValue<bool>() == false), "Every description should start at its default.");
+        }
+
+        private static async Task AgentProtocolEditAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient access = h.AccessClient();
+            using HttpClient admin = h.AdminClient();
+            object edit = new { serverInstructions = "Custom protocol: search Isis before every answer.", toolDescriptions = new Dictionary<string, string> { { "memory_search", "Custom search description." }, { "whoami", "" } } };
+
+            HttpResponseMessage forbidden = await PutAsync(access, "/v1.0/api/agent-protocol", edit).ConfigureAwait(false);
+            ExpectStatus(forbidden, HttpStatusCode.Forbidden, "a non-admin editing the agent protocol");
+            HttpResponseMessage unknown = await PutAsync(admin, "/v1.0/api/agent-protocol", new { toolDescriptions = new Dictionary<string, string> { { "not_a_tool", "x" } } }).ConfigureAwait(false);
+            ExpectStatus(unknown, HttpStatusCode.BadRequest, "an unknown tool name");
+
+            HttpResponseMessage saved = await PutAsync(admin, "/v1.0/api/agent-protocol", edit).ConfigureAwait(false);
+            ExpectStatus(saved, HttpStatusCode.OK, "an admin edit");
+            JsonNode protocol = JsonNode.Parse(await saved.Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(protocol["serverInstructionsOverridden"]?.GetValue<bool>() == true && protocol["serverInstructions"]?.GetValue<string>() == "Custom protocol: search Isis before every answer.", "The instructions edit should apply.");
+            JsonNode search = protocol["tools"]!.AsArray().First(t => t?["name"]?.GetValue<string>() == "memory_search")!;
+            JsonNode who = protocol["tools"]!.AsArray().First(t => t?["name"]?.GetValue<string>() == "whoami")!;
+            TestCase.Require(search["description"]?.GetValue<string>() == "Custom search description." && search["overridden"]?.GetValue<bool>() == true && who["overridden"]?.GetValue<bool>() == false, "A description edit should apply; a blank one keeps the default.");
+            TestCase.Require(File.ReadAllText(Path.Combine(h.WorkDir, "isis.json")).Contains("Custom protocol: search Isis", StringComparison.Ordinal), "The edit should be saved to the settings file.");
+
+            await CreateScopeAsync(access, h, "edited").ConfigureAwait(false);
+            JsonNode session = JsonNode.Parse(await (await PostAsync(access, "/v1.0/api/session", new { project = "edited" }).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require((session["protocol"]?.GetValue<string>() ?? string.Empty).Contains("Custom protocol: search Isis", StringComparison.Ordinal), "Session start should use the edited instructions: " + session["protocol"]);
+
+            HttpResponseMessage reset = await PutAsync(admin, "/v1.0/api/agent-protocol", new { }).ConfigureAwait(false);
+            JsonNode restored = JsonNode.Parse(await reset.Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(restored["serverInstructionsOverridden"]?.GetValue<bool>() == false && restored["tools"]!.AsArray().All(t => t?["overridden"]?.GetValue<bool>() == false), "An empty body should restore every default.");
+        }
+
+        private static async Task SessionStartAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient access = h.AccessClient();
+            string sid = await CreateScopeAsync(access, h, "alpha-project").ConfigureAwait(false);
+            HttpResponseMessage saved = await PostAsync(access, MemoriesPath(h.TenantId, sid), new { categoryId = "decisions", slug = "db-choice", title = "Database choice", summary = "PostgreSQL for metadata.", body = "We chose PostgreSQL." }).ConfigureAwait(false);
+            ExpectStatus(saved, HttpStatusCode.OK, "upsert by category name");
+
+            HttpResponseMessage r = await PostAsync(access, "/v1.0/api/session", new { project = "Alpha Project" }).ConfigureAwait(false);
+            ExpectStatus(r, HttpStatusCode.OK, "session start");
+            JsonNode session = JsonNode.Parse(await r.Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(session["scope"]?["id"]?.GetValue<string>() == sid && session["scope"]?["created"]?.GetValue<bool>() == false, "'Alpha Project' should match alpha-project: " + session.ToJsonString());
+            TestCase.Require(session["tenantId"]?.GetValue<string>() == h.TenantId && (session["protocol"]?.GetValue<string>() ?? string.Empty).Contains(sid, StringComparison.Ordinal), "The session should carry the tenant and a protocol naming the scope.");
+            TestCase.Require(session["memoryCount"]?.GetValue<long>() == 1 && session["recentMemories"]?[0]?["slug"]?.GetValue<string>() == "db-choice" && session["recentMemories"]?[0]?["category"]?.GetValue<string>() == "decisions", "The session should list the recent memory with its category name: " + session.ToJsonString());
+            TestCase.Require(session["categories"]?.AsArray().Count == 1, "The session should list the scope's categories.");
+
+            HttpResponseMessage text = await access.GetAsync("/v1.0/api/session?project=alpha-project&format=text&maxMemories=5").ConfigureAwait(false);
+            ExpectStatus(text, HttpStatusCode.OK, "session start as text");
+            string markdown = await text.Content.ReadAsStringAsync().ConfigureAwait(false);
+            TestCase.Require(markdown.StartsWith("# Isis memory", StringComparison.Ordinal) && markdown.Contains("db-choice", StringComparison.Ordinal) && markdown.Contains("memory_search", StringComparison.Ordinal), "The text form should render the protocol and recent memories: " + markdown);
+        }
+
+        private static async Task SessionStartChoiceAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient access = h.AccessClient();
+            await CreateScopeAsync(access, h, "first").ConfigureAwait(false);
+            await CreateScopeAsync(access, h, "second").ConfigureAwait(false);
+
+            JsonNode none = JsonNode.Parse(await (await PostAsync(access, "/v1.0/api/session", new { }).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(none["scope"] == null && none["scopes"]?.AsArray().Count >= 2 && none["notice"] != null, "Without a project and with several scopes, the session should list them: " + none.ToJsonString());
+
+            JsonNode missing = JsonNode.Parse(await (await PostAsync(access, "/v1.0/api/session", new { project = "zeta", createIfMissing = false }).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(missing["scope"] == null && (missing["notice"]?.GetValue<string>() ?? string.Empty).Contains("zeta", StringComparison.Ordinal), "An unmatched project without createIfMissing should not create a scope.");
+
+            using HttpClient admin = h.AdminClient();
+            await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "emb", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "all-minilm", dimensionality = 384 }).ConfigureAwait(false);
+            JsonNode created = JsonNode.Parse(await (await PostAsync(access, "/v1.0/api/session", new { project = "brand-new" }).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(created["scope"]?["created"]?.GetValue<bool>() == true && created["scope"]?["name"]?.GetValue<string>() == "brand-new" && created["scope"]?["storeProvider"]?.GetValue<string>() == "RecallDb", "An unmatched project should get a new RecallDB scope: " + created.ToJsonString());
+            JsonNode reused = JsonNode.Parse(await (await PostAsync(access, "/v1.0/api/session", new { project = "Brand New" }).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(reused["scope"]?["id"]?.GetValue<string>() == created["scope"]?["id"]?.GetValue<string>() && reused["scope"]?["created"]?.GetValue<bool>() == false, "The next session should find the scope it created.");
+        }
+
+        private static async Task MemoryUpsertCategoryNameAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient access = h.AccessClient();
+            string sid = await CreateScopeAsync(access, h, "cats").ConfigureAwait(false);
+            HttpResponseMessage first = await PostAsync(access, MemoriesPath(h.TenantId, sid), new { categoryId = "lessons", slug = "a", body = "First lesson." }).ConfigureAwait(false);
+            ExpectStatus(first, HttpStatusCode.OK, "upsert creating a category by name");
+            HttpResponseMessage second = await PostAsync(access, MemoriesPath(h.TenantId, sid), new { categoryId = "Lessons", slug = "b", body = "Second lesson." }).ConfigureAwait(false);
+            ExpectStatus(second, HttpStatusCode.OK, "upsert reusing the category by name");
+            TestCase.Require(await CountAsync(access, CategoriesPath(h.TenantId, sid)).ConfigureAwait(false) == 1, "The category name should create exactly one category.");
+            HttpResponseMessage unknown = await PostAsync(access, MemoriesPath(h.TenantId, sid), new { categoryId = "cat_doesnotexist", slug = "c", body = "x" }).ConfigureAwait(false);
+            ExpectStatus(unknown, HttpStatusCode.BadRequest, "an unknown cat_ id");
         }
 
         private static async Task EndpointReasoningRestAsync()

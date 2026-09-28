@@ -52,6 +52,12 @@ namespace Isis.McpServer.Settings
         /// </summary>
         public bool RestSsl { get; set; } = false;
 
+        /// <summary>
+        /// How often, in seconds, to re-read the agent protocol (server instructions and tool descriptions) that
+        /// administrators edit through the Isis API or dashboard. Minimum 5, default 30.
+        /// </summary>
+        public int AgentProtocolRefreshSeconds { get; set; } = 30;
+
         #endregion
 
         #region Private-Members

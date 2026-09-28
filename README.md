@@ -141,9 +141,14 @@ Each installer honors `ISIS_MCP_URL` (endpoint) and `ISIS_ACCESS_KEY`, plus a pe
 override (`ISIS_CODEX_CONFIG`, `ISIS_CURSOR_CONFIG`, `ISIS_GEMINI_CONFIG`, `ISIS_MUX_CONFIG`). Matching
 `remove-*` scripts undo the change.
 
-**First calls:** tools appear namespaced under the server key — e.g. `isis.whoami` (Mux) or
-`mcp__isis__whoami` (Claude Code). Call **`whoami`** first to get your `tenantId` (every other tool
-needs it), then **`instructions`** for the tenant's usage guide. Full config and the tool contract are
+**First call:** tools appear namespaced under the server key, e.g. `isis.session_start` (Mux) or
+`mcp__isis__session_start` (Claude Code). Isis sends its operating procedure in the MCP `initialize` result, which
+harnesses place in the model's system prompt: call **`session_start`** with the project name, search memory before
+answering or changing code, and save decisions and facts as you go. `session_start` returns the project's scope
+(created if new), its categories and instructions, and the most recent memories; no tool needs a `tenantId`. The
+`isis mcp install` installer also adds a Claude Code SessionStart hook that injects that context before the first
+turn. What agents are told on connect (the instructions and every tool description) is editable in the dashboard
+(**Agent onboarding**) or through `PUT /v1.0/api/agent-protocol`. Full config and the tool contract are
 in [`docs/CONNECTING_AGENTS.md`](docs/CONNECTING_AGENTS.md) and [`docs/MCP_API.md`](docs/MCP_API.md).
 
 ## Architecture

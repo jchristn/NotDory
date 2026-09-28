@@ -6,8 +6,7 @@ walkthrough, and troubleshooting.
 
 > **Naming.** The product is **Isis** (proper noun — `Isis` or `isis`), never the all-caps
 > `ISIS`. Tools have no `isis_` prefix; your client namespaces them under the server key
-> (e.g. `isis.whoami`). Every tool except `whoami` takes a `tenantId` — call `whoami` first to
-> obtain it.
+> (e.g. `isis.session_start`). Start every session with `session_start`; no tool needs a `tenantId`.
 
 For the full tool contract, response schemas, and per-tool guidance, see
 [MCP_API.md](MCP_API.md).
@@ -49,6 +48,13 @@ This patches `~/.claude.json` with an `isis` MCP server pointing at
 from `isis.mcp.json` and the `ISIS_MCP_*` environment variables, and accepts optional
 `--access-key`, `--port`, and `--host` flags. After it runs, restart Claude Code to pick up the
 change. See [Installer Reference](#installer-reference) for details.
+
+It also adds a Claude Code **SessionStart hook** to `~/.claude/settings.json` (or `.claude/settings.json` with
+`--project`). At the start of every session the hook fetches `GET /v1.0/api/session?project=<directory name>&format=text`
+and Claude Code adds the result (the protocol, the project's scope, its categories and instructions, and the most recent
+memories) to the model's context before its first turn, so the agent works from memory without being asked. The hook
+prints nothing if Isis is unreachable, so it never blocks a session. Skip it with `--no-session-hook`; point it at the
+REST API with `--rest-url` (default: the MCP host on the REST port 8700).
 
 To connect manually, or to connect a different client, use the snippets below.
 
@@ -176,37 +182,31 @@ key at all returns `401`.
 Once connected, drive Isis in this order. Isis is memory, not a filesystem: read before
 you write, and prefer summaries before full bodies.
 
-### 1. Discover your tenant
+### 1. Start the session
 
-Call `whoami` with no arguments. It returns the `tenantId` your credential maps to.
-
-```json
-{}
-```
-
-Response `data`:
+Call `session_start` with the repository or project name. It returns your scope (created if new), how to use Isis,
+the scope's categories and instructions, and the most recent memories. No tool needs a `tenantId`.
 
 ```json
-{ "tenantId": "ten_a1b2c3", "principalType": "Credential", "principalName": "default", "credentialId": "crd_9x8y7z" }
+{ "project": "my-repo" }
 ```
 
-### 2. Find a scope and read its guide
-
-First read the tenant's standing guidance with `instructions`, then list scopes and read the
-guide for the one you want. The guide returns the scope's categories, their usage instructions,
-and store capabilities (which search modes it supports).
-
-`scope_enumerate`:
+Response `data` (abridged):
 
 ```json
-{ "tenantId": "ten_a1b2c3" }
+{
+  "scope": { "id": "scp_repo", "name": "my-repo", "storeProvider": "RecallDb", "created": false },
+  "protocol": "This session's memory is the scope 'my-repo' (scopeId scp_repo); ...",
+  "categories": [ { "id": "cat_layout", "name": "layout", "instructions": "One area of the repo per memory." } ],
+  "memoryCount": 42,
+  "recentMemories": [ { "slug": "filesystem-layout", "category": "layout", "title": "Where things live in the repo" } ]
+}
 ```
 
-`guide`:
+### 2. Read the context
 
-```json
-{ "tenantId": "ten_a1b2c3", "scopeId": "scp_repo" }
-```
+Read the categories' instructions and the recent memories before planning; they say what belongs where and what is
+already known. `guide` and `instructions` re-read the same context later in a long session.
 
 ### 3. Write a memory
 
@@ -215,9 +215,8 @@ instead of duplicating it.
 
 ```json
 {
-  "tenantId": "ten_a1b2c3",
   "scopeId": "scp_repo",
-  "categoryId": "cat_layout",
+  "category": "layout",
   "slug": "filesystem-layout",
   "title": "Where things live in the repo",
   "summary": "src/ holds the server and MCP projects; docs/ holds plans.",
@@ -238,7 +237,6 @@ Search the scope with `memory_search`. Use `Hybrid` on a RecallDB-backed scope;
 
 ```json
 {
-  "tenantId": "ten_a1b2c3",
   "scopeId": "scp_repo",
   "queryText": "where does the MCP server live",
   "mode": "Hybrid",
@@ -258,7 +256,6 @@ no conversation state: for a follow-up, pass the earlier messages in `history`, 
 
 ```json
 {
-  "tenantId": "ten_a1b2c3",
   "scopeId": "scp_repo",
   "question": "and where do the tests live?",
   "history": [
@@ -279,8 +276,8 @@ header under a `headers` object (see the snippets above) rather than as a URL pa
 
 ### `403` on a tenant call
 
-Your credential is not authorized for the `tenantId` you passed. Call `whoami` and use
-the `tenantId` it returns. A credential can only operate on its own tenant unless its user
+Your credential is not authorized for the `tenantId` you passed. Omit `tenantId`; every tool defaults to your
+credential's own tenant. A credential can only operate on its own tenant unless its user
 holds the `IsAdmin` flag for cross-tenant work.
 
 ### The client connects but lists no tools
@@ -312,7 +309,9 @@ again is safe and idempotent; it updates the existing `isis` entry in place.
 
 `isis mcp install` writes the Claude Code user configuration entry so you do not have to
 edit JSON by hand. It is safe to run repeatedly: it updates the existing `isis` entry in
-place and preserves every other MCP server and setting in the file. See
+place and preserves every other MCP server and setting in the file. It also installs the SessionStart hook
+(`--no-session-hook` skips it, `--rest-url` sets the REST API it calls); re-running replaces the Isis hook and keeps any
+other hooks. See
 [MCP_API.md](MCP_API.md) for the tool contract the connected agent will use.
 
 ## Related Documents

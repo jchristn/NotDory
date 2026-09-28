@@ -104,6 +104,26 @@ A fresh deployment seeds a default admin user (`admin@isis.local` / `isisadmin`,
 | GET | `/v1.0/api/whoami` | session or credential | Resolve the current principal |
 | DELETE | `/v1.0/api/token` | session | Revoke the current session (logout) |
 
+### Agent sessions and onboarding
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/v1.0/api/session` | session or credential | Start an agent session: the project's scope (created if new), the protocol, categories, instructions, and recent memories |
+| GET | `/v1.0/api/session` | session or credential | The same from the query string (`project`, `createIfMissing`, `maxMemories`); `format=text` returns markdown for a harness hook |
+| GET | `/v1.0/api/agent-protocol` | anonymous | What agents are told on connect: the server instructions and every tool description, with defaults and `overridden` flags |
+| PUT | `/v1.0/api/agent-protocol` | system administrator | Replace the server instructions and tool description overrides (`{ serverInstructions, toolDescriptions: { name: text } }`); blank or omitted values use the built-in text; unknown tool names return 400; saved to the settings file |
+
+Session start takes the tenant from the caller, so it needs no tenant id. `project` is matched to a scope by name,
+ignoring case, spacing, and punctuation ("AgentMemory", "agent-memory", and "Agent Memory" find the same scope); with no
+match and `createIfMissing` (default true) it creates the scope with the tenant's embedding endpoint and first
+cross-encoder, as scope creation does. With no `project` it uses the tenant's only scope, or lists the scopes with a
+`notice`. The response's `protocol` is the server instructions in effect, prefixed with the scope to use, and
+`recentMemories` lists up to `maxMemories` (default 15, at most 100) memories newest first.
+
+The agent protocol is also the `agent` section of the server settings (`serverInstructions`, `toolDescriptions`), so
+`PUT /v1.0/api/settings` edits it too; both take effect without a restart. The MCP server re-reads it every
+`AgentProtocolRefreshSeconds` (default 30).
+
 ### System
 
 | Method | Path | Auth | Description |
@@ -315,6 +335,9 @@ and no reranker expands every search, which adds one short model call (about 2 s
 benchmark runs it raised nDCG@10 on SciFact (+0.037) and LongMemEval (+0.021) and was neutral on the agent-memory
 datasets (within 0.01); in chat it doubled latency without improving what reached the prompt. A scope with a reranker
 is not expanded. Set `queryExpansion` to `Off` for latency-sensitive scopes without a reranker.
+
+A memory upsert names its category by `cat_` id or by name in `categoryId`: a name finds the scope's category ignoring
+case, or creates it on first use, so a writer need not look categories up first (an unknown `cat_` id is still 400).
 
 A memory upsert accepts `supersedes`, a list of slugs (or `mem_` ids) of memories in the same scope that the new
 memory replaces, for example an earlier decision it reverses. The server keeps `supersededBy` (the id of the replacing

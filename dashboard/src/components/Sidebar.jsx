@@ -25,7 +25,8 @@ function Sidebar() {
         { to: '/dashboard/home', label: t('nav.home'), icon: IconHome },
         { to: '/dashboard/scopes', label: t('nav.scopes'), icon: IconLayers },
         { to: '/dashboard/memories', label: t('nav.memories'), icon: IconNote },
-        { to: '/dashboard/instructions', label: t('nav.instructions'), icon: IconBook }
+        { to: '/dashboard/instructions', label: t('nav.instructions'), icon: IconBook },
+        { to: '/dashboard/agent-protocol', label: t('nav.agentProtocol'), icon: IconBook }
       ]
     },
     {

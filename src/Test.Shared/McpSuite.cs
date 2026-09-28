@@ -3,6 +3,7 @@ namespace Test.Shared
     using System;
     using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
     using System.Net;
     using System.Net.Http;
     using System.Net.Http.Headers;
@@ -71,7 +72,11 @@ namespace Test.Shared
                     TestCase.Async("mcp2", "stateless-unauthorized", "A stateless 2026-07-28 request without credentials is rejected with 401", StatelessUnauthorizedAsync),
                     TestCase.Async("mcp2", "initialize-caps-stateless-version", "initialize requesting 2026-07-28 negotiates the newest handshake revision", InitializeCapsStatelessVersionAsync),
                     TestCase.Async("mcp2", "endpoint-crud", "endpoint_create/read/update/delete proxy round-trips", EndpointCrudAsync),
-                    TestCase.Async("mcp2", "scope-update-delete", "scope_update and scope_delete proxy round-trips", ScopeUpdateDeleteAsync)
+                    TestCase.Async("mcp2", "scope-update-delete", "scope_update and scope_delete proxy round-trips", ScopeUpdateDeleteAsync),
+                    TestCase.Async("mcp2", "initialize-instructions", "initialize carries the Isis protocol as server instructions, and session_start heads tools/list", InitializeInstructionsAsync),
+                    TestCase.Async("mcp2", "session-start-tool", "session_start matches the project to its scope and returns protocol, categories, and recent memories", SessionStartToolAsync),
+                    TestCase.Async("mcp2", "agent-protocol-live", "An administrator's edit of the instructions and a tool description reaches initialize and tools/list without a restart", AgentProtocolLiveAsync),
+                    TestCase.Async("mcp2", "tenant-optional", "memory tools work without tenantId, and memory_upsert creates a category named for the first time", TenantOptionalAsync)
                 });
         }
 
@@ -658,7 +663,7 @@ namespace Test.Shared
 
         private static readonly string[] _ExpectedTools = new[]
         {
-            "whoami", "instructions", "guide",
+            "session_start", "whoami", "instructions", "guide",
             "scope_enumerate", "scope_create", "scope_read", "scope_update", "scope_delete",
             "category_enumerate", "category_create", "category_read", "category_update", "category_delete",
             "memory_enumerate", "memory_read", "memory_upsert", "memory_search", "memory_delete",
@@ -757,6 +762,101 @@ namespace Test.Shared
         #endregion
 
         #region Private-Methods-Setup
+
+        private static async Task InitializeInstructionsAsync()
+        {
+            using McpContext ctx = await McpContext.StartAsync().ConfigureAwait(false);
+            using HttpClient client = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + ctx.McpPort) };
+            using HttpRequestMessage init = new HttpRequestMessage(HttpMethod.Post, "/mcp");
+            init.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ctx.Harness.AccessKey);
+            init.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            init.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            init.Content = new StringContent("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"t\",\"version\":\"1\"}}}", Encoding.UTF8, "application/json");
+            HttpResponseMessage response = await client.SendAsync(init).ConfigureAwait(false);
+            string text = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            string json = text.TrimStart().StartsWith("{", StringComparison.Ordinal) ? text : string.Join("\n", text.Split('\n').Where(l => l.StartsWith("data:", StringComparison.Ordinal)).Select(l => l.Substring(5).Trim()));
+            using JsonDocument doc = JsonDocument.Parse(json);
+            string instructions = doc.RootElement.GetProperty("result").TryGetProperty("instructions", out JsonElement value) ? (value.GetString() ?? string.Empty) : string.Empty;
+            if (!instructions.Contains("session_start", StringComparison.Ordinal) || !instructions.Contains("memory_search", StringComparison.Ordinal) || !instructions.Contains("memory_upsert", StringComparison.Ordinal))
+                throw new InvalidOperationException("initialize should carry the Isis protocol as instructions, got: " + text);
+
+            using HttpClient listClient = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + ctx.McpPort) };
+            using JsonDocument list = await SendStatelessAsync(listClient, ctx.Harness.AccessKey, "tools/list", 2, new Dictionary<string, object?>(), null, HttpStatusCode.OK).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("tools/list returned no body.");
+            string first = list.RootElement.GetProperty("result").GetProperty("tools")[0].GetProperty("name").GetString() ?? string.Empty;
+            if (first != "session_start") throw new InvalidOperationException("session_start should be listed first, got " + first + ".");
+        }
+
+        private static async Task SessionStartToolAsync()
+        {
+            using McpContext ctx = await McpContext.StartAsync().ConfigureAwait(false);
+            string target = Path.Combine(ctx.Harness.WorkDir, "session-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            string scopeBody = JsonSerializer.Serialize(new { name = "Session-Project", storeProvider = "Filesystem", filesystemLayout = "Hierarchy", targetPath = target });
+            string scopeId = Data(await ctx.Mcp.ProxyAsync(HttpMethod.Post, "/v1.0/api/tenants/ten_default/scopes", scopeBody, "scope_create", ctx.Admin).ConfigureAwait(false), "create scope").GetProperty("id").GetString()!;
+            string categoryId = await CreateCategoryAsync(ctx, scopeId).ConfigureAwait(false);
+            await UpsertMemoryAsync(ctx, scopeId, categoryId, "grip", "Grip fighting", "Win the grip to win the exchange.").ConfigureAwait(false);
+
+            using HttpClient client = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + ctx.McpPort) };
+            JsonElement session = await CallToolAsync(ctx, client, "session_start", new Dictionary<string, object?> { { "project", "session project" } }).ConfigureAwait(false);
+            if (session.GetProperty("scope").GetProperty("id").GetString() != scopeId) throw new InvalidOperationException("session_start should match 'session project' to Session-Project: " + session.GetRawText());
+            if (session.GetProperty("scope").GetProperty("created").GetBoolean()) throw new InvalidOperationException("An existing scope should not be reported as created.");
+            if (!(session.GetProperty("protocol").GetString() ?? string.Empty).Contains(scopeId, StringComparison.Ordinal)) throw new InvalidOperationException("The protocol should name the scope id.");
+            if (session.GetProperty("categories").GetArrayLength() != 1 || session.GetProperty("recentMemories")[0].GetProperty("slug").GetString() != "grip")
+                throw new InvalidOperationException("session_start should return the categories and recent memories: " + session.GetRawText());
+            if (session.GetProperty("tenantId").GetString() != "ten_default") throw new InvalidOperationException("session_start should report the tenant.");
+        }
+
+        private static async Task AgentProtocolLiveAsync()
+        {
+            using McpContext ctx = await McpContext.StartAsync().ConfigureAwait(false);
+            using HttpClient admin = ctx.Harness.AdminClient();
+            string body = JsonSerializer.Serialize(new { serverInstructions = "Edited protocol for this test.", toolDescriptions = new Dictionary<string, string> { { "memory_search", "Edited search description." } } });
+            HttpResponseMessage put = await admin.PutAsync("/v1.0/api/agent-protocol", new StringContent(body, Encoding.UTF8, "application/json")).ConfigureAwait(false);
+            if (put.StatusCode != HttpStatusCode.OK) throw new InvalidOperationException("The admin edit failed: " + (int)put.StatusCode);
+            if (!await ctx.Mcp.RefreshAgentProtocolAsync().ConfigureAwait(false)) throw new InvalidOperationException("The refresh should report changed tool descriptions.");
+
+            using HttpClient client = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + ctx.McpPort) };
+            using JsonDocument init = await SendStatelessAsync(client, ctx.Harness.AccessKey, "initialize", 1, new Dictionary<string, object?> { { "protocolVersion", "2025-06-18" }, { "capabilities", new Dictionary<string, object?>() }, { "clientInfo", new Dictionary<string, object?> { { "name", "t" }, { "version", "1" } } } }, null, HttpStatusCode.OK).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("initialize returned no body.");
+            string instructions = init.RootElement.GetProperty("result").TryGetProperty("instructions", out JsonElement value) ? (value.GetString() ?? string.Empty) : string.Empty;
+            if (instructions != "Edited protocol for this test.") throw new InvalidOperationException("initialize should carry the edited instructions, got: " + instructions);
+
+            using JsonDocument list = await SendStatelessAsync(client, ctx.Harness.AccessKey, "tools/list", 2, new Dictionary<string, object?>(), null, HttpStatusCode.OK).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("tools/list returned no body.");
+            JsonElement tools = list.RootElement.GetProperty("result").GetProperty("tools");
+            string first = tools[0].GetProperty("name").GetString() ?? string.Empty;
+            string search = tools.EnumerateArray().First(t => t.GetProperty("name").GetString() == "memory_search").GetProperty("description").GetString() ?? string.Empty;
+            if (first != "session_start" || search != "Edited search description." || tools.GetArrayLength() != _ExpectedTools.Length)
+                throw new InvalidOperationException("tools/list should keep its order and carry the edited description: first " + first + ", memory_search '" + search + "'.");
+
+            HttpResponseMessage reset = await admin.PutAsync("/v1.0/api/agent-protocol", new StringContent("{}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+            if (reset.StatusCode != HttpStatusCode.OK || !await ctx.Mcp.RefreshAgentProtocolAsync().ConfigureAwait(false)) throw new InvalidOperationException("Resetting should restore the default descriptions.");
+        }
+
+        private static async Task TenantOptionalAsync()
+        {
+            using McpContext ctx = await McpContext.StartAsync().ConfigureAwait(false);
+            string scopeId = await CreateScopeAsync(ctx).ConfigureAwait(false);
+            using HttpClient client = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + ctx.McpPort) };
+
+            JsonElement saved = await CallToolAsync(ctx, client, "memory_upsert", new Dictionary<string, object?>
+            {
+                { "scopeId", scopeId }, { "category", "decisions" }, { "slug", "db-choice" }, { "title", "Database choice" }, { "body", "We chose PostgreSQL for the metadata store." }
+            }).ConfigureAwait(false);
+            if (saved.GetProperty("slug").GetString() != "db-choice") throw new InvalidOperationException("memory_upsert without tenantId should save: " + saved.GetRawText());
+
+            JsonElement again = await CallToolAsync(ctx, client, "memory_upsert", new Dictionary<string, object?>
+            {
+                { "scopeId", scopeId }, { "category", "Decisions" }, { "slug", "cache-choice" }, { "body", "Lookups are cached for ten seconds." }
+            }).ConfigureAwait(false);
+            if (again.GetProperty("categoryId").GetString() != saved.GetProperty("categoryId").GetString()) throw new InvalidOperationException("A second write to the same category name should reuse the category.");
+
+            JsonElement categories = await CallToolAsync(ctx, client, "category_enumerate", new Dictionary<string, object?> { { "scopeId", scopeId } }).ConfigureAwait(false);
+            if (categories.GetProperty("objects").GetArrayLength() != 1) throw new InvalidOperationException("Exactly one category should have been created: " + categories.GetRawText());
+
+            JsonElement hits = await CallToolAsync(ctx, client, "memory_search", new Dictionary<string, object?> { { "scopeId", scopeId }, { "queryText", "PostgreSQL metadata" }, { "mode", "Keyword" } }).ConfigureAwait(false);
+            if (hits.GetProperty("hits").GetArrayLength() == 0) throw new InvalidOperationException("memory_search without tenantId should find the memory.");
+        }
 
         private static async Task<string> CreateScopeAsync(McpContext ctx)
         {

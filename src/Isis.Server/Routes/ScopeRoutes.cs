@@ -25,6 +25,7 @@ namespace Isis.Server.Routes
         private readonly DatabaseDriverBase _Database;
         private readonly AuthorizationService _Authorization;
         private readonly MemoryService _MemoryService;
+        private readonly ScopeProvisioner _Provisioner;
 
         #endregion
 
@@ -40,6 +41,7 @@ namespace Isis.Server.Routes
         public ScopeRoutes(DatabaseDriverBase database, AuthorizationService authorization, MemoryService memoryService)
         {
             _Database = database ?? throw new ArgumentNullException(nameof(database));
+            _Provisioner = new ScopeProvisioner(database);
             _Authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
             _MemoryService = memoryService ?? throw new ArgumentNullException(nameof(memoryService));
         }
@@ -74,17 +76,6 @@ namespace Isis.Server.Routes
             return _Authorization.CanAccessTenant(ctx, tenantId);
         }
 
-        private async Task<ModelEndpoint?> FirstActiveEmbeddingEndpointAsync(string tenantId, System.Threading.CancellationToken token)
-        {
-            EnumerationResult<ModelEndpoint> result = await _Database.ModelEndpoints.EnumerateAsync(tenantId, EndpointKindEnum.Embedding, new EnumerationQuery { MaxResults = 50 }, token).ConfigureAwait(false);
-            foreach (ModelEndpoint endpoint in result.Objects)
-            {
-                if (endpoint.Active) return endpoint;
-            }
-
-            return null;
-        }
-
         private async Task ListAsync(HttpContextBase context)
         {
             if (!Authorize(context, out _, out string tenantId))
@@ -112,105 +103,14 @@ namespace Isis.Server.Routes
                 return;
             }
 
-            scope.TenantId = tenantId;
-            Scope? conflict = await _Database.Scopes.ReadByNameAsync(tenantId, scope.Name, context.Token).ConfigureAwait(false);
-            if (conflict != null)
+            ScopeProvisionResult result = await _Provisioner.CreateAsync(tenantId, scope, context.Token).ConfigureAwait(false);
+            if (result.Scope == null)
             {
-                await RouteHelpers.ErrorAsync(context, 409, "Conflict", "A scope with that name already exists.").ConfigureAwait(false);
+                await RouteHelpers.ErrorAsync(context, result.StatusCode, result.Error ?? "BadRequest", result.Message ?? "The scope could not be created.").ConfigureAwait(false);
                 return;
             }
 
-            // Resolve store configuration so a minimally-specified scope is actually usable. The default store
-            // is RecallDb, which needs an embedding endpoint and a matching dimensionality; auto-wire the
-            // tenant's embedding endpoint (and adopt its dimensionality) when the caller did not specify one,
-            // and return an actionable error — rather than persist a silently broken scope — when RecallDb is
-            // requested but no embedding endpoint exists.
-            // The Verbex provider is not wired yet; a scope created on it would fail on its first search.
-            if (scope.StoreProvider == StoreProviderEnum.Verbex)
-            {
-                await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "The Verbex store provider is not available yet. Use RecallDb (semantic and keyword search) or Filesystem (keyword-only, git-trackable files).").ConfigureAwait(false);
-                return;
-            }
-
-            if (scope.StoreProvider == StoreProviderEnum.RecallDb)
-            {
-                ModelEndpoint? endpoint;
-                if (!string.IsNullOrEmpty(scope.EmbeddingEndpointId))
-                {
-                    endpoint = await _Database.ModelEndpoints.ReadAsync(tenantId, scope.EmbeddingEndpointId, context.Token).ConfigureAwait(false);
-                    if (endpoint == null)
-                    {
-                        await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "The specified embeddingEndpointId was not found in this tenant.").ConfigureAwait(false);
-                        return;
-                    }
-                }
-                else
-                {
-                    endpoint = await FirstActiveEmbeddingEndpointAsync(tenantId, context.Token).ConfigureAwait(false);
-                }
-
-                if (endpoint == null)
-                {
-                    await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "A RecallDb scope needs an embedding endpoint, but none is configured for this tenant. Create the scope with storeProvider 'Filesystem' for keyword-only memory, or configure an embedding endpoint first (list them with endpoint_enumerate).").ConfigureAwait(false);
-                    return;
-                }
-
-                scope.EmbeddingEndpointId = endpoint.Id;
-                if (scope.Dimensionality <= 0) scope.Dimensionality = endpoint.Dimensionality;
-
-                // Reranking is the largest retrieval gain measured, so a new semantic scope uses the tenant's first active
-                // cross-encoder (a fast, rerank-only inference endpoint) when one exists; a search falls back to retrieval
-                // order if it is unreachable. A chat model is never attached automatically, because prompted reranking
-                // takes seconds per search. Clear rerankEndpointId with an update to opt out.
-                if (string.IsNullOrEmpty(scope.RerankEndpointId))
-                {
-                    EnumerationResult<ModelEndpoint> inference = await _Database.ModelEndpoints.EnumerateAsync(tenantId, EndpointKindEnum.Inference, new EnumerationQuery { MaxResults = 1000 }, context.Token).ConfigureAwait(false);
-                    foreach (ModelEndpoint reranker in inference.Objects)
-                    {
-                        if (!reranker.Active || !ApiFormatCapabilities.IsRerankOnly(reranker.ApiFormat)) continue;
-                        scope.RerankEndpointId = reranker.Id;
-                        break;
-                    }
-                }
-                if (scope.Dimensionality <= 0)
-                {
-                    await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "The embedding endpoint '" + endpoint.Id + "' has no dimensionality configured; pass 'dimensionality' explicitly (e.g. 384 for all-minilm).").ConfigureAwait(false);
-                    return;
-                }
-            }
-
-            string? rerankError = await ValidateScopeEndpointsAsync(tenantId, scope, context.Token).ConfigureAwait(false);
-            if (rerankError != null)
-            {
-                await RouteHelpers.ErrorAsync(context, 400, "BadRequest", rerankError).ConfigureAwait(false);
-                return;
-            }
-
-            Scope created = await _Database.Scopes.CreateAsync(scope, context.Token).ConfigureAwait(false);
-            await RouteHelpers.JsonAsync(context, 201, created).ConfigureAwait(false);
-        }
-
-        private async Task<string?> ValidateScopeEndpointsAsync(string tenantId, Scope scope, CancellationToken token)
-        {
-            // Each model the scope names must be an inference endpoint in the tenant whose API format can do the job:
-            // any reranking-capable format for the reranker, a text-generating (chat) format for the chat and query models.
-            return await ValidateEndpointAsync(tenantId, scope.RerankEndpointId, true, "rerankEndpointId", token).ConfigureAwait(false)
-                ?? await ValidateEndpointAsync(tenantId, scope.InferenceEndpointId, false, "inferenceEndpointId", token).ConfigureAwait(false)
-                ?? await ValidateEndpointAsync(tenantId, scope.QueryEndpointId, false, "queryEndpointId", token).ConfigureAwait(false);
-        }
-
-        private async Task<string?> ValidateEndpointAsync(string tenantId, string? endpointId, bool rerank, string field, CancellationToken token)
-        {
-            if (string.IsNullOrEmpty(endpointId)) return null;
-
-            ModelEndpoint? endpoint = await _Database.ModelEndpoints.ReadAsync(tenantId, endpointId, token).ConfigureAwait(false);
-            if (endpoint == null) return "The specified " + field + " was not found in this tenant.";
-            if (endpoint.Kind != EndpointKindEnum.Inference) return "The specified " + field + " is an " + endpoint.Kind + " endpoint; an inference endpoint is required.";
-            if (rerank && !ApiFormatCapabilities.CanRerank(endpoint.ApiFormat))
-                return "The specified " + field + " uses the " + endpoint.ApiFormat + " format, which cannot rerank; choose a cross-encoder (Tei or Cohere) or a chat model.";
-            if (!rerank && !ApiFormatCapabilities.CanChat(endpoint.ApiFormat))
-                return "The specified " + field + " is a " + endpoint.ApiFormat + " cross-encoder, which can only rerank; choose a chat model.";
-            return null;
+            await RouteHelpers.JsonAsync(context, 201, result.Scope).ConfigureAwait(false);
         }
 
         private async Task ReadAsync(HttpContextBase context)
@@ -261,7 +161,7 @@ namespace Isis.Server.Routes
             update.StoreProvider = existing.StoreProvider;
             update.Dimensionality = existing.Dimensionality;
             update.RecallCollectionId = existing.RecallCollectionId;
-            string? rerankError = await ValidateScopeEndpointsAsync(tenantId, update, context.Token).ConfigureAwait(false);
+            string? rerankError = await _Provisioner.ValidateEndpointsAsync(tenantId, update, context.Token).ConfigureAwait(false);
             if (rerankError != null)
             {
                 await RouteHelpers.ErrorAsync(context, 400, "BadRequest", rerankError).ConfigureAwait(false);

@@ -4,6 +4,7 @@ namespace Test.Shared
     using System.Collections.Generic;
     using System.IO;
     using System.Text.Json;
+    using System.Text.Json.Nodes;
     using Isis.McpServer;
     using Touchstone.Core;
 
@@ -32,6 +33,7 @@ namespace Test.Shared
                     TestCase.Sync("install", "backup-created", "Install backs up an existing file", BackupCreated),
                     TestCase.Sync("install", "access-key-header", "Install honours the x-access-key header", AccessKeyHeader),
                     TestCase.Sync("install", "idempotent", "Installing twice leaves a single isis entry", Idempotent),
+                    TestCase.Sync("install", "session-hook", "The SessionStart hook is added once, calls session start as text for the project, and keeps other hooks and settings", SessionHook),
                     TestCase.Sync("install", "idempotent-updates-url", "Re-installing updates the isis url", IdempotentUpdatesUrl),
                     TestCase.Sync("install", "empty-existing-file", "Install repairs an empty existing file", EmptyExistingFile),
                     TestCase.Sync("install", "missing-directory-created", "Install creates a missing target directory", MissingDirectoryCreated)
@@ -234,6 +236,33 @@ namespace Test.Shared
         {
             try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
             try { if (File.Exists(tmp + ".bak")) File.Delete(tmp + ".bak"); } catch { }
+        }
+
+        private static void SessionHook()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "isis-hook-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(dir, ".claude", "settings.json");
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.WriteAllText(target, "{\"model\":\"opus\",\"hooks\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"echo other\"}]}],\"Stop\":[]}}");
+                McpInstaller.InstallSessionHook(target, "http://127.0.0.1:8700/", "key123");
+                McpInstaller.InstallSessionHook(target, "http://127.0.0.1:8700", "key456");
+
+                JsonObject root = (JsonObject)JsonNode.Parse(File.ReadAllText(target))!;
+                JsonArray start = (JsonArray)root["hooks"]!["SessionStart"]!;
+                if (root["model"]?.GetValue<string>() != "opus" || root["hooks"]!["Stop"] == null) throw new InvalidOperationException("Other settings and hooks should be kept.");
+                if (start.Count != 2) throw new InvalidOperationException("Expected the other hook plus one Isis hook, got " + start.Count + ".");
+                string command = start[1]!["hooks"]![0]!["command"]!.GetValue<string>();
+                if (!command.Contains("key456", StringComparison.Ordinal) || command.Contains("key123", StringComparison.Ordinal)) throw new InvalidOperationException("Re-installing should replace the Isis hook: " + command);
+                if (!command.Contains("http://127.0.0.1:8700/v1.0/api/session", StringComparison.Ordinal) || !command.Contains("format=text", StringComparison.Ordinal) || !command.Contains("CLAUDE_PROJECT_DIR", StringComparison.Ordinal) || !command.EndsWith("|| true", StringComparison.Ordinal))
+                    throw new InvalidOperationException("The hook should fetch session start as text for the project directory and never fail: " + command);
+                if (!File.Exists(target + ".bak")) throw new InvalidOperationException("The settings file should be backed up.");
+            }
+            finally
+            {
+                try { Directory.Delete(dir, true); } catch { }
+            }
         }
 
         #endregion

@@ -200,6 +200,8 @@ namespace Isis.Server
             new OperationRoutes(_Database, _AuthorizationService).Register(_Server);
             new CollectionRoutes(_AuthorizationService, _StoreOptions).Register(_Server);
             new GuideRoutes(_Database, _AuthorizationService).Register(_Server);
+            new SessionRoutes(_Database, _AuthorizationService, Settings).Register(_Server);
+            new AgentProtocolRoutes(Settings, _SettingsFile ?? "isis.json").Register(_Server);
             new InstructionRoutes(_Database, _AuthorizationService).Register(_Server);
             new SettingsRoutes(Settings, _SettingsFile ?? "isis.json", _AuthorizationService).Register(_Server);
         }

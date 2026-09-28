@@ -179,6 +179,21 @@ namespace Isis.Server.Settings
         }
 
         /// <summary>
+        /// What agents are told when they connect (MCP server instructions and tool descriptions), editable by administrators.
+        /// </summary>
+        public AgentSettings Agent
+        {
+            get
+            {
+                return _Agent;
+            }
+            set
+            {
+                _Agent = value ?? new AgentSettings();
+            }
+        }
+
+        /// <summary>
         /// Observability (metrics and tracing) settings.
         /// </summary>
         public ObservabilitySettings Observability
@@ -198,6 +213,7 @@ namespace Isis.Server.Settings
         #region Private-Members
 
         private string _NodeId = "isis-1";
+        private AgentSettings _Agent = new AgentSettings();
         private ObservabilitySettings _Observability = new ObservabilitySettings();
         private RetentionSettings _Retention = new RetentionSettings();
         private RetrievalSettings _Retrieval = new RetrievalSettings();

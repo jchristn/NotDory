@@ -24,7 +24,7 @@ namespace Isis.Server.Routes
         private readonly AuthorizationService _Authorization;
 
         // Sections whose values are read per-request and therefore take effect without a restart.
-        private static readonly string[] _LiveSections = new[] { "requestHistory" };
+        private static readonly string[] _LiveSections = new[] { "requestHistory", "agent" };
 
         #endregion
 
@@ -108,6 +108,7 @@ namespace Isis.Server.Routes
 
             // Apply the per-request-read fields to the running instance so they take effect immediately.
             _Settings.RequestHistory.Enabled = incoming.RequestHistory.Enabled;
+            _Settings.Agent = incoming.Agent;
 
             Dictionary<string, object?> body = new Dictionary<string, object?>();
             body["settings"] = incoming;

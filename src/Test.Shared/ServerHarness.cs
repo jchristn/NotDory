@@ -80,7 +80,7 @@ namespace Test.Shared
             AuthorizationService authz = new AuthorizationService();
             MemoryService memory = new MemoryService(harness.Database);
 
-            harness.Server = new IsisServer(settings, harness.Database, auth, authz, memory);
+            harness.Server = new IsisServer(settings, harness.Database, auth, authz, memory, settingsFile: Path.Combine(harness.WorkDir, "isis.json"));
             harness.Server.Start();
 
             await harness.WaitForHealthAsync().ConfigureAwait(false);

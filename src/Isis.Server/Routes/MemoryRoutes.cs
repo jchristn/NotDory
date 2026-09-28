@@ -3,6 +3,7 @@ namespace Isis.Server.Routes
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using Isis.Core.Database;
     using Isis.Core.Enums;
@@ -77,6 +78,26 @@ namespace Isis.Server.Routes
 
         #region Private-Methods
 
+        private async Task<Category?> ResolveUpsertCategoryAsync(string tenantId, string scopeId, string categoryIdOrName, CancellationToken token)
+        {
+            // An upsert names its category by cat_ id or by name. A name that is new to the scope creates the category, so
+            // an agent can write a memory without first looking up or creating one; an unknown cat_ id is still an error.
+            Category? category = await _Database.Categories.ReadAsync(tenantId, categoryIdOrName, token).ConfigureAwait(false);
+            if (category != null) return category.ScopeId == scopeId ? category : null;
+
+            string name = categoryIdOrName.Trim();
+            category = await _Database.Categories.ReadByNameAsync(tenantId, scopeId, name, token).ConfigureAwait(false);
+            if (category != null) return category;
+            if (name.StartsWith("cat_", StringComparison.Ordinal) || name.Length > 128) return null;
+
+            // Agents vary capitalization ("Decisions", "decisions"); that should not split one category into two.
+            EnumerationResult<Category> existing = await _Database.Categories.EnumerateAsync(tenantId, scopeId, new EnumerationQuery { MaxResults = 1000 }, token).ConfigureAwait(false);
+            category = existing.Objects.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (category != null) return category;
+
+            return await _Database.Categories.CreateAsync(new Category { TenantId = tenantId, ScopeId = scopeId, Name = name }, token).ConfigureAwait(false);
+        }
+
         private bool Authorize(HttpContextBase context, out string tenantId, out string scopeId)
         {
             RequestContext ctx = RouteHelpers.Context(context);
@@ -140,12 +161,14 @@ namespace Isis.Server.Routes
                 return;
             }
 
-            Category? category = await _Database.Categories.ReadAsync(tenantId, body.CategoryId, context.Token).ConfigureAwait(false);
-            if (category == null || category.ScopeId != scopeId)
+            Category? category = await ResolveUpsertCategoryAsync(tenantId, scopeId, body.CategoryId, context.Token).ConfigureAwait(false);
+            if (category == null)
             {
                 await RouteHelpers.ErrorAsync(context, 400, "BadRequest", "The categoryId does not belong to this scope.").ConfigureAwait(false);
                 return;
             }
+
+            body.CategoryId = category.Id;
 
             try
             {

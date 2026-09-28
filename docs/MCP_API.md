@@ -8,8 +8,9 @@
 > (conventionally `isis`), so you will see them as e.g. `isis.whoami` / `mcp__isis__whoami` — a
 > single, clean namespace, not a doubled `isis_isis_*`.
 >
-> **tenantId.** Every tool except `whoami` requires a `tenantId` argument. Call `whoami` first; its
-> response gives you the `tenantId` to pass to all other calls.
+> **Start with `session_start`.** One call returns your scope for the project, how to use Isis, the scope's
+> categories and instructions, and the most recent memories. No tool requires a `tenantId`: it defaults to your
+> credential's tenant (pass one only to work in another tenant your credential can access).
 
 Isis exposes an HTTP MCP server for AI agents. The MCP endpoint is:
 
@@ -86,9 +87,25 @@ under `data`.
 When the REST call fails, `success` is `false`, `statusCode` carries the upstream code
 (for example `401`, `403`, `404`), and `data` contains the REST error body.
 
+## On Connect
+
+Isis tells a connecting agent how to use it through two channels, both editable by a system administrator (dashboard
+**Agent onboarding**, or `GET`/`PUT /v1.0/api/agent-protocol`):
+
+- **Server instructions**, in the `initialize` result. Agent harnesses place them in the model's system prompt, so they
+  reach the model even when the harness defers loading tool descriptions. The built-in text tells the agent to call
+  `session_start` with the project name, search memory before answering or changing code, save decisions, facts,
+  preferences, and corrections as it goes, and never store secrets. `session_start` repeats the same text with the
+  session's scope id.
+- **Tool descriptions**, in `tools/list`. Each says when to use the tool. An administrator can override any of them.
+
+The MCP server re-reads both every `AgentProtocolRefreshSeconds` (default 30, in `isis.mcp.json`); a changed tool
+description re-registers the tools in their original order and sends connected clients `notifications/tools/list_changed`.
+Tenant-specific guidance belongs in tenant or scope instructions, which `session_start` also returns.
+
 ## Tool Inventory
 
-Isis exposes **32** MCP tools at parity with the tenant-scoped REST surface. Each tool proxies the
+Isis exposes **33** MCP tools at parity with the tenant-scoped REST surface. Each tool proxies the
 REST route shown, forwarding the caller's credential; the write/CRUD tools accept the same fields as
 the corresponding REST request body. `tools/list` returns only these tools; the MCP protocol `ping`
 method is answered with an empty result (`{}`) on the handshake-era revisions. Like every other request it needs the
@@ -97,7 +114,8 @@ revision removed `ping` (it gets `-32601`); probe connectivity with `GET /` inst
 
 | Tool | REST route proxied | Purpose |
 |------|--------------------|---------|
-| `whoami` | `GET /whoami` | Resolve the tenant and principal the caller's credential maps to |
+| `session_start` | `POST /session` | Start here: the project's scope (created if new), protocol, categories, instructions, and recent memories |
+| `whoami` | `GET /whoami` | Show the tenant and principal the caller's credential maps to |
 | `instructions` | `GET .../instructions` or `.../scopes/{sid}/effective-instructions` | Standing instructions; pass `scopeId` for a scope's effective (merged) set |
 | `guide` | `GET .../scopes/{sid}/guide` | A scope's categories, usage instructions, and store capabilities |
 | `scope_enumerate` | `GET .../scopes` | List the memory scopes in a tenant |
@@ -130,7 +148,7 @@ revision removed `ping` (it gets `-32601`); probe connectivity with `GET /` inst
 | `instruction_update` | `PUT .../instructions/{iid}` | Update an instruction by id |
 | `instruction_delete` | `DELETE .../instructions/{iid}` | Delete an instruction by id |
 
-Routes are shown relative to `/v1.0/api/tenants/{tenantId}` (except `whoami`). Management operations
+Routes are shown relative to `/v1.0/api/tenants/{tenantId}` (except `session_start` and `whoami`). Management operations
 (endpoint and instruction writes) require tenant administration; the REST server enforces this.
 Deliberately **not** exposed over MCP (dashboard/REST-only): tenant, user, and credential management,
 server settings, session/token login, and the raw request-history / operation-event feeds.
@@ -140,15 +158,11 @@ server settings, session/token login, and the raw request-history / operation-ev
 Isis is memory, not a filesystem. Read before you write, and prefer summaries before full
 bodies to conserve tokens.
 
-1. Call `whoami` to learn your `tenantId`.
-2. Call `instructions` with that `tenantId` to read the tenant's standing guidance, then
-   `scope_enumerate` to find the scope you want (a project, a book, or a shared "global"
-   scope). If no scope fits your project, create one with `scope_create` (use
-   `endpoint_enumerate` to pick an embedding endpoint for a semantic RecallDb scope, or to
-   confirm one exists).
-3. Call `guide` for the selected scope. This is the single most important call: it
-   returns the scope's categories, their usage instructions (when and how to write each
-   kind of memory), and the store's search capabilities.
+1. Call `session_start` with `project` set to the repository or project name. It returns your scope (created if
+   new), the protocol, the categories and their instructions (the contract for what to write where), the scope's
+   effective instructions, and the most recent memories. Read them before planning.
+2. Keep the returned `scopeId` for every memory tool; no tool needs a `tenantId`.
+3. Use `guide` or `instructions` only to re-read that context later in a long session.
 4. Use `memory_search` to recall existing memory before doing work. Prefer `Hybrid`
    or `Semantic` mode on a RecallDB-backed scope; `Keyword` always works.
 5. Use `memory_enumerate` to browse summaries by category when you want a list rather
@@ -161,16 +175,39 @@ bodies to conserve tokens.
 
 ## Common Arguments
 
-Most tools require `tenantId` and `scopeId`. Obtain `tenantId` from `whoami` and
-`scopeId` from `scope_enumerate`. These are validated against the caller's credential
+Most tools take `scopeId`, which `session_start` returns. `tenantId` is optional on every tool and defaults to the
+credential's tenant (resolved once per access key through `whoami` and cached). These are validated against the caller's credential
 by the REST layer; a caller cannot act on a tenant its credential does not authorize.
 
 ## Tool Reference
 
+### `session_start`
+
+Start here, once per session. Resolves your tenant from the credential, finds the scope for the project (matching the
+name ignoring case, spacing, and punctuation) or creates it, and returns everything needed to start working with memory.
+It replaces the `whoami`, `instructions`, `scope_enumerate`, `guide` sequence.
+
+Proxies `POST /v1.0/api/session`.
+
+#### Input
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `project` | string | No | null | Repository or project name. Null picks the tenant's only scope when there is exactly one |
+| `createIfMissing` | boolean | No | true | Create the project's scope (with the tenant's embedding endpoint) when none matches |
+| `maxMemories` | integer | No | 15 | How many recent memories to include, 0 to 100 |
+
+#### Response `data`
+
+`tenantId`, `principal`, `scope` (`id`, `name`, `description`, `storeProvider`, `created`), `protocol` (the server
+instructions with the scope id), `categories` (with their instructions), `instructions` (the scope's effective
+instructions), `memoryCount`, `recentMemories` (`id`, `slug`, `category`, `title`, `summary`, `lastUpdateUtc`, newest
+first), and, when no scope could be chosen, `scopes` and a `notice` explaining what to do.
+
 ### `whoami`
 
-Resolve the tenant and principal the caller's credential maps to. Call this first to
-discover your `tenantId`.
+Show the tenant and principal the caller's credential maps to. Not needed to get started: `session_start` returns the
+same, and no tool requires a `tenantId`.
 
 Proxies `GET /v1.0/api/whoami`.
 
@@ -202,7 +239,6 @@ No arguments.
 
 #### Guidance
 
-- Cache the returned `tenantId` for the rest of the session.
 - Callers authenticate with the credential access key (dev default `isisdefaultkey`),
   presented as `Authorization: Bearer <accessKey>` or in the `x-access-key` header; an optional
   `x-secret-key` (dev default `isisdefaultsecret`) is validated only when present. The caller
@@ -219,7 +255,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/scopes`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier from `whoami` |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 
 #### Example Request
 
@@ -268,7 +304,7 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier from `whoami` |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `name` | string | Yes | n/a | Scope name (for example the project name) |
 | `description` | string | No | null | What the scope holds |
 | `storeProvider` | string | No | server default | Backing store: `RecallDb` or `Filesystem` (`Verbex` is not available yet and is rejected) |
@@ -334,7 +370,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/endpoints` (optional `kind` filter).
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier from `whoami` |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `kind` | string | No | all | Filter by endpoint kind: `Embedding` or `Inference`. Rerankers are inference endpoints: `apiFormat` `Tei` or `Cohere` marks a cross-encoder (rerank only); `Ollama`, `OpenAI`, and `VLlm` models can chat and rerank. `Rerank` is accepted and lists inference endpoints |
 
 #### Guidance
@@ -352,7 +388,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/instructions`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier from `whoami` |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 
 #### Example Request
 
@@ -397,7 +433,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/guide`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `scopeId` | string | Yes | n/a | Scope identifier |
 
 #### Example Request
@@ -453,7 +489,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/categories`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `scopeId` | string | Yes | n/a | Scope identifier |
 
 #### Example Request
@@ -498,7 +534,7 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/categories`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `scopeId` | string | Yes | n/a | Scope identifier |
 | `name` | string | Yes | n/a | Category name (unique within the scope; accepted by `memory_search` as a filter) |
 | `description` | string | No | null | What the category holds |
@@ -546,7 +582,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories` with option
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `scopeId` | string | Yes | n/a | Scope identifier |
 | `category` | string | No | null | Optional `categoryId` filter |
 | `maxResults` | integer | No | server default | Maximum summaries to return |
@@ -596,7 +632,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories/{memoryId}`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `scopeId` | string | Yes | n/a | Scope identifier |
 | `memoryId` | string | Yes | n/a | Memory identifier |
 
@@ -645,9 +681,9 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `scopeId` | string | Yes | n/a | Scope identifier |
-| `categoryId` | string | Yes | n/a | Target category |
+| `category` | string | Yes | n/a | Target category: a name (created in the scope if new, matched ignoring case) or a `cat_` id. `categoryId` is accepted as an alias |
 | `slug` | string | Yes | n/a | Stable, link-addressable slug; re-writing updates in place |
 | `body` | string | Yes | n/a | The memory content |
 | `title` | string | No | null | Human-readable title |
@@ -713,7 +749,7 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories/search`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `scopeId` | string | Yes | n/a | Scope identifier |
 | `queryText` | string | Yes | n/a | The search query |
 | `mode` | string | No | server default | `Keyword`, `Semantic`, or `Hybrid` |
@@ -795,7 +831,7 @@ Proxies `DELETE /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories/{memoryId
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `tenantId` | string | Yes | n/a | Tenant identifier |
+| `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `scopeId` | string | Yes | n/a | Scope identifier |
 | `memoryId` | string | Yes | n/a | Memory identifier |
 

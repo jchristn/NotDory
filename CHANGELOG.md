@@ -7,6 +7,26 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Added
 
+- **From connect to using memory in one step.** Isis now tells a connecting agent how to use it and gives it its
+  context in one call:
+  - **Server instructions** in the MCP `initialize` result (which harnesses place in the model's system prompt, the one
+    channel that reaches the model even when tool descriptions are deferred): call `session_start` with the project
+    name, search memory before answering or changing code, save decisions, facts, preferences, and corrections as you go.
+  - **`session_start`** (MCP tool, `POST`/`GET /v1.0/api/session`): the project's scope, matched by name ignoring case
+    and punctuation or created if missing, plus the protocol, categories, effective instructions, and recent memories.
+    It replaces the `whoami`, `instructions`, `scope_enumerate`, `guide` sequence; `format=text` renders markdown.
+  - **`tenantId` is optional on every MCP tool**, defaulting to the credential's tenant.
+  - **Categories by name:** a memory upsert accepts a category name (matched ignoring case, created on first use) as
+    well as a `cat_` id.
+  - **Tool descriptions say when to use each tool** (`memory_search` before answering or changing code, `memory_upsert`
+    after decisions and discoveries); `session_start` is listed first.
+  - **Claude Code SessionStart hook:** `isis mcp install` adds a hook that injects the session context before the first
+    turn (`--no-session-hook` to skip, `--rest-url` for the REST API).
+- **Editable agent onboarding.** Everything sent to the model on connect (the server instructions and every tool
+  description) is editable by a system administrator in the dashboard (**Agent onboarding**) or through
+  `GET`/`PUT /v1.0/api/agent-protocol` (also the `agent` section of the server settings). Edits apply without a
+  restart: the MCP server re-reads them every 30 seconds, re-registers the tools in order, and notifies connected
+  clients that the tool list changed. Default tool descriptions live in `AgentToolCatalog`.
 - **Endpoint reasoning setting.** An inference endpoint's `reasoning` (`Default`, `Off`, `Low`, `Medium`, `High`) sets
   how much a reasoning model thinks on Isis's calls to it: chat answers, query steps, and reranking, through PolyPrompt
   2.7.1's per-call reasoning option. `Default` (every existing endpoint, via migration

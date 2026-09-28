@@ -165,6 +165,14 @@ class ApiClient {
   updateServerSettings(settings) {
     return this.put(`${API_BASE}/settings`, settings);
   }
+  // What agents are told on connect (MCP server instructions and tool descriptions); read by anyone, edited by a
+  // system administrator.
+  getAgentProtocol() {
+    return this.get(`${API_BASE}/agent-protocol`);
+  }
+  updateAgentProtocol(body) {
+    return this.put(`${API_BASE}/agent-protocol`, body);
+  }
   restartServer() {
     return this.post(`${API_BASE}/settings/restart`, {});
   }

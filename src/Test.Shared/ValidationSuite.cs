@@ -47,6 +47,7 @@ namespace Test.Shared
                     TestCase.Sync("validation", "settings", "Settings: null sections become defaults and out-of-range values clamp", SettingsCase),
                     TestCase.Sync("validation", "services", "Service and core setters reject NaN and out-of-range values", ServicesCase),
                     TestCase.Sync("validation", "endpoint-and-scope", "ModelEndpoint and Scope: health-check, timeout, and chunk settings clamp", EndpointAndScopeCase),
+                    TestCase.Sync("validation", "session-project-match", "Session start matches a project to a scope ignoring case, spacing, and punctuation", SessionProjectMatchCase),
                     TestCase.Sync("validation", "health-check-url", "ModelEndpoint: the health check URL is a path on the base URL or a full http URL used as-is", HealthCheckUrlCase),
                     TestCase.Sync("validation", "error-classifier", "ErrorClassifier: transient database errors and unreachable services are 503, bad input 400, the rest 500", ErrorClassifierCase)
                 });
@@ -166,6 +167,16 @@ namespace Test.Shared
             TestCase.Require(new ModelEndpoint { TimeoutMs = 0 }.TimeoutMs == 60000, "A zero timeout should mean the default.");
             Scope scope = new Scope { ChunkOverlapTokens = 100000, ChunkMaxTokens = 100000, RerankMinScore = double.NaN, ChunkStrategy = null! };
             TestCase.Require(scope.ChunkOverlapTokens == 1024 && scope.ChunkMaxTokens == 8192 && scope.RerankMinScore == null && scope.ChunkStrategy == "FixedTokenCount", "Scope chunk and rerank settings should clamp or fall back.");
+        }
+
+        private static void SessionProjectMatchCase()
+        {
+            List<Scope> scopes = new List<Scope> { new Scope { Id = "scp_a", Name = "AgentMemory" }, new Scope { Id = "scp_b", Name = "agent-memory-old" }, new Scope { Id = "scp_c", Name = "Isis" } };
+            TestCase.Require(SessionStartService.Match(scopes, "agentmemory")?.Id == "scp_a", "A case-insensitive exact name should match.");
+            TestCase.Require(SessionStartService.Match(scopes, "Agent Memory")?.Id == "scp_a" && SessionStartService.Match(scopes, "agent_memory")?.Id == "scp_a", "Spacing and punctuation should be ignored.");
+            TestCase.Require(SessionStartService.Match(scopes, "isis")?.Id == "scp_c" && SessionStartService.Match(scopes, "nothing") == null && SessionStartService.Match(scopes, "---") == null, "Unrelated or empty names should not match.");
+            TestCase.Require(new SessionStartRequest { MaxMemories = 500 }.MaxMemories == 100 && new SessionStartRequest { Project = "  " }.Project == null, "The request should clamp and clean its input.");
+            TestCase.Require(AgentProtocol.ServerInstructions.Contains("session_start", StringComparison.Ordinal) && AgentProtocol.ForScope("scp_x", "X").Contains("scp_x", StringComparison.Ordinal), "The protocol should name session_start and, per scope, the scope id.");
         }
 
         private static void HealthCheckUrlCase()

@@ -81,6 +81,7 @@ export const en = {
       home: 'Home',
       scopes: 'Scopes',
       instructions: 'Instructions',
+      agentProtocol: 'Agent onboarding',
       categories: 'Categories',
       memories: 'Memories',
       search: 'Search Explorer',
@@ -512,6 +513,21 @@ export const en = {
       confirmDestructiveBody: 'You are about to run {{method}} {{path}}. This may permanently modify data. Continue?',
       invalidJson: 'Request body is not valid JSON.',
       authInherited: 'Requests use your dashboard credentials automatically.'
+    },
+    agentProtocol: {
+      title: 'Agent onboarding',
+      subtitle: 'What Isis tells a model when an agent connects: the instructions harnesses place in its system prompt, and each tool description.',
+      instructions: 'Server instructions',
+      instructionsHint: 'Sent in the MCP initialize result and at the top of every session_start. Keep it short and direct: agents follow it as their standing procedure. Tenant-specific guidance belongs in Instructions, which session_start also returns.',
+      tools: 'Tool descriptions',
+      toolsHint: 'Each description is sent with tools/list. Say when to use the tool, not only what it does. Connected clients are told the tool list changed.',
+      edited: 'Edited',
+      default: 'Default',
+      reset: 'Reset to default',
+      save: 'Save',
+      saving: 'Saving...',
+      saved: 'Saved. The MCP server applies it within its refresh interval (30 s by default).',
+      readOnly: 'Only a system administrator can edit what agents are told on connect.'
     },
     settings: {
       title: 'Settings',

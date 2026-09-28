@@ -30,7 +30,9 @@ namespace Isis.McpServer
             int port = settings.Port;
             string accessKey = "isisdefaultkey";
             bool project = false;
+            bool sessionHook = true;
             string? explicitUrl = null;
+            string? restUrl = Environment.GetEnvironmentVariable("ISIS_REST_URL");
 
             string? envHost = Environment.GetEnvironmentVariable("ISIS_MCP_HOSTNAME");
             if (!string.IsNullOrEmpty(envHost) && envHost != "*") host = envHost;
@@ -58,6 +60,12 @@ namespace Isis.McpServer
                     case "--project":
                         project = true;
                         break;
+                    case "--rest-url":
+                        if (i + 1 < args.Length) restUrl = args[++i];
+                        break;
+                    case "--no-session-hook":
+                        sessionHook = false;
+                        break;
                 }
             }
 
@@ -77,6 +85,15 @@ namespace Isis.McpServer
                 Console.WriteLine("Installed Isis MCP server 'isis' -> " + url);
                 Console.WriteLine("  config: " + target);
                 Console.WriteLine("  x-access-key: " + Mask(accessKey));
+                if (sessionHook)
+                {
+                    // The REST API serves session start; by default it is on the MCP host at the REST port.
+                    string rest = string.IsNullOrWhiteSpace(restUrl) ? "http://" + new Uri(url).Host + ":" + settings.RestPort : restUrl!.TrimEnd('/');
+                    string hookTarget = ResolveHookTarget(project);
+                    InstallSessionHook(hookTarget, rest, accessKey);
+                    Console.WriteLine("Installed the Isis SessionStart hook (session context from " + rest + ") in " + hookTarget);
+                    Console.WriteLine("  Skip it with --no-session-hook; set the REST URL with --rest-url.");
+                }
                 Console.WriteLine("Restart your agent client to pick up the change.");
                 return 0;
             }
@@ -144,6 +161,83 @@ namespace Isis.McpServer
 
             JsonSerializerOptions options = new JsonSerializerOptions { WriteIndented = true };
             File.WriteAllText(target, root.ToJsonString(options));
+        }
+
+        /// <summary>
+        /// The shell command the SessionStart hook runs: fetch session start for the project directory as markdown, which
+        /// Claude Code adds to the model's context before its first turn. It never fails the session: when Isis is
+        /// unreachable it prints nothing.
+        /// </summary>
+        /// <param name="restUrl">The Isis REST base URL, for example http://127.0.0.1:8700.</param>
+        /// <param name="accessKey">The credential access key.</param>
+        /// <returns>The command.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+        public static string SessionHookCommand(string restUrl, string accessKey)
+        {
+            if (restUrl == null) throw new ArgumentNullException(nameof(restUrl));
+            if (accessKey == null) throw new ArgumentNullException(nameof(accessKey));
+            return "curl -fsS -m 8 -G -H \"x-access-key: " + accessKey + "\" --data-urlencode \"project=$(basename \"${CLAUDE_PROJECT_DIR:-$PWD}\")\" "
+                + "--data \"format=text\" \"" + restUrl.TrimEnd('/') + "/v1.0/api/session\" || true";
+        }
+
+        /// <summary>
+        /// Add (or replace) the Isis SessionStart hook in a Claude Code settings file, keeping every other setting and hook.
+        /// The existing file is backed up to <c>.bak</c>.
+        /// </summary>
+        /// <param name="target">The settings file, for example ~/.claude/settings.json.</param>
+        /// <param name="restUrl">The Isis REST base URL.</param>
+        /// <param name="accessKey">The credential access key.</param>
+        /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+        public static void InstallSessionHook(string target, string restUrl, string accessKey)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            JsonObject root = ReadOrCreate(target);
+            JsonObject hooks = root["hooks"] as JsonObject ?? new JsonObject();
+            JsonArray sessionStart = hooks["SessionStart"] as JsonArray ?? new JsonArray();
+
+            // Drop an earlier Isis hook so re-running the installer updates it instead of adding a second one.
+            for (int i = sessionStart.Count - 1; i >= 0; i--)
+            {
+                if (IsIsisHook(sessionStart[i])) sessionStart.RemoveAt(i);
+            }
+
+            JsonObject command = new JsonObject { ["type"] = "command", ["command"] = SessionHookCommand(restUrl, accessKey), ["timeout"] = 10 };
+            sessionStart.Add(new JsonObject { ["hooks"] = new JsonArray(command) });
+            hooks["SessionStart"] = sessionStart;
+            root["hooks"] = hooks;
+            File.WriteAllText(target, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        private static bool IsIsisHook(JsonNode? group)
+        {
+            if (!(group?["hooks"] is JsonArray inner)) return false;
+            foreach (JsonNode? hook in inner)
+            {
+                string command = hook?["command"]?.GetValue<string>() ?? string.Empty;
+                if (command.Contains("/v1.0/api/session", StringComparison.Ordinal) && command.Contains("x-access-key", StringComparison.Ordinal)) return true;
+            }
+
+            return false;
+        }
+
+        private static JsonObject ReadOrCreate(string target)
+        {
+            if (File.Exists(target))
+            {
+                File.Copy(target, target + ".bak", true);
+                string existing = File.ReadAllText(target);
+                return string.IsNullOrWhiteSpace(existing) ? new JsonObject() : (JsonNode.Parse(existing) as JsonObject ?? new JsonObject());
+            }
+
+            string? directory = Path.GetDirectoryName(Path.GetFullPath(target));
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory)) Directory.CreateDirectory(directory);
+            return new JsonObject();
+        }
+
+        private static string ResolveHookTarget(bool project)
+        {
+            if (project) return Path.Combine(Directory.GetCurrentDirectory(), ".claude", "settings.json");
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "settings.json");
         }
 
         private static string Mask(string value)

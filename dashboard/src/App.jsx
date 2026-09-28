@@ -24,6 +24,7 @@ import TenantsView from './views/TenantsView';
 import UsersView from './views/UsersView';
 import CredentialsView from './views/CredentialsView';
 import InstructionsView from './views/InstructionsView';
+import AgentProtocolView from './views/AgentProtocolView';
 import './App.css';
 
 function PrivateRoute({ children }) {
@@ -62,6 +63,7 @@ function AppRoutes() {
         <Route path="scopes" element={<ScopesView />} />
         <Route path="memories" element={<MemoryBrowserView />} />
         <Route path="instructions" element={<InstructionsView />} />
+        <Route path="agent-protocol" element={<AgentProtocolView />} />
         <Route path="scopes/:scopeId" element={<ScopeDetail />} />
         <Route path="scopes/:scopeId/categories" element={<CategoriesView />} />
         <Route path="scopes/:scopeId/memories" element={<MemoriesView />} />
