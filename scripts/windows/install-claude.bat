@@ -20,9 +20,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-REM Re-running replaces the user-scope entry instead of failing on a duplicate.
-claude mcp remove --scope user isis >nul 2>nul
-claude mcp add --scope user --transport http isis "%ISIS_MCP_URL%" --header "x-access-key: %ISIS_ACCESS_KEY%"
+REM Re-running replaces the user-scope entry instead of failing on a duplicate. claude is itself a batch file
+REM (claude.cmd), so it must be run with "call" or this script would end when it does.
+call claude mcp remove --scope user isis >nul 2>nul
+call claude mcp add --scope user --transport http isis "%ISIS_MCP_URL%" --header "x-access-key: %ISIS_ACCESS_KEY%"
 if errorlevel 1 exit /b 1
 echo Added 'isis' MCP server to Claude Code for every project (%ISIS_MCP_URL%).
 

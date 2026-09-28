@@ -7,7 +7,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-claude mcp remove --scope user isis
+call claude mcp remove --scope user isis
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0isis-claude-hook.ps1" -Action remove
 echo Removed 'isis' MCP server and the SessionStart hook from Claude Code.
 endlocal

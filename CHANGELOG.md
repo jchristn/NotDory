@@ -206,6 +206,10 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Fixed
 
+- **The Windows Claude Code installer stopped after its first `claude` command.** `claude` is itself a batch file
+  (`claude.cmd`), and a batch script that runs another without `call` never returns, so `install-claude.bat` ended
+  inside `claude mcp remove` (exit 1) and neither registered Isis nor installed the hook. Both Claude scripts now use
+  `call`.
 - **Query-string values are URL-decoded.** Watson returns them percent-encoded, so an encoded value (a git remote URL,
   a name with a space) arrived as `https%3A%2F%2F...` and matched nothing. `RouteHelpers.Query` now decodes them.
 - **The seeded tenant instructions contradicted session start.** The default "Start here" and "Tools" instructions
