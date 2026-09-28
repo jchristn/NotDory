@@ -4,6 +4,7 @@ namespace Isis.Server
     using System.Collections.Generic;
     using System.Collections.Specialized;
     using System.Net.Http;
+    using System.Runtime.CompilerServices;
     using System.Text.Json;
     using System.Text.RegularExpressions;
     using System.Threading;
@@ -38,6 +39,10 @@ namespace Isis.Server
         #endregion
 
         #region Private-Members
+
+        // The exception a route failed with, handed from the exception handler to post-routing so the request's history
+        // row says what failed. Consumed (removed) by the same request, since Watson may reuse a context object.
+        private readonly ConditionalWeakTable<HttpContextBase, Exception> _Failures = new ConditionalWeakTable<HttpContextBase, Exception>();
 
         private readonly DatabaseDriverBase _Database;
         private readonly AuthenticationService _AuthenticationService;
@@ -169,7 +174,7 @@ namespace Isis.Server
 
         private void ConfigureServer()
         {
-            _Server.Routes.AuthenticateRequest = _AuthenticationService.AuthenticateRequestAsync;
+            _Server.Routes.AuthenticateRequest = AuthenticateAsync;
             _Server.Routes.Preflight = PreflightRouteAsync;
             _Server.Routes.PostRouting = PostRoutingRouteAsync;
             _Server.Routes.Exception = ExceptionRouteAsync;
@@ -244,6 +249,41 @@ namespace Isis.Server
                 // The connection is gone or the response was partially written; nothing more can be sent.
                 _Log?.Invoke("could not send error response: " + sendFailure.Message);
             }
+
+            // Post-routing records the request; hand it the exception so the history row says what failed. The summary is
+            // stored only in the administrator-visible history, never returned to the caller.
+            _Failures.AddOrUpdate(context, e);
+        }
+
+        /// <summary>
+        /// Authentication hook. An exception thrown from the hook skips post-routing, so a request that failed while
+        /// authenticating (for example on a database error during the credential lookup) left no trace in request history.
+        /// This wrapper catches the failure, answers it with the same status mapping as the exception handler, and hands the
+        /// exception to post-routing, which then records the request with its exception summary like any other.
+        /// </summary>
+        private async Task AuthenticateAsync(HttpContextBase context)
+        {
+            try
+            {
+                await _AuthenticationService.AuthenticateRequestAsync(context).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _Failures.AddOrUpdate(context, e);
+                ErrorClassification classified = ErrorClassifier.Classify(e, context.Token.IsCancellationRequested);
+                _Log?.Invoke("authentication failed with " + e.GetType().Name + " on " + context.Request.Method + " " + context.Request.Url.RawWithQuery + ": " + e);
+                if (!context.Response.ResponseSent)
+                {
+                    try
+                    {
+                        await RouteHelpers.ErrorAsync(context, classified.StatusCode, classified.Error, classified.Message).ConfigureAwait(false);
+                    }
+                    catch (Exception sendFailure)
+                    {
+                        _Log?.Invoke("could not send error response: " + sendFailure.Message);
+                    }
+                }
+            }
         }
 
         private async Task PostRoutingRouteAsync(HttpContextBase context)
@@ -268,8 +308,14 @@ namespace Isis.Server
             await CaptureRequestAsync(context).ConfigureAwait(false);
         }
 
-        private async Task CaptureRequestAsync(HttpContextBase context)
+        private async Task CaptureRequestAsync(HttpContextBase context, Exception? exception = null)
         {
+            if (exception == null && _Failures.TryGetValue(context, out Exception? routeFailure))
+            {
+                exception = routeFailure;
+                _Failures.Remove(context);
+            }
+
             if (!Settings.RequestHistory.Enabled)
             {
                 await Task.CompletedTask.ConfigureAwait(false);
@@ -300,6 +346,8 @@ namespace Isis.Server
                     entry.RequestHeaders = BuildHeadersJson(context.Request.Headers);
                     entry.ResponseHeaders = BuildHeadersJson(context.Response.Headers);
                 }
+
+                if (exception != null) entry.ResponseHeaders = WithException(entry.ResponseHeaders, exception);
 
                 if (Settings.RequestHistory.CaptureBodies)
                 {
@@ -345,6 +393,37 @@ namespace Isis.Server
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Add an exception summary (type and message, then each inner exception) to a captured response-headers JSON
+        /// object under <c>x-isis-exception</c>, so a failed request in history says what failed. Capped at 2,000
+        /// characters.
+        /// </summary>
+        private static string WithException(string? headersJson, Exception exception)
+        {
+            Dictionary<string, string> map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(headersJson))
+            {
+                try
+                {
+                    Dictionary<string, string>? existing = JsonSerializer.Deserialize<Dictionary<string, string>>(headersJson);
+                    if (existing != null) foreach (KeyValuePair<string, string> pair in existing) map[pair.Key] = pair.Value;
+                }
+                catch (JsonException)
+                {
+                }
+            }
+
+            List<string> parts = new List<string>();
+            for (Exception? current = exception; current != null && parts.Count < 4; current = current.InnerException)
+            {
+                parts.Add(current.GetType().FullName + ": " + current.Message);
+            }
+
+            string summary = string.Join(" --> ", parts);
+            map["x-isis-exception"] = summary.Length > 2000 ? summary.Substring(0, 2000) : summary;
+            return JsonSerializer.Serialize(map);
         }
 
         private static string? BuildHeadersJson(NameValueCollection? headers)

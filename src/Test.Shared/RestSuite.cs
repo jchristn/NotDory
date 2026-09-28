@@ -104,6 +104,7 @@ namespace Test.Shared
                     TestCase.Async("rest", "scope-create-verbex-rejected", "POST /scopes with the unwired Verbex provider is a bad request", ScopeCreateVerbexRejectedAsync),
                     TestCase.Async("rest", "scope-models", "POST/PUT /scopes validate and persist the chat and query models and query settings", ScopeModelsAsync),
                     TestCase.Async("rest", "endpoint-invalid-base-url", "Endpoint create, update, and batch create reject a non-http base URL", EndpointInvalidBaseUrlAsync),
+                    TestCase.Async("rest", "failure-recorded", "Failed requests are recorded once in request history: a route failure with its exception summary, and a request rejected during authentication", FailureRecordedAsync),
                     TestCase.Async("rest", "agent-protocol-read", "GET /agent-protocol is public and lists the default server instructions and every tool description", AgentProtocolReadAsync),
                     TestCase.Async("rest", "agent-protocol-edit", "PUT /agent-protocol: admin only, unknown tools rejected, edits saved to the settings file and used by session start, reset restores defaults", AgentProtocolEditAsync),
                     TestCase.Async("rest", "session-start", "POST /session matches the project's scope and returns protocol, categories, instructions, and recent memories; GET format=text renders markdown", SessionStartAsync),
@@ -989,6 +990,58 @@ namespace Test.Shared
             ExpectStatus(relative, HttpStatusCode.BadRequest, "relative base URL");
             HttpResponseMessage batch = await PostAsync(admin, EndpointsPath(h.TenantId) + "/batch", new { items = new object[] { new { name = "ok", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "m" }, new { name = "bad", kind = "Embedding", apiFormat = "Ollama", baseUrl = "nope", model = "m" } } }).ConfigureAwait(false);
             ExpectStatus(batch, HttpStatusCode.BadRequest, "batch with an invalid base URL");
+        }
+
+        private static async Task FailureRecordedAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient access = h.AccessClient();
+            using HttpClient admin = h.AdminClient();
+            string sid = await CreateScopeAsync(access, h, "failures").ConfigureAwait(false);
+            HttpResponseMessage failed = await PostAsync(access, MemoriesPath(h.TenantId, sid) + "/search", new { queryText = new string('x', 5000) }).ConfigureAwait(false);
+            ExpectStatus(failed, HttpStatusCode.BadRequest, "an oversized query");
+            TestCase.Require(!(await failed.Content.ReadAsStringAsync().ConfigureAwait(false)).Contains("x-isis-exception", StringComparison.Ordinal), "The exception summary must not be returned to the caller.");
+
+            JsonNode history = JsonNode.Parse(await (await admin.GetAsync("/v1.0/api/requests?maxResults=100").ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            List<JsonNode?> rows = history["objects"]!.AsArray().Where(r => (r?["path"]?.GetValue<string>() ?? string.Empty).EndsWith(sid + "/memories/search", StringComparison.Ordinal)).ToList();
+            TestCase.Require(rows.Count == 1, "The failed request should be recorded exactly once, got " + rows.Count + ".");
+            string headers = rows[0]?["responseHeaders"]?.GetValue<string>() ?? string.Empty;
+            TestCase.Require(rows[0]?["statusCode"]?.GetValue<int>() == 400 && headers.Contains("x-isis-exception", StringComparison.Ordinal) && headers.Contains("ArgumentOutOfRangeException", StringComparison.Ordinal), "The history row should carry the status and exception summary: " + headers);
+
+            using HttpClient badKey = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + h.Port) };
+            badKey.DefaultRequestHeaders.Add("x-access-key", "not-a-real-key");
+            ExpectStatus(await badKey.GetAsync("/v1.0/api/whoami?probe=rejected").ConfigureAwait(false), HttpStatusCode.Unauthorized, "an unknown access key");
+            // The 401 reaches the client before its history row is written, so allow the write a moment to land.
+            int rejected = 0;
+            string seen = string.Empty;
+            for (int attempt = 0; attempt < 20 && rejected == 0; attempt++)
+            {
+                await Task.Delay(100).ConfigureAwait(false);
+                JsonNode after = JsonNode.Parse(await (await admin.GetAsync("/v1.0/api/requests?maxResults=100").ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+                List<JsonNode?> matches = after["objects"]!.AsArray().Where(r => (r?["path"]?.GetValue<string>() ?? string.Empty).Contains("probe=rejected", StringComparison.Ordinal)).ToList();
+                rejected = matches.Count;
+                seen = string.Join(", ", matches.Select(r => r?["statusCode"]?.ToJsonString()));
+            }
+
+            TestCase.Require(rejected == 1 && seen == "401", "A request rejected during authentication should be recorded once as a 401, got " + rejected + " (" + seen + ").");
+
+            // The deployment incident's shape: the access-key lookup throws while session requests keep working. The failure
+            // must be answered by the exception mapping and recorded with its exception summary.
+            await h.Database.ExecuteQueryAsync("DROP TABLE credentials;", true).ConfigureAwait(false);
+            using HttpClient keyed = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + h.Port) };
+            keyed.DefaultRequestHeaders.Add("x-access-key", "another-unknown-key");
+            HttpResponseMessage broken = await keyed.GetAsync("/v1.0/api/whoami?probe=authfailure").ConfigureAwait(false);
+            TestCase.Require((int)broken.StatusCode == 500 && (await broken.Content.ReadAsStringAsync().ConfigureAwait(false)).Contains("InternalError", StringComparison.Ordinal), "A failing credential lookup should answer 500 InternalError, got " + (int)broken.StatusCode + ".");
+            string failureHeaders = string.Empty;
+            for (int attempt = 0; attempt < 20 && failureHeaders.Length == 0; attempt++)
+            {
+                await Task.Delay(100).ConfigureAwait(false);
+                JsonNode after = JsonNode.Parse(await (await admin.GetAsync("/v1.0/api/requests?maxResults=100").ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+                JsonNode? row = after["objects"]!.AsArray().FirstOrDefault(r => (r?["path"]?.GetValue<string>() ?? string.Empty).Contains("probe=authfailure", StringComparison.Ordinal));
+                failureHeaders = row?["responseHeaders"]?.GetValue<string>() ?? string.Empty;
+            }
+
+            TestCase.Require(failureHeaders.Contains("x-isis-exception", StringComparison.Ordinal) && failureHeaders.Contains("SqliteException", StringComparison.Ordinal), "A request that failed while authenticating should be recorded with its exception: " + failureHeaders);
         }
 
         private static async Task AgentProtocolReadAsync()

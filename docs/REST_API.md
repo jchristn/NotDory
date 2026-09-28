@@ -497,6 +497,11 @@ all tenants; a tenant principal sees only its own tenant's requests.
 | GET | `/v1.0/api/requests/{id}` | session or credential | Read a single request record |
 | DELETE | `/v1.0/api/requests` | session or credential | Clear request history |
 
+
+Every request is recorded, including ones that fail: a request rejected during authentication (401), and one that
+failed with an exception, whether in a route or while authenticating (for example a database error during the credential
+lookup). A failed request's `responseHeaders` carry an internal `x-isis-exception` entry with the exception type and
+message (and inner exceptions), so a failure can be diagnosed from the history alone; it is never sent to the caller.
 ### Server settings (system administrator only)
 
 Read and modify the running server's settings file. Request-history changes take effect

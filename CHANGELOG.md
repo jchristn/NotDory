@@ -200,6 +200,12 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Fixed
 
+- **Failures while authenticating are recorded and mapped.** An exception thrown during authentication (for example a
+  database error in the credential lookup) skipped post-routing, so the request answered 500 and left no row in request
+  history. That is how the deployment's 20 minutes of 500s on access-key requests (2026-09-27, 08:14 to 08:35 UTC)
+  became impossible to diagnose from the API. The authentication hook now catches the failure, answers it with the same
+  status mapping as every other failure (a transient database error is a 503), and records it. Failed requests' history
+  rows carry the exception type and message in an internal `x-isis-exception` entry, never returned to the caller.
 - **One bad rerank reply no longer switches reranking off.** A chat reranker's unusable reply (gpt-oss:20b at low effort
   sometimes returned 9 scores for 10 passages) started the 30-second endpoint cooldown meant for outages; since a
   search that skips the reranker takes about 60 ms, that left 240 of 300 SciFact queries unreranked. Unusable replies
