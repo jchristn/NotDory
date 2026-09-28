@@ -1,6 +1,7 @@
 namespace Isis.Server.Services
 {
     using System.Collections.Generic;
+    using Isis.Core.Helpers;
     using Isis.Core.Models;
 
     /// <summary>
@@ -29,25 +30,7 @@ namespace Isis.Server.Services
                     Name = "Start here",
                     Position = 0,
                     Content =
-@"This is your operating manual for this tenant's memory in Isis. It is maintained by the tenant and may be
-edited, so re-read it (instructions) whenever you begin work.
-
-Naming: the product is 'Isis' (a proper noun — write it 'Isis' or 'isis'). It is NOT an acronym: never write
-it as the all-caps 'ISIS', which refers to something else entirely.
-
-tenantId is required on EVERY tool call except whoami. whoami is the one call that needs no tenantId; its
-response gives you the tenantId, which you must then pass to every other tool (scope, category, memory, guide,
-endpoint, and instructions tools all take tenantId). Omitting tenantId elsewhere makes the call fail.
-
-First steps, in order:
-1. whoami — confirm your tenantId and principal (this is the only call that does not take tenantId).
-2. instructions(tenantId) — read this manual (you are here).
-3. scope_enumerate(tenantId) — find the scope for your project; if none fits, create one with scope_create.
-4. guide(tenantId, scopeId) — for the chosen scope, read its categories and their per-category instructions before writing.
-
-Authentication: every call is authenticated with a tenant credential ACCESS KEY, sent as a bearer token
-(Authorization: Bearer <accessKey>; the x-access-key header is also accepted). The access key is public and
-transferable; the secret key never leaves your MCP client. Calls without an access key are rejected."
+DefaultInstructionText.StartHere
                 },
                 new Instruction
                 {
@@ -55,20 +38,7 @@ transferable; the secret key never leaves your MCP client. Calls without an acce
                     Name = "Tools",
                     Position = 1,
                     Content =
-@"Your MCP client also receives each tool's full input schema from the server; this is a quick reference.
-- whoami — resolve tenantId and principal.
-- instructions(tenantId) — read this manual.
-- scope_enumerate(tenantId) — list scopes. scope_create(tenantId, name, [description, storeProvider,
-  embeddingEndpointId, dimensionality, filesystemLayout, targetPath]) — create a project scope if missing. The
-  default store (RecallDb) auto-selects the tenant's embedding endpoint and its dimensionality; if the tenant
-  has none, create a Filesystem (keyword-only) scope instead.
-- endpoint_enumerate(tenantId, [kind=Embedding|Inference|Rerank]): list model endpoints (id, model, dimensionality)
-  to choose an embeddingEndpointId, or to confirm whether semantic (RecallDb) scopes are available at all.
-- guide(tenantId, scopeId) — a scope's categories, their instructions, and store capabilities. Call first.
-- category_enumerate(tenantId, scopeId) / category_create(tenantId, scopeId, name, [description, instructions]).
-- memory_upsert(tenantId, scopeId, categoryId, slug, body, [title, summary, type]) — idempotent on (scope, category, slug). 'type' is optional (User|Feedback|Project|Reference; unknown defaults to Project).
-- memory_search(tenantId, scopeId, queryText, [mode=Keyword|Semantic|Hybrid, topK, categoryName]) — note: search filters by category NAME; enumerate filters by category id.
-- memory_enumerate / memory_read / memory_delete."
+DefaultInstructionText.Tools
                 },
                 new Instruction
                 {
@@ -82,7 +52,7 @@ transferable; the secret key never leaves your MCP client. Calls without an acce
   git-trackable files). Prefer RecallDB when an embedding endpoint exists (check with
   endpoint_enumerate); otherwise use Filesystem, which needs no embeddings.
 - Category: a labelled bucket within a scope that carries its OWN usage instructions telling you when and how to
-  write into it. Always read the category's instructions (via guide) before writing.
+  write into it. Always read the category's instructions (session_start returns them) before writing.
 - Memory: one atomic note — a stable slug, an optional title, a one-line summary (recall hook), the body, a
   type (User | Feedback | Project | Reference), and optional tags/links. Re-upserting the same slug updates in place."
                 },

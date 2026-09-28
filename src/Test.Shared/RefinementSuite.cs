@@ -68,6 +68,7 @@ namespace Test.Shared
                     TestCase.Async("refinement", "rerank-tei-request-and-order", "RerankService (Tei): posts query and texts to /rerank and maps scores back to input order", RerankTeiAsync),
                     TestCase.Async("refinement", "rerank-cohere-request-and-order", "RerankService (Cohere): posts to /v1/rerank and reads relevance_score", RerankCohereAsync),
                     TestCase.Async("refinement", "rerank-chat-ollama", "RerankService (chat model, Ollama): prompts once and maps 0-10 scores to 0-1", RerankChatOllamaAsync),
+                    TestCase.Async("refinement", "session-start-instructions-migration", "Migration: unedited seeded Start here and Tools instructions move to the session_start text; edited ones are kept", SessionStartInstructionsMigrationAsync),
                     TestCase.Async("refinement", "endpoint-reasoning", "Endpoint reasoning setting: sent on rerank, chat, and query-step calls; Default sends none", EndpointReasoningAsync),
                     TestCase.Async("refinement", "rerank-bad-reply-no-cooldown", "Search: a chat reranker's miscounted reply falls back for that query without the endpoint cool-down", RerankBadReplyNoCooldownAsync),
                     TestCase.Async("refinement", "rerank-chat-openai", "RerankService (chat model, OpenAI): reads choices and tolerates text around the JSON", RerankChatOpenAiAsync),
@@ -168,6 +169,26 @@ namespace Test.Shared
         private static MemorySearchHit Hit(string slug, double score, string snippet)
         {
             return new MemorySearchHit { Slug = slug, StoreKey = slug, Score = score, Snippet = snippet };
+        }
+
+        private static async Task SessionStartInstructionsMigrationAsync()
+        {
+            using TempSqlite t = await TempSqlite.CreateAsync().ConfigureAwait(false);
+            await DefaultSeeder.SeedAsync(t.Db, new Isis.Server.Settings.AuthSettings(), _ => { }).ConfigureAwait(false);
+            List<Instruction> seeded = (await t.Db.Instructions.EnumerateAsync(DefaultSeeder.DefaultTenantId, null, new EnumerationQuery { MaxResults = 100 }).ConfigureAwait(false)).Objects;
+            Instruction start = seeded.First(i => i.Name == "Start here");
+            Instruction tools = seeded.First(i => i.Name == "Tools");
+            TestCase.Require(start.Content == Isis.Core.Helpers.DefaultInstructionText.StartHere && start.Content.Contains("session_start", StringComparison.Ordinal), "New tenants should be seeded with the session_start text.");
+
+            start.Content = Migration011SessionStartInstructions.OriginalStartHere[0].Replace("\n", "\r\n");
+            await t.Db.Instructions.UpdateAsync(start).ConfigureAwait(false);
+            tools.Content = "Our own tool notes.";
+            await t.Db.Instructions.UpdateAsync(tools).ConfigureAwait(false);
+
+            await new Migration011SessionStartInstructions().ApplyAsync(t.Db, _ => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
+            List<Instruction> after = (await t.Db.Instructions.EnumerateAsync(DefaultSeeder.DefaultTenantId, null, new EnumerationQuery { MaxResults = 100 }).ConfigureAwait(false)).Objects;
+            TestCase.Require(after.First(i => i.Name == "Start here").Content == Isis.Core.Helpers.DefaultInstructionText.StartHere, "An unedited original Start here (any line endings) should be replaced.");
+            TestCase.Require(after.First(i => i.Name == "Tools").Content == "Our own tool notes.", "An edited instruction should be left alone.");
         }
 
         private static async Task EndpointReasoningAsync()

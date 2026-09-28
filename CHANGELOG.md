@@ -200,6 +200,11 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Fixed
 
+- **The seeded tenant instructions contradicted session start.** The default "Start here" and "Tools" instructions
+  told agents that every tool needs a tenantId and to begin with whoami, instructions, scope_enumerate, and guide, and
+  session_start returned them next to a protocol saying the opposite. New tenants now get text that matches session
+  start (`DefaultInstructionText`), and migration `2026-09-28-session-start-instructions` updates existing tenants'
+  copies that still hold any text Isis has seeded (five historical versions); copies a tenant edited are left alone.
 - **Failures while authenticating are recorded and mapped.** An exception thrown during authentication (for example a
   database error in the credential lookup) skipped post-routing, so the request answered 500 and left no row in request
   history. That is how the deployment's 20 minutes of 500s on access-key requests (2026-09-27, 08:14 to 08:35 UTC)
