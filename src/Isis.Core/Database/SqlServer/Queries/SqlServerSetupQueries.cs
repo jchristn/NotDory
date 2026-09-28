@@ -169,6 +169,7 @@ IF OBJECT_ID(N'dbo.model_endpoints', N'U') IS NULL CREATE TABLE model_endpoints 
     kind NVARCHAR(32) NOT NULL DEFAULT 'Embedding',
     apiformat NVARCHAR(32) NOT NULL DEFAULT 'OpenAI',
     maxinputtokens INT NOT NULL DEFAULT 0,
+    reasoning NVARCHAR(16) NOT NULL DEFAULT 'Default',
     baseurl NVARCHAR(1024) NOT NULL DEFAULT '',
     authtype NVARCHAR(32) NOT NULL DEFAULT 'None',
     authheadername NVARCHAR(128),

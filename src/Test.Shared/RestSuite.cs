@@ -7,6 +7,7 @@ namespace Test.Shared
     using System.Net.Http;
     using System.Text;
     using System.Text.Json;
+    using System.Text.Json.Nodes;
     using System.Threading.Tasks;
     using Isis.Server.Routes;
     using Touchstone.Core;
@@ -102,6 +103,7 @@ namespace Test.Shared
                     TestCase.Async("rest", "scope-create-verbex-rejected", "POST /scopes with the unwired Verbex provider is a bad request", ScopeCreateVerbexRejectedAsync),
                     TestCase.Async("rest", "scope-models", "POST/PUT /scopes validate and persist the chat and query models and query settings", ScopeModelsAsync),
                     TestCase.Async("rest", "endpoint-invalid-base-url", "Endpoint create, update, and batch create reject a non-http base URL", EndpointInvalidBaseUrlAsync),
+                    TestCase.Async("rest", "endpoint-reasoning", "Endpoint reasoning setting round-trips through create and update and defaults to Default", EndpointReasoningRestAsync),
                     TestCase.Async("rest", "endpoint-health-check-url", "Endpoint health check URL accepts a path or a full http URL and rejects other schemes", EndpointHealthCheckUrlAsync),
                     TestCase.Async("rest", "memory-search-category-name", "POST /memories/search filters by category name", MemorySearchCategoryByNameAsync),
                     TestCase.Async("rest", "memory-search-category-id", "POST /memories/search filters by category id", MemorySearchCategoryByIdAsync),
@@ -981,6 +983,25 @@ namespace Test.Shared
             ExpectStatus(relative, HttpStatusCode.BadRequest, "relative base URL");
             HttpResponseMessage batch = await PostAsync(admin, EndpointsPath(h.TenantId) + "/batch", new { items = new object[] { new { name = "ok", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "m" }, new { name = "bad", kind = "Embedding", apiFormat = "Ollama", baseUrl = "nope", model = "m" } } }).ConfigureAwait(false);
             ExpectStatus(batch, HttpStatusCode.BadRequest, "batch with an invalid base URL");
+        }
+
+        private static async Task EndpointReasoningRestAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient admin = h.AdminClient();
+            HttpResponseMessage plain = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "plain", kind = "Inference", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "m" }).ConfigureAwait(false);
+            ExpectStatus(plain, HttpStatusCode.Created, "an endpoint without a reasoning setting");
+            TestCase.Require(JsonNode.Parse(await plain.Content.ReadAsStringAsync().ConfigureAwait(false))?["reasoning"]?.GetValue<string>() == "Default", "The reasoning setting should default to Default.");
+
+            HttpResponseMessage low = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "low", kind = "Inference", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "gpt-oss:20b", reasoning = "Low" }).ConfigureAwait(false);
+            ExpectStatus(low, HttpStatusCode.Created, "an endpoint with reasoning Low");
+            string id = JsonNode.Parse(await low.Content.ReadAsStringAsync().ConfigureAwait(false))?["id"]?.GetValue<string>() ?? string.Empty;
+            HttpResponseMessage read = await admin.GetAsync(EndpointsPath(h.TenantId) + "/" + id).ConfigureAwait(false);
+            TestCase.Require(JsonNode.Parse(await read.Content.ReadAsStringAsync().ConfigureAwait(false))?["reasoning"]?.GetValue<string>() == "Low", "Reasoning Low should be stored.");
+
+            HttpResponseMessage update = await PutAsync(admin, EndpointsPath(h.TenantId) + "/" + id, new { name = "low", kind = "Inference", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "qwen3:8b", reasoning = "Off" }).ConfigureAwait(false);
+            ExpectStatus(update, HttpStatusCode.OK, "updating the reasoning setting");
+            TestCase.Require(JsonNode.Parse(await update.Content.ReadAsStringAsync().ConfigureAwait(false))?["reasoning"]?.GetValue<string>() == "Off", "The update should store reasoning Off.");
         }
 
         private static async Task EndpointHealthCheckUrlAsync()

@@ -152,7 +152,8 @@ namespace Test.Benchmark.Runners
                     ["baseUrl"] = rerankUrl,
                     ["model"] = rerankModel,
                     ["timeoutMs"] = 120000,
-                    ["healthCheckUrl"] = string.Equals(rerankFormat, "Tei", StringComparison.OrdinalIgnoreCase) ? "/health" : "/"
+                    ["healthCheckUrl"] = string.Equals(rerankFormat, "Tei", StringComparison.OrdinalIgnoreCase) ? "/health" : "/",
+                    ["reasoning"] = source.Get("rerank-reasoning", "Default")
                 };
 
                 string? rerankKey = source.GetOptional("rerank-api-key");

@@ -12,7 +12,7 @@ import CodeViewer from '../components/CodeViewer';
 import StatusBadge from '../components/StatusBadge';
 import HealthHistogram from '../components/HealthHistogram';
 import { ErrorBanner } from '../components/States';
-import { API_FORMATS, INFERENCE_API_FORMATS, RERANK_ONLY_FORMATS, HEALTH_METHODS, AUTH_TYPES } from '../utils/constants';
+import { API_FORMATS, INFERENCE_API_FORMATS, RERANK_ONLY_FORMATS, REASONING_MODES, HEALTH_METHODS, AUTH_TYPES } from '../utils/constants';
 import { formatDateTime } from '../i18n/formatters';
 
 // Per-format presets applied when the API format changes. baseUrl is a full URL onto which the
@@ -47,6 +47,7 @@ function emptyForm(kind) {
     model: '',
     dimensionality: kind === 'Embedding' ? 1536 : '',
     maxInputTokens: kind === 'Embedding' ? 0 : '',
+    reasoning: 'Default',
     healthCheckUrl: '/api/tags',
     healthCheckMethod: 'GET',
     healthCheckIntervalMs: 5000,
@@ -73,6 +74,7 @@ function EndpointForm({ kind, initial, onSubmit, onClose, t }) {
           model: initial.model || '',
           dimensionality: initial.dimensionality ?? (kind === 'Embedding' ? 1536 : ''),
           maxInputTokens: initial.maxInputTokens ?? (kind === 'Embedding' ? 0 : ''),
+          reasoning: initial.reasoning || 'Default',
           healthCheckUrl: initial.healthCheckUrl || '/',
           healthCheckMethod: initial.healthCheckMethod || 'GET',
           healthCheckIntervalMs: initial.healthCheckIntervalMs ?? 5000,
@@ -111,6 +113,7 @@ function EndpointForm({ kind, initial, onSubmit, onClose, t }) {
         model: form.model,
         dimensionality: kind === 'Embedding' ? Number(form.dimensionality) || undefined : undefined,
         maxInputTokens: kind === 'Embedding' ? Number(form.maxInputTokens) || 0 : undefined,
+        reasoning: kind === 'Inference' ? form.reasoning : undefined,
         healthCheckUrl: form.healthCheckUrl,
         healthCheckMethod: form.healthCheckMethod,
         healthCheckIntervalMs: Number(form.healthCheckIntervalMs),
@@ -176,7 +179,22 @@ function EndpointForm({ kind, initial, onSubmit, onClose, t }) {
               <input type="number" min={0} value={form.maxInputTokens} onChange={(e) => set('maxInputTokens', e.target.value)} />
             </div>
           )}
+          {kind === 'Inference' && !RERANK_ONLY_FORMATS.includes(form.apiFormat) && (
+            <div className="field" style={{ maxWidth: 140 }}>
+              <label>{t('endpoints.reasoning')}</label>
+              <select value={form.reasoning} onChange={(e) => set('reasoning', e.target.value)}>
+                {REASONING_MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {t('endpoints.reasoningModes.' + m)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
+        {kind === 'Inference' && !RERANK_ONLY_FORMATS.includes(form.apiFormat) && (
+          <span className="field-hint">{t('endpoints.reasoningHint')}</span>
+        )}
         <div className="field">
           <label>{t('endpoints.baseUrl')}</label>
           <input value={form.baseUrl} onChange={(e) => set('baseUrl', e.target.value)} required placeholder="http://conductor.example.com:8900/v1.0/api/all-minilm-latest" />
@@ -426,6 +444,7 @@ function HealthDetailBody({ endpoint: ep, health, history, t, lang }) {
         <dt>{t('endpoints.model')}</dt><dd className="cell-mono">{dash(ep.model)}</dd>
         {ep.kind === 'Embedding' && (<><dt>{t('endpoints.dimensionality')}</dt><dd>{dash(ep.dimensionality)}</dd></>)}
         {ep.kind === 'Embedding' && (<><dt>{t('endpoints.maxInputTokens')}</dt><dd>{ep.maxInputTokens ? ep.maxInputTokens : t('endpoints.maxInputTokensAuto')}</dd></>)}
+        {ep.kind === 'Inference' && !RERANK_ONLY_FORMATS.includes(ep.apiFormat) && (<><dt>{t('endpoints.reasoning')}</dt><dd>{t('endpoints.reasoningModes.' + (ep.reasoning || 'Default'))}</dd></>)}
         <dt>{t('endpoints.endpointUrl')}</dt>
         <dd className="cell-mono">{health?.baseUrl || ep.baseUrl || '—'}</dd>
         <dt>{t('endpoints.authType')}</dt><dd>{dash(t(`endpoints.auth_${ep.authType || 'None'}`))}</dd>

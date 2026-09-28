@@ -107,7 +107,8 @@ $B chat --dataset benchmarks/datasets/isis-live.json --rerank --scope-min-rerank
 
 # Other models and hosts: --embedding-url/--embedding-model/--dim/--embedding-label choose the embedding endpoint (its
 # own scopes), --rerank-format/--rerank-url/--rerank-model choose the reranker (Tei, Cohere, or Ollama/OpenAI for a
-# chat model), --rerank-candidates sets the scope's candidate count, and --embedding-api-key, --rerank-api-key, and
+# chat model), --rerank-reasoning sets a chat reranker's thinking (Default, Off, Low, Medium, High), --rerank-candidates
+# sets the scope's candidate count, and --embedding-api-key, --rerank-api-key, and
 # --inference-api-key add a bearer token. --ingest-concurrency bounds concurrent upserts; with the server's
 # retrieval.embeddingParallelism it bounds the load on a shared embedding endpoint. Upserts answered 503 or 429 are
 # retried with backoff.

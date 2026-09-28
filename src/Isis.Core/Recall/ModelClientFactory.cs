@@ -6,6 +6,7 @@ namespace Isis.Core.Recall
     using Isis.Core.Enums;
     using Isis.Core.Models;
     using PolyPrompt.Clients;
+    using PolyPrompt.Models;
 
     /// <summary>
     /// Builds the PolyPrompt client for an inference endpoint, so every job (chat, query steps, reranking) talks to a
@@ -65,6 +66,27 @@ namespace Isis.Core.Recall
             if (!string.IsNullOrEmpty(endpoint.Model)) client.Model = endpoint.Model;
             client.TimeoutMs = timeoutMs;
             return client;
+        }
+
+        /// <summary>
+        /// The reasoning effort to send on chat calls to an endpoint, from its <see cref="ModelEndpoint.Reasoning"/>
+        /// setting: null for Default (no reasoning field, the model decides), Minimal for Off (thinking off where the
+        /// provider allows it), and the matching level otherwise.
+        /// </summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <returns>The reasoning effort, or null to send none.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when endpoint is null.</exception>
+        public static ReasoningEffort? ReasoningFor(ModelEndpoint endpoint)
+        {
+            if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
+            switch (endpoint.Reasoning)
+            {
+                case ReasoningModeEnum.Off: return ReasoningEffort.Minimal;
+                case ReasoningModeEnum.Low: return ReasoningEffort.Low;
+                case ReasoningModeEnum.Medium: return ReasoningEffort.Medium;
+                case ReasoningModeEnum.High: return ReasoningEffort.High;
+                default: return null;
+            }
         }
 
         #endregion

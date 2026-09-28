@@ -329,6 +329,7 @@ namespace Isis.McpServer
             long? dimensionality = p?.GetInt64("dimensionality");
             if (dimensionality.HasValue) body["dimensionality"] = dimensionality.Value;
             if (p?.GetString("healthCheckUrl") != null) body["healthCheckUrl"] = p.GetString("healthCheckUrl");
+            if (p?.GetString("reasoning") != null) body["reasoning"] = p.GetString("reasoning");
             bool? active = p?.GetBoolean("active");
             if (active.HasValue) body["active"] = active.Value;
             return JsonSerializer.Serialize(body);
@@ -353,6 +354,7 @@ namespace Isis.McpServer
                 model = new { type = "string" },
                 dimensionality = new { type = "integer", description = "Embedding vector dimension (embedding endpoints)." },
                 healthCheckUrl = new { type = "string", description = "Health check target: a path appended to baseUrl (e.g. /api/tags) or a full http(s) URL used as-is." },
+                reasoning = new { type = "string", @enum = new[] { "Default", "Off", "Low", "Medium", "High" }, description = "How much a reasoning model thinks on Isis's calls to an inference endpoint (answers, query steps, reranking). Default sends nothing." },
                 active = new { type = "boolean" }
             };
         }
@@ -752,7 +754,7 @@ namespace Isis.McpServer
 
             _Server.RegisterTool(
                 "endpoint_create",
-                "Create a model endpoint (embedding or inference). Required: tenantId, name, baseUrl. Optional: kind, apiFormat, authType + auth fields, model, dimensionality, healthCheckUrl, active. Requires tenant administration.",
+                "Create a model endpoint (embedding or inference). Required: tenantId, name, baseUrl. Optional: kind, apiFormat, authType + auth fields, model, dimensionality, healthCheckUrl, reasoning, active. Requires tenant administration.",
                 new { type = "object", properties = EndpointProperties(), required = new[] { "tenantId", "name", "baseUrl" } },
                 async (RpcParameters? p, CancellationToken ct) =>
                 {
@@ -762,7 +764,7 @@ namespace Isis.McpServer
 
             _Server.RegisterTool(
                 "endpoint_update",
-                "Update a model endpoint. Required: tenantId, endpointId, name, baseUrl. Optional: kind, apiFormat, authType + auth fields, model, dimensionality, healthCheckUrl, active. Requires tenant administration.",
+                "Update a model endpoint. Required: tenantId, endpointId, name, baseUrl. Optional: kind, apiFormat, authType + auth fields, model, dimensionality, healthCheckUrl, reasoning, active. Requires tenant administration.",
                 new { type = "object", properties = EndpointProperties(), required = new[] { "tenantId", "endpointId", "name", "baseUrl" } },
                 async (RpcParameters? p, CancellationToken ct) =>
                 {

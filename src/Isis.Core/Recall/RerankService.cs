@@ -87,7 +87,7 @@ namespace Isis.Core.Recall
                 using CompletionClientBase client = ModelClientFactory.Create(endpoint, _Transport, timeoutMs);
 
                 if (ApiFormatCapabilities.IsRerankOnly(endpoint.ApiFormat)) return await CrossEncoderAsync(client, endpoint, query, passages, cts.Token).ConfigureAwait(false);
-                return await PromptedAsync(client, query, passages, cts.Token).ConfigureAwait(false);
+                return await PromptedAsync(client, endpoint, query, passages, cts.Token).ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -168,9 +168,9 @@ namespace Isis.Core.Recall
             return scores;
         }
 
-        private static async Task<double[]> PromptedAsync(CompletionClientBase client, string query, IReadOnlyList<string> passages, CancellationToken token)
+        private static async Task<double[]> PromptedAsync(CompletionClientBase client, ModelEndpoint endpoint, string query, IReadOnlyList<string> passages, CancellationToken token)
         {
-            ChatCompletionOptions options = new ChatCompletionOptions { Temperature = 0 };
+            ChatCompletionOptions options = new ChatCompletionOptions { Temperature = 0, ReasoningEffort = ModelClientFactory.ReasoningFor(endpoint) };
             ChatResponse response = await client.ChatAsync(ChatPrompt(query, passages), options, token).ConfigureAwait(false);
             if (!response.Success) ThrowFor(response.StatusCode ?? 0, response.Error);
             return ParseRatings(response.Text, passages.Count);

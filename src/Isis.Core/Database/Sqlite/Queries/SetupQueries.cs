@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS model_endpoints (
     kind TEXT NOT NULL DEFAULT 'Embedding',
     apiformat TEXT NOT NULL DEFAULT 'OpenAI',
     maxinputtokens INTEGER NOT NULL DEFAULT 0,
+    reasoning TEXT NOT NULL DEFAULT 'Default',
     baseurl TEXT NOT NULL DEFAULT '',
     authtype TEXT NOT NULL DEFAULT 'None',
     authheadername TEXT,

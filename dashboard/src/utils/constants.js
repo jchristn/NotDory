@@ -55,6 +55,9 @@ export const API_FORMATS = ['Ollama', 'OpenAI', 'VLlm', 'Gemini'];
 export const INFERENCE_API_FORMATS = ['Ollama', 'OpenAI', 'VLlm', 'Gemini', 'Tei', 'Cohere'];
 export const RERANK_ONLY_FORMATS = ['Tei', 'Cohere'];
 export const canChat = (format) => !RERANK_ONLY_FORMATS.includes(format);
+// How much a reasoning model thinks on Isis's calls to an inference endpoint (ModelEndpoint.Reasoning).
+export const REASONING_MODES = ['Default', 'Off', 'Low', 'Medium', 'High'];
+
 export const HEALTH_METHODS = ['GET', 'HEAD'];
 export const AUTH_TYPES = ['None', 'BearerToken', 'ApiKeyHeader', 'QueryParam', 'BasicAuth', 'AccessKeySecret'];
 export const INSTRUCTION_MERGE_MODES = ['Append', 'Replace', 'Hide'];

@@ -30,7 +30,8 @@ namespace Isis.Core.Database
             new Migration006ScopeRerank(),
             new Migration007ScopeModels(),
             new Migration008RerankEndpointsAreInference(),
-            new Migration009HistoryCreatedIndexes()
+            new Migration009HistoryCreatedIndexes(),
+            new Migration010EndpointReasoning()
         };
 
         #endregion

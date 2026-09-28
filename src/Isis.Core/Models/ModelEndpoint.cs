@@ -219,6 +219,23 @@ namespace Isis.Core.Models
         }
 
         /// <summary>
+        /// How much a reasoning model thinks on the calls Isis makes to this inference endpoint (chat answers, query steps,
+        /// and reranking). Default sends nothing, so the model's own default applies; an undefined value falls back to
+        /// Default. Thinking costs seconds per call: a reranker or query model usually wants Off or Low.
+        /// </summary>
+        public ReasoningModeEnum Reasoning
+        {
+            get
+            {
+                return _Reasoning;
+            }
+            set
+            {
+                _Reasoning = InputGuard.Defined(value, ReasoningModeEnum.Default);
+            }
+        }
+
+        /// <summary>
         /// Indicates whether the endpoint is active.
         /// </summary>
         public bool Active { get; set; } = true;
@@ -366,6 +383,7 @@ namespace Isis.Core.Models
         private string _Name = String.Empty;
         private int _Dimensionality = 0;
         private int _MaxInputTokens = 0;
+        private ReasoningModeEnum _Reasoning = ReasoningModeEnum.Default;
 
         #endregion
 

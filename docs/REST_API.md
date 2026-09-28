@@ -241,6 +241,13 @@ or `AccessKeySecret` (with `authHeaderName`/`authKeyId` + `authSecretHeaderName`
 embedding endpoint may set `maxInputTokens` to override the token budget used when chunking oversized
 memories (0 = resolve the budget automatically from the API format and model name).
 
+An inference endpoint's **`reasoning`** (`Default`, `Off`, `Low`, `Medium`, or `High`) sets how much a reasoning model
+thinks on every call Isis makes to it: chat answers, query steps, and reranking. `Default` sends no reasoning setting,
+so the model decides. Thinking costs seconds per call, so a reranker or query model usually wants `Off` or `Low`.
+Models honor different settings: on Ollama, gpt-oss takes a level (`Low` cut a rating call from 233 to 86 tokens) but
+ignores `Off`, while qwen3 turns off with `Off` (14 tokens instead of 304) and treats every level as on. To think for
+answers but not for reranking, define the same model as two endpoints. An undefined value falls back to `Default`.
+
 The health check requests **`healthCheckUrl`** with `healthCheckMethod` (`GET` or `HEAD`) and expects
 `healthCheckExpectedStatusCode`. It is either a path appended to the base URL (default `/`; for example `/api/tags`) or
 a full http or https URL used as-is, for when the base URL points at one model behind a proxy: an endpoint with base

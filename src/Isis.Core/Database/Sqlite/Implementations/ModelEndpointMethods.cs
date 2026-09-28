@@ -44,13 +44,14 @@ namespace Isis.Core.Database.Sqlite.Implementations
             endpoint.LastUpdateUtc = DateTime.UtcNow;
 
             string query =
-                "INSERT INTO model_endpoints (id, tenantid, name, kind, apiformat, maxinputtokens, baseurl, authtype, authheadername, authsecretheadername, authqueryparam, authkeyid, authsecret, model, dimensionality, timeoutms, active, healthcheckurl, healthcheckmethod, healthcheckintervalms, healthchecktimeoutms, healthcheckexpectedstatuscode, healthythreshold, unhealthythreshold, healthcheckuseauth, createdutc, lastupdateutc) VALUES (" +
+                "INSERT INTO model_endpoints (id, tenantid, name, kind, apiformat, maxinputtokens, reasoning, baseurl, authtype, authheadername, authsecretheadername, authqueryparam, authkeyid, authsecret, model, dimensionality, timeoutms, active, healthcheckurl, healthcheckmethod, healthcheckintervalms, healthchecktimeoutms, healthcheckexpectedstatuscode, healthythreshold, unhealthythreshold, healthcheckuseauth, createdutc, lastupdateutc) VALUES (" +
                 SqliteHelpers.ToSqlRequired(endpoint.Id) + ", " +
                 SqliteHelpers.ToSqlRequired(endpoint.TenantId) + ", " +
                 SqliteHelpers.ToSqlRequired(endpoint.Name) + ", " +
                 SqliteHelpers.ToSqlRequired(endpoint.Kind.ToString()) + ", " +
                 SqliteHelpers.ToSqlRequired(endpoint.ApiFormat.ToString()) + ", " +
                 endpoint.MaxInputTokens + ", " +
+                SqliteHelpers.ToSqlRequired(endpoint.Reasoning.ToString()) + ", " +
                 SqliteHelpers.ToSqlRequired(endpoint.BaseUrl) + ", " +
                 SqliteHelpers.ToSqlRequired(endpoint.AuthType.ToString()) + ", " +
                 SqliteHelpers.ToSql(endpoint.AuthHeaderName) + ", " +
@@ -131,6 +132,7 @@ namespace Isis.Core.Database.Sqlite.Implementations
                 "kind = " + SqliteHelpers.ToSqlRequired(endpoint.Kind.ToString()) + ", " +
                 "apiformat = " + SqliteHelpers.ToSqlRequired(endpoint.ApiFormat.ToString()) + ", " +
                 "maxinputtokens = " + endpoint.MaxInputTokens + ", " +
+                "reasoning = " + SqliteHelpers.ToSqlRequired(endpoint.Reasoning.ToString()) + ", " +
                 "baseurl = " + SqliteHelpers.ToSqlRequired(endpoint.BaseUrl) + ", " +
                 "authtype = " + SqliteHelpers.ToSqlRequired(endpoint.AuthType.ToString()) + ", " +
                 "authheadername = " + SqliteHelpers.ToSql(endpoint.AuthHeaderName) + ", " +
@@ -223,6 +225,7 @@ namespace Isis.Core.Database.Sqlite.Implementations
             endpoint.Kind = Enum.TryParse(SqliteHelpers.GetString(row["kind"]), out EndpointKindEnum kind) ? kind : EndpointKindEnum.Embedding;
             endpoint.ApiFormat = Enum.TryParse(SqliteHelpers.GetString(row["apiformat"]), out ApiFormatEnum format) ? format : ApiFormatEnum.OpenAI;
             endpoint.MaxInputTokens = SqliteHelpers.GetInt(row["maxinputtokens"]);
+            endpoint.Reasoning = row.Table.Columns.Contains("reasoning") && Enum.TryParse(SqliteHelpers.GetString(row["reasoning"]), out ReasoningModeEnum reasoning) ? reasoning : ReasoningModeEnum.Default;
             endpoint.BaseUrl = SqliteHelpers.GetString(row["baseurl"]);
             endpoint.AuthType = Enum.TryParse(SqliteHelpers.GetString(row["authtype"]), out EndpointAuthTypeEnum authType) ? authType : EndpointAuthTypeEnum.None;
             endpoint.AuthHeaderName = SqliteHelpers.NullIfEmpty(SqliteHelpers.GetString(row["authheadername"]));

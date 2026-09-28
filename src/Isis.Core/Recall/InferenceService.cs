@@ -74,7 +74,7 @@ namespace Isis.Core.Recall
             try
             {
                 using CompletionClientBase client = CreateClient(endpoint);
-                ChatResponse response = await client.ChatAsync(userPrompt, CreateOptions(systemPrompt), token).ConfigureAwait(false);
+                ChatResponse response = await client.ChatAsync(userPrompt, CreateOptions(endpoint, systemPrompt), token).ConfigureAwait(false);
                 if (!response.Success) throw new InvalidOperationException(response.Error ?? "Inference request failed.");
                 return response.Text ?? string.Empty;
             }
@@ -126,7 +126,7 @@ namespace Isis.Core.Recall
             try
             {
                 using CompletionClientBase client = CreateClient(endpoint);
-                ChatStreamingResponse response = await client.ChatStreamingAsync(userPrompt, CreateOptions(systemPrompt), token).ConfigureAwait(false);
+                ChatStreamingResponse response = await client.ChatStreamingAsync(userPrompt, CreateOptions(endpoint, systemPrompt), token).ConfigureAwait(false);
                 if (!response.Success) throw new InvalidOperationException(response.Error ?? "Streaming inference request failed.");
 
                 int promptTokens = 0;
@@ -205,9 +205,9 @@ namespace Isis.Core.Recall
             return ModelClientFactory.Create(endpoint, _Transport, Math.Max(endpoint.TimeoutMs, 600000));
         }
 
-        private static ChatCompletionOptions CreateOptions(string systemPrompt)
+        private static ChatCompletionOptions CreateOptions(ModelEndpoint endpoint, string systemPrompt)
         {
-            ChatCompletionOptions options = new ChatCompletionOptions();
+            ChatCompletionOptions options = new ChatCompletionOptions { ReasoningEffort = ModelClientFactory.ReasoningFor(endpoint) };
             if (!string.IsNullOrEmpty(systemPrompt)) options.SystemPrompt = systemPrompt;
             return options;
         }

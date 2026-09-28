@@ -20,6 +20,7 @@ namespace Test.Shared
     using RecallDb.Sdk;
     using TextChunker.Tokenization;
     using Touchstone.Core;
+    using ReasoningEffortLevel = PolyPrompt.Models.ReasoningEffortLevel;
 
     /// <summary>
     /// Touchstone suite for the round-3 retrieval work in archive/RETRIEVAL_IMPROVEMENTS.md: memory supersession, link
@@ -67,6 +68,7 @@ namespace Test.Shared
                     TestCase.Async("refinement", "rerank-tei-request-and-order", "RerankService (Tei): posts query and texts to /rerank and maps scores back to input order", RerankTeiAsync),
                     TestCase.Async("refinement", "rerank-cohere-request-and-order", "RerankService (Cohere): posts to /v1/rerank and reads relevance_score", RerankCohereAsync),
                     TestCase.Async("refinement", "rerank-chat-ollama", "RerankService (chat model, Ollama): prompts once and maps 0-10 scores to 0-1", RerankChatOllamaAsync),
+                    TestCase.Async("refinement", "endpoint-reasoning", "Endpoint reasoning setting: sent on rerank, chat, and query-step calls; Default sends none", EndpointReasoningAsync),
                     TestCase.Async("refinement", "rerank-chat-openai", "RerankService (chat model, OpenAI): reads choices and tolerates text around the JSON", RerankChatOpenAiAsync),
                     TestCase.Async("refinement", "rerank-chat-bad-count", "RerankService (chat model): a wrong number of scores is an error", RerankChatBadCountAsync),
                     TestCase.Async("refinement", "rerank-unsupported-format", "RerankService: every format can rerank; an unusable chat reply is an error", RerankUnsupportedFormatAsync),
@@ -165,6 +167,35 @@ namespace Test.Shared
         private static MemorySearchHit Hit(string slug, double score, string snippet)
         {
             return new MemorySearchHit { Slug = slug, StoreKey = slug, Score = score, Snippet = snippet };
+        }
+
+        private static async Task EndpointReasoningAsync()
+        {
+            string reply = JsonSerializer.Serialize(new { message = new { role = "assistant", content = "{\"scores\": [3, 7]}" }, done = true });
+            List<string> bodies = new List<string>();
+            foreach (ReasoningModeEnum mode in new[] { ReasoningModeEnum.Off, ReasoningModeEnum.Low })
+            {
+                using StubResponseHandler handler = new StubResponseHandler(reply);
+                ModelEndpoint endpoint = RerankEndpoint(ApiFormatEnum.Ollama);
+                endpoint.Reasoning = mode;
+                await new RerankService(handler).RerankAsync(endpoint, "q", new List<string> { "a", "b" }).ConfigureAwait(false);
+                bodies.Add(handler.LastRequestBody ?? string.Empty);
+            }
+
+            TestCase.Require(bodies[0].Contains("\"think\":false", StringComparison.Ordinal), "Reasoning Off should send think:false to Ollama: " + bodies[0]);
+            TestCase.Require(bodies[1].Contains("\"think\":\"low\"", StringComparison.Ordinal), "Reasoning Low should send think low to Ollama: " + bodies[1]);
+
+            string answer = JsonSerializer.Serialize(new { message = new { role = "assistant", content = "ok" }, done = true });
+            using (StubResponseHandler handler = new StubResponseHandler(answer))
+            {
+                ModelEndpoint chat = new ModelEndpoint { TenantId = "ten_x", Name = "chat", Kind = EndpointKindEnum.Inference, ApiFormat = ApiFormatEnum.Ollama, BaseUrl = "http://127.0.0.1:9", Model = "m", Reasoning = ReasoningModeEnum.Off };
+                string text = await new InferenceService(handler).CompleteAsync(chat, "system", "user").ConfigureAwait(false);
+                TestCase.Require(text == "ok" && (handler.LastRequestBody ?? string.Empty).Contains("\"think\":false", StringComparison.Ordinal), "Chat and query-step calls should carry the endpoint's reasoning setting: " + handler.LastRequestBody);
+            }
+
+            TestCase.Require(ModelClientFactory.ReasoningFor(new ModelEndpoint()) == null, "Default should send no reasoning setting.");
+            TestCase.Require(ModelClientFactory.ReasoningFor(new ModelEndpoint { Reasoning = ReasoningModeEnum.High })!.Level == ReasoningEffortLevel.High, "High should map to the High level.");
+            TestCase.Require(new ModelEndpoint { Reasoning = (ReasoningModeEnum)42 }.Reasoning == ReasoningModeEnum.Default, "An undefined reasoning setting should fall back to Default.");
         }
 
         private static ModelEndpoint RerankEndpoint(ApiFormatEnum format)
@@ -628,6 +659,7 @@ namespace Test.Shared
             TestCase.Require(handler.LastRequestUri != null && handler.LastRequestUri.AbsolutePath == "/api/chat" && handler.RequestCount == 1, "Ollama chat reranking should make one /api/chat call.");
             string body = handler.LastRequestBody ?? string.Empty;
             TestCase.Require(body.Contains("Passage 3", StringComparison.Ordinal) && body.Contains("cache ttl", StringComparison.Ordinal) && body.Contains("scores", StringComparison.Ordinal), "The prompt should number every passage, include the query, and ask for JSON scores.");
+            TestCase.Require(!body.Contains("\"think\"", StringComparison.Ordinal), "An endpoint with the default reasoning setting should send no think field: " + body);
         }
 
         private static async Task RerankChatOpenAiAsync()
