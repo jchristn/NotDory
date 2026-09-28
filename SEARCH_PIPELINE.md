@@ -270,7 +270,9 @@ call (`ModelClientFactory`).
      divided by 10. Small models rank
      worse than no reranker (gemma3:4b lowered every dataset); large ones rank best of all (gpt-oss-20b, section 8),
      at several seconds per search. On isis-live gemma3:12b matched the cross-encoder, phi4:14b and qwen3:14b beat it
-     at 13 and 21 s per search, and 7B models made results worse; thinking models can outlast the endpoint timeout.
+     at 13 and 21 s per search, and 7B models made results worse. Set the endpoint's `reasoning` to keep thinking
+     models fast: gpt-oss:20b at `Low` kept 0.962 on isis-live at 2 s, and qwen3 at `Off` matched or beat the
+     cross-encoder at 1.3 to 2.8 s (benchmarks/RESULTS.md, round 10).
 3. Hits are reordered by rerank score and carry `rerankScore`. `minRerankScore` (or the scope's `rerankMinScore`) then
    drops hits below it, so a question with no relevant memory can return nothing.
 4. A failure returns retrieval order with a notice and starts the cooldown (section 3.2).
