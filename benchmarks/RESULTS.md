@@ -34,6 +34,7 @@ Latency and throughput depend on the machine. Compare them within this page, not
 | 7 | Chat accepts the conversation's earlier messages and rewrites a follow-up into a standalone query before retrieval, searching both; a follow-up question dataset |
 | 8 | Weighted multi-query fusion with a small fusion constant (k = 5, was 60); opt-in query expansion (a drafted answer searched by vector, keywords searched as text); input validation across the API |
 | 9 | Per-scope models and query steps (chat model, query model, rewrite, expansion, decomposition), with expansion on by default for searches that are not reranked; RecallDB single-call hybrid search; Voltaic 2.1.13 |
+| 10 | The published Docker images measured on a separate host (they reproduce the local results); rerankers are inference endpoints, so any chat model can rerank, with a model-size sweep; a per-endpoint `reasoning` setting (PolyPrompt 2.7.1) that keeps thinking models fast; a malformed rerank reply no longer triggers the outage cooldown |
 
 ## Retrieval
 
