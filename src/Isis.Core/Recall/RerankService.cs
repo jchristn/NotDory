@@ -59,7 +59,8 @@ namespace Isis.Core.Recall
         /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
         /// <exception cref="NotSupportedException">Thrown when the endpoint's API format cannot rerank.</exception>
         /// <exception cref="ModelEndpointUnavailableException">Thrown when the endpoint is still at capacity or unavailable after retries.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when the endpoint returns an error or an unusable reply.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the endpoint returns an error.</exception>
+        /// <exception cref="RerankReplyException">Thrown when a chat model's reply holds no usable scores.</exception>
         public async Task<double[]> RerankAsync(ModelEndpoint endpoint, string query, IReadOnlyList<string> passages, CancellationToken token = default)
         {
             if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
@@ -111,21 +112,21 @@ namespace Isis.Core.Recall
         /// <param name="reply">The model's reply text.</param>
         /// <param name="count">The number of passages rated.</param>
         /// <returns>One score per passage, from 0 to 1.</returns>
-        /// <exception cref="InvalidOperationException">Thrown when the reply holds no usable scores or the wrong number.</exception>
+        /// <exception cref="RerankReplyException">Thrown when the reply holds no usable scores or the wrong number.</exception>
         public static double[] ParseRatings(string? reply, int count)
         {
             string content = reply ?? string.Empty;
             int start = content.IndexOfAny(new[] { '{', '[' });
             int end = Math.Max(content.LastIndexOf('}'), content.LastIndexOf(']'));
-            if (start < 0 || end <= start) throw new InvalidOperationException("The rerank model's reply contained no JSON scores.");
+            if (start < 0 || end <= start) throw new RerankReplyException("The rerank model's reply contained no JSON scores.");
 
             try
             {
                 using JsonDocument scores = JsonDocument.Parse(content.Substring(start, end - start + 1));
                 JsonElement array = scores.RootElement;
-                if (array.ValueKind == JsonValueKind.Object && !array.TryGetProperty("scores", out array)) throw new InvalidOperationException("The rerank model's reply had no 'scores' array.");
-                if (array.ValueKind != JsonValueKind.Array) throw new InvalidOperationException("The rerank model's 'scores' is not an array.");
-                if (array.GetArrayLength() != count) throw new InvalidOperationException("The rerank model returned " + array.GetArrayLength() + " scores for " + count + " passages.");
+                if (array.ValueKind == JsonValueKind.Object && !array.TryGetProperty("scores", out array)) throw new RerankReplyException("The rerank model's reply had no 'scores' array.");
+                if (array.ValueKind != JsonValueKind.Array) throw new RerankReplyException("The rerank model's 'scores' is not an array.");
+                if (array.GetArrayLength() != count) throw new RerankReplyException("The rerank model returned " + array.GetArrayLength() + " scores for " + count + " passages.");
 
                 double[] result = new double[count];
                 int i = 0;
@@ -139,7 +140,7 @@ namespace Isis.Core.Recall
             }
             catch (JsonException e)
             {
-                throw new InvalidOperationException("Unable to parse the rerank model's scores: " + e.Message);
+                throw new RerankReplyException("Unable to parse the rerank model's scores: " + e.Message);
             }
         }
 

@@ -296,6 +296,7 @@ namespace Test.Benchmark
             JsonNode? parsed = JsonNode.Parse(call.Body);
             response.EffectiveMode = parsed?["effectiveMode"]?.GetValue<string>() ?? string.Empty;
             response.Reranked = parsed?["reranked"]?.GetValue<bool>() ?? false;
+            response.Notice = parsed?["notice"]?.GetValue<string>();
             JsonArray? hits = parsed?["hits"] as JsonArray;
             if (hits != null)
             {

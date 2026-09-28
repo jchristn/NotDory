@@ -348,7 +348,8 @@ the title and up to 1,200 characters of each, and keeps the best `topK`. `rerank
 overriding the scope's `rerankMinScore`. `minScore` still applies to the retrieval score before reranking. The
 response's `reranked` is true when the hits were reranked. If the reranker fails, the search returns retrieval order
 with a notice, and later searches skip that endpoint for 30 seconds (the server's `RerankCooldown`) so an
-unreachable reranker does not slow every search.
+unreachable reranker does not slow every search. A chat model's unusable reply (no JSON, or the wrong number of scores)
+falls back for that search only, without the cooldown.
 
 `textWeight` (hybrid text-leg weight, 0 to 1) and `rrfK` (reciprocal-rank-fusion constant, 1 to 1000) default to null,
 which applies the scope embedding model's profile, or 0.5 and 20 for models without one. Profiles live in

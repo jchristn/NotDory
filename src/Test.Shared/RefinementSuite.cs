@@ -69,6 +69,7 @@ namespace Test.Shared
                     TestCase.Async("refinement", "rerank-cohere-request-and-order", "RerankService (Cohere): posts to /v1/rerank and reads relevance_score", RerankCohereAsync),
                     TestCase.Async("refinement", "rerank-chat-ollama", "RerankService (chat model, Ollama): prompts once and maps 0-10 scores to 0-1", RerankChatOllamaAsync),
                     TestCase.Async("refinement", "endpoint-reasoning", "Endpoint reasoning setting: sent on rerank, chat, and query-step calls; Default sends none", EndpointReasoningAsync),
+                    TestCase.Async("refinement", "rerank-bad-reply-no-cooldown", "Search: a chat reranker's miscounted reply falls back for that query without the endpoint cool-down", RerankBadReplyNoCooldownAsync),
                     TestCase.Async("refinement", "rerank-chat-openai", "RerankService (chat model, OpenAI): reads choices and tolerates text around the JSON", RerankChatOpenAiAsync),
                     TestCase.Async("refinement", "rerank-chat-bad-count", "RerankService (chat model): a wrong number of scores is an error", RerankChatBadCountAsync),
                     TestCase.Async("refinement", "rerank-unsupported-format", "RerankService: every format can rerank; an unusable chat reply is an error", RerankUnsupportedFormatAsync),
@@ -1306,6 +1307,34 @@ namespace Test.Shared
                 TestCase.Require(!second.Reranked && handler.RequestCount == 1, "The second search should skip the failed reranker.");
                 TestCase.Require(second.Notice != null && second.Notice.Contains("skipped", StringComparison.Ordinal), "The skip should be explained in the notice.");
                 TestCase.Throws<ArgumentOutOfRangeException>(() => f.Service.RerankCooldown = TimeSpan.FromSeconds(-1), "A negative cooldown should be rejected.");
+            }
+            finally
+            {
+                DeleteWork(f.Work);
+            }
+        }
+
+        private static async Task RerankBadReplyNoCooldownAsync()
+        {
+            using TempSqlite t = await TempSqlite.CreateAsync().ConfigureAwait(false);
+            string reply = JsonSerializer.Serialize(new { message = new { role = "assistant", content = "{\"scores\": [7]}" }, done = true });
+            using StubResponseHandler handler = new StubResponseHandler(reply);
+            FilesystemFixture f = await FixtureAsync(t, new RerankService(handler)).ConfigureAwait(false);
+            try
+            {
+                ModelEndpoint endpoint = RerankEndpoint(ApiFormatEnum.Ollama);
+                endpoint.TenantId = f.Scope.TenantId;
+                endpoint = await t.Db.ModelEndpoints.CreateAsync(endpoint).ConfigureAwait(false);
+                f.Scope.RerankEndpointId = endpoint.Id;
+                await PutAsync(f, "lexical", "alpha alpha alpha beta gamma").ConfigureAwait(false);
+                await PutAsync(f, "semantic", "alpha beta").ConfigureAwait(false);
+                f.Service.RerankCooldown = TimeSpan.FromMinutes(5);
+
+                MemorySearchResult first = await KeywordAsync(f, "alpha").ConfigureAwait(false);
+                TestCase.Require(!first.Reranked && first.Hits.Count == 2 && first.Notice != null && first.Notice.Contains("1 scores for 2 passages", StringComparison.Ordinal), "A miscounted reply should fall back to retrieval order and say why, got: " + first.Notice);
+                MemorySearchResult second = await KeywordAsync(f, "alpha").ConfigureAwait(false);
+                TestCase.Require(handler.RequestCount == 2, "A bad reply is not an outage: the next search should still ask the reranker, got " + handler.RequestCount + " calls.");
+                TestCase.Require(second.Notice != null && !second.Notice.Contains("skipped", StringComparison.Ordinal), "The next search should not be skipped by the cool-down.");
             }
             finally
             {

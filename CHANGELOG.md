@@ -180,6 +180,11 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Fixed
 
+- **One bad rerank reply no longer switches reranking off.** A chat reranker's unusable reply (gpt-oss:20b at low effort
+  sometimes returned 9 scores for 10 passages) started the 30-second endpoint cooldown meant for outages; since a
+  search that skips the reranker takes about 60 ms, that left 240 of 300 SciFact queries unreranked. Unusable replies
+  now raise `RerankReplyException`, fall back for that query only, and start no cooldown. The benchmark harness now
+  reports how many queries were reranked and the server's notices.
 - **A busy database answers 503, not 500.** A transient database error (a shared Postgres at its connection limit,
   a pool that waited past its timeout, a restart) now returns a retryable 503 `ServiceUnavailable` instead of a 500
   `InternalError`; the mapping moved to `ErrorClassifier`, with tests.

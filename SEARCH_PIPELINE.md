@@ -160,7 +160,9 @@ slow every search.
 **Implementation.** The rerank endpoint is the scope's `rerankEndpointId` unless the search sets `rerank: false`. New
 RecallDB scopes attach the tenant's first active cross-encoder (an inference endpoint with the `Tei` or `Cohere` format)
 automatically, never a chat model, and the reference stack seeds one when `ISIS_DEFAULT_RERANK_BASEURL` is set. After a rerank failure, searches skip that endpoint for 30 seconds
-(`RerankCooldown`) and return retrieval order with a notice.
+(`RerankCooldown`) and return retrieval order with a notice. A chat model's unusable reply (no JSON, or the wrong number of
+scores) falls back for that query only and starts no cooldown: it is not an outage, and a search that skips the reranker
+takes about 60 ms, so one miscounted reply once left 240 of 300 SciFact queries unreranked.
 
 ### 3.3 Candidate pool
 

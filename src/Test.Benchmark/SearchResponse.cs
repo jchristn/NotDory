@@ -24,6 +24,11 @@ namespace Test.Benchmark
         /// </summary>
         public bool Reranked { get; set; } = false;
 
+        /// <summary>
+        /// The server's notice, such as why reranking was skipped (null when none).
+        /// </summary>
+        public string? Notice { get; set; } = null;
+
         #endregion
     }
 }

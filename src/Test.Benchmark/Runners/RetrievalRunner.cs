@@ -105,6 +105,14 @@ namespace Test.Benchmark.Runners
                 report.Outcomes.AddRange(outcomes);
                 Console.WriteLine("[retrieval] " + mode.PadRight(8) + " recall@5 " + Format(summary.Metrics, "recall@5") + "  mrr@10 " + Format(summary.Metrics, "mrr@10")
                     + "  ndcg@10 " + Format(summary.Metrics, "ndcg@10") + "  p50 " + summary.Latency.P50 + "ms  p95 " + summary.Latency.P95 + "ms  errors " + summary.Errors);
+
+                // A skipped rerank degrades silently to retrieval order, so say how often it happened and why.
+                List<QueryOutcome> noticed = outcomes.Where(o => !string.IsNullOrEmpty(o.Notice)).ToList();
+                if (noticed.Count > 0)
+                {
+                    Console.WriteLine("[retrieval] " + mode.PadRight(8) + " reranked " + outcomes.Count(o => o.Reranked) + " of " + outcomes.Count + "; notices on " + noticed.Count + " queries:");
+                    foreach (string notice in noticed.Select(o => o.Notice!).Distinct().Take(3)) Console.WriteLine("[retrieval]          " + notice);
+                }
             }
 
             if (args.GetFlag("cleanup")) await provisioner.CleanupAsync(scopes, token).ConfigureAwait(false);
@@ -160,7 +168,9 @@ namespace Test.Benchmark.Runners
                 Ranked = response.Hits.Select(h => h.Slug).ToList(),
                 Relevant = new List<string>(query.Relevant),
                 TopScore = response.Hits.Count > 0 ? response.Hits[0].Score : 0.0,
-                TopVectorScore = response.Hits.Count > 0 ? response.Hits.Max(h => h.VectorScore ?? 0.0) : 0.0
+                TopVectorScore = response.Hits.Count > 0 ? response.Hits.Max(h => h.VectorScore ?? 0.0) : 0.0,
+                Reranked = response.Reranked,
+                Notice = response.Notice
             };
 
             if (!query.Answerable || !response.IsSuccess) return outcome;

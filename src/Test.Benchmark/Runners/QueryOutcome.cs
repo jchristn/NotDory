@@ -65,6 +65,16 @@ namespace Test.Benchmark.Runners
         public double TopVectorScore { get; set; } = 0.0;
 
         /// <summary>
+        /// Whether the server reranked this query's hits.
+        /// </summary>
+        public bool Reranked { get; set; } = false;
+
+        /// <summary>
+        /// The server's notice for this query, such as why reranking was skipped (null when none).
+        /// </summary>
+        public string? Notice { get; set; } = null;
+
+        /// <summary>
         /// Metric name to value for this query (empty for unanswerable queries).
         /// </summary>
         public Dictionary<string, double> Metrics { get; set; } = new Dictionary<string, double>();

@@ -616,7 +616,11 @@ namespace Isis.Server.Services
                     catch (Exception e) when (!(e is OperationCanceledException && token.IsCancellationRequested))
                     {
                         result.Notice = "Reranking failed (" + e.Message + "); results are in retrieval order.";
-                        if (_RerankCooldown > TimeSpan.Zero) _RerankSkipUntil[rerankEndpoint.Id] = DateTime.UtcNow.Add(_RerankCooldown);
+
+                        // An unusable reply concerns this query only; the cool-down is for an endpoint that is down or
+                        // erroring. Skipping a healthy reranker after one miscounted reply would leave every search that
+                        // follows unreranked for the whole cool-down.
+                        if (_RerankCooldown > TimeSpan.Zero && !(e is RerankReplyException)) _RerankSkipUntil[rerankEndpoint.Id] = DateTime.UtcNow.Add(_RerankCooldown);
                     }
 
                     double? minRerank = query.MinRerankScore ?? scope.RerankMinScore;

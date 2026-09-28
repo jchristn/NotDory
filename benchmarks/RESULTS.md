@@ -367,6 +367,31 @@ long enough on ten passages that its calls timed out, and after the first failur
 retrieval order. Chat-model reranking costs seconds per search, which suits recall for an agent's context (chat p50
 is already about 4 s) more than interactive search; a GPU cross-encoder stays the low-latency option.
 
+**Turning thinking down.** Each endpoint's `reasoning` setting (through PolyPrompt 2.7.1) sets how much a reasoning
+model thinks on Isis's calls. Hybrid nDCG@10, reranking the top 10, on the local stack against the same GPU host:
+
+| Reranker and reasoning | isis-live | Atlas | SciFact | LongMemEval | Search p50 |
+|---|---|---|---|---|---|
+| gpt-oss:20b, model default (above) | 0.977 | 0.921 | 0.738 | 0.948 | 6 to 11 s |
+| **gpt-oss:20b, Low** | **0.962** | **0.917** | **0.717** | **0.947** | **1.8 to 2.3 s** |
+| qwen3:14b, model default (above) | 0.968 | | | | 21 s |
+| qwen3:14b, Off | 0.962 | 0.891 | 0.729 | 0.931 | 2.3 to 2.8 s |
+| qwen3:8b, model default (above) | (timed out) | | | | |
+| qwen3:8b, Off | 0.923 | 0.897 | 0.712 | 0.952 | 1.3 to 1.6 s |
+| ms-marco cross-encoder (round 9) | 0.925 | 0.883 | 0.712 | 0.939 | 0.6 to 0.9 s (CPU) |
+
+Low reasoning keeps gpt-oss:20b within 0.02 of its default on every dataset at a third to a fifth of the latency, and it
+stays ahead of the cross-encoder everywhere. Thinking off turns qwen3:8b from unusable into a reranker that matches or
+beats the cross-encoder. Models honor different settings: gpt-oss takes a level but ignores off (233 tokens by default,
+86 at low, 265 with think off on a small rating prompt), while qwen3 turns off (14 tokens instead of 304) but treats
+every level as on, which is why the setting belongs to the endpoint.
+
+The first SciFact run at Low scored 0.684, the unreranked score: gpt-oss:20b at low effort occasionally returned 9 scores
+for 10 passages, each unusable reply started the 30-second reranker cooldown meant for outages, and because a search
+that skips the reranker takes about 60 ms, 240 of 300 queries went unreranked. Unusable replies now fall back for their
+own query only (299 of 300 reranked on the re-run, the table's 0.717), and the harness reports how many queries were
+reranked and why any were not.
+
 ### Choosing the recency weight
 
 The recency weight was chosen by sweeping it on all four datasets, reusing the same ingested scopes.
