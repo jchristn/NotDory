@@ -7,6 +7,12 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Added
 
+- **Claude Code needs one install step, for every project.** `scripts/*/install-claude` registers Isis at user scope
+  and installs the SessionStart hook (new `isis-claude-hook.ps1` / `isis-claude-hook.sh`, idempotent, other hooks and
+  settings kept, `remove-claude` undoes both). The hook sends the project's git remote and folder name, and session
+  start resolves the scope by the remote's repository name, then the folder name, so a clone in a differently named
+  folder still finds its memory, a new repository gets a scope named for it, and a bare folder never creates one
+  (`remote` and `directory` on `POST`/`GET /v1.0/api/session` and the `session_start` tool).
 - **From connect to using memory in one step.** Isis now tells a connecting agent how to use it and gives it its
   context in one call:
   - **Server instructions** in the MCP `initialize` result (which harnesses place in the model's system prompt, the one
@@ -200,6 +206,8 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Fixed
 
+- **Query-string values are URL-decoded.** Watson returns them percent-encoded, so an encoded value (a git remote URL,
+  a name with a space) arrived as `https%3A%2F%2F...` and matched nothing. `RouteHelpers.Query` now decodes them.
 - **The seeded tenant instructions contradicted session start.** The default "Start here" and "Tools" instructions
   told agents that every tool needs a tenantId and to begin with whoami, instructions, scope_enumerate, and guide, and
   session_start returned them next to a protocol saying the opposite. New tenants now get text that matches session

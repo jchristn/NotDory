@@ -177,6 +177,9 @@ namespace Test.Shared
             TestCase.Require(SessionStartService.Match(scopes, "isis")?.Id == "scp_c" && SessionStartService.Match(scopes, "nothing") == null && SessionStartService.Match(scopes, "---") == null, "Unrelated or empty names should not match.");
             TestCase.Require(new SessionStartRequest { MaxMemories = 500 }.MaxMemories == 100 && new SessionStartRequest { Project = "  " }.Project == null, "The request should clamp and clean its input.");
             TestCase.Require(AgentProtocol.ServerInstructions.Contains("session_start", StringComparison.Ordinal) && AgentProtocol.ForScope("scp_x", "X").Contains("scp_x", StringComparison.Ordinal), "The protocol should name session_start and, per scope, the scope id.");
+            TestCase.Require(SessionStartService.RepositoryName("https://github.com/jchristn/isis.git") == "isis" && SessionStartService.RepositoryName("git@github.com:jchristn/isis.git") == "isis", "https and scp-style remotes should give the repository name.");
+            TestCase.Require(SessionStartService.RepositoryName("ssh://git@host:22/group/sub/repo/") == "repo" && SessionStartService.RepositoryName(@"C:\repos\thing") == "thing", "ssh:// remotes, trailing slashes, and local paths should give the last segment.");
+            TestCase.Require(SessionStartService.RepositoryName(null) == null && SessionStartService.RepositoryName("  ") == null && SessionStartService.RepositoryName("https://host/.git") == null, "No remote, or no name, gives null.");
         }
 
         private static void HealthCheckUrlCase()

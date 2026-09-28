@@ -505,7 +505,9 @@ namespace Isis.McpServer
                     type = "object",
                     properties = new
                     {
-                        project = new { type = "string", description = "Repository or project name; matched to a scope ignoring case and punctuation." },
+                        project = new { type = "string", description = "The git repository name if there is one (from the origin remote), else the project or working directory name; matched to a scope ignoring case and punctuation." },
+                        remote = new { type = "string", description = "Optional git remote URL; its repository name is tried after project." },
+                        directory = new { type = "string", description = "Optional working directory name, tried last; it finds a scope but never creates one." },
                         createIfMissing = new { type = "boolean", description = "Create the project's scope when none matches (default true)." },
                         maxMemories = new { type = "integer", description = "How many recent memories to include, 0 to 100 (default 15)." }
                     },
@@ -515,6 +517,8 @@ namespace Isis.McpServer
                 {
                     Dictionary<string, object?> body = new Dictionary<string, object?>();
                     if (p?.GetString("project") != null) body["project"] = p.GetString("project");
+                    if (p?.GetString("remote") != null) body["remote"] = p.GetString("remote");
+                    if (p?.GetString("directory") != null) body["directory"] = p.GetString("directory");
                     bool? createIfMissing = p?.GetBoolean("createIfMissing");
                     if (createIfMissing.HasValue) body["createIfMissing"] = createIfMissing.Value;
                     long? maxMemories = p?.GetInt64("maxMemories");

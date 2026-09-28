@@ -193,7 +193,9 @@ Proxies `POST /v1.0/api/session`.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `project` | string | No | null | Repository or project name. Null picks the tenant's only scope when there is exactly one |
+| `project` | string | No | null | The git repository name if there is one, else the project or working directory name. Null picks the tenant's only scope when there is exactly one |
+| `remote` | string | No | null | Git remote URL; its repository name is tried after `project` (stable across clones) |
+| `directory` | string | No | null | Working directory name, tried last; it finds a scope but never creates one |
 | `createIfMissing` | boolean | No | true | Create the project's scope (with the tenant's embedding endpoint) when none matches |
 | `maxMemories` | integer | No | 15 | How many recent memories to include, 0 to 100 |
 

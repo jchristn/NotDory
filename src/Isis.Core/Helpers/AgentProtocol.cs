@@ -17,8 +17,9 @@ namespace Isis.Core.Helpers
         public const string ServerInstructions =
             "Isis is your persistent memory for this work: facts, decisions, conventions, and preferences saved by you and "
             + "other agents across sessions. Use it as part of how you work, not as an optional extra.\n"
-            + "1. Start: call session_start once, with project set to the repository or project name (for example the name "
-            + "of the working directory). It returns your scope, its categories and instructions, and the most recent "
+            + "1. Start: call session_start once, with project set to the git repository name (from the origin remote) or, "
+            + "outside a repository, the project or working directory name. If a session-start hook already gave you this "
+            + "context, use it instead. It returns your scope, its categories and instructions, and the most recent "
             + "memories. Read them before planning. No tool needs a tenantId.\n"
             + "2. Before answering a question about the project, and before changing code or making a decision, call "
             + "memory_search with a short natural-language query. Prefer what memory says over assumptions, and cite the "

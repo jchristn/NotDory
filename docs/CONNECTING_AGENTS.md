@@ -50,8 +50,11 @@ from `isis.mcp.json` and the `ISIS_MCP_*` environment variables, and accepts opt
 change. See [Installer Reference](#installer-reference) for details.
 
 It also adds a Claude Code **SessionStart hook** to `~/.claude/settings.json` (or `.claude/settings.json` with
-`--project`). At the start of every session the hook fetches `GET /v1.0/api/session?project=<directory name>&format=text`
-and Claude Code adds the result (the protocol, the project's scope, its categories and instructions, and the most recent
+`--project`); the `scripts/*/install-claude` scripts do the same, registering Isis at user scope so every project gets
+it. At the start of every session the hook sends the project's git remote and folder name
+(`GET /v1.0/api/session?remote=...&directory=...&format=text`); the server picks the scope by the remote's repository
+name, then the folder name (a new repository gets a scope named for it, a bare folder never creates one), and Claude Code
+adds the result (the protocol, the project's scope, its categories and instructions, and the most recent
 memories) to the model's context before its first turn, so the agent works from memory without being asked. The hook
 prints nothing if Isis is unreachable, so it never blocks a session. Skip it with `--no-session-hook`; point it at the
 REST API with `--rest-url` (default: the MCP host on the REST port 8700).

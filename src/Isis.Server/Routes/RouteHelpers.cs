@@ -128,7 +128,10 @@ namespace Isis.Server.Routes
             if (context.Request.Query == null || context.Request.Query.Elements == null) return null;
             string? value = context.Request.Query.Elements[key];
             if (value != null && value.Length > _MaxQueryValueChars) throw new ArgumentOutOfRangeException(key, "Query parameter " + key + " may be at most " + _MaxQueryValueChars + " characters.");
-            return value;
+
+            // Watson returns query values still percent-encoded; decode them (form encoding: '+' is a space) so a value
+            // such as a git remote URL or a name with spaces arrives as the caller sent it.
+            return value == null ? null : Uri.UnescapeDataString(value.Replace('+', ' '));
         }
 
         /// <summary>

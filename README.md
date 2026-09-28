@@ -124,7 +124,7 @@ Run the one for your OS; the examples below use `linux` (swap in `macos/…` or 
 
 | Harness | Install (Linux/macOS) | Windows | Client config it writes |
 |---|---|---|---|
-| **Claude Code** | `sh scripts/linux/install-claude.sh <accessKey>` | `scripts\windows\install-claude.bat <accessKey>` | via `claude mcp add` (`~/.claude.json`) |
+| **Claude Code** | `sh scripts/linux/install-claude.sh <accessKey>` | `scripts\windows\install-claude.bat <accessKey>` | `claude mcp add --scope user` (`~/.claude.json`) plus a SessionStart hook (`~/.claude/settings.json`) that loads each project's memory before the first turn |
 | **Codex** | `sh scripts/linux/install-codex.sh <accessKey>` | `scripts\windows\install-codex.bat <accessKey>` | `~/.codex/config.json` |
 | **Cursor** | `sh scripts/linux/install-cursor.sh <accessKey>` | `scripts\windows\install-cursor.bat <accessKey>` | `~/.cursor/mcp.json` |
 | **Gemini CLI** | `sh scripts/linux/install-gemini.sh <accessKey>` | `scripts\windows\install-gemini.bat <accessKey>` | `~/.gemini/settings.json` |

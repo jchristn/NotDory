@@ -79,7 +79,12 @@ namespace Isis.Server.Routes
                 : null;
             if (request == null)
             {
-                request = new SessionStartRequest { Project = RouteHelpers.Query(context, "project") };
+                request = new SessionStartRequest
+                {
+                    Project = RouteHelpers.Query(context, "project"),
+                    Remote = RouteHelpers.Query(context, "remote"),
+                    Directory = RouteHelpers.Query(context, "directory")
+                };
                 string? create = RouteHelpers.Query(context, "createIfMissing");
                 if (create != null) request.CreateIfMissing = !string.Equals(create, "false", StringComparison.OrdinalIgnoreCase);
                 int? max = RouteHelpers.QueryInt(context, "maxMemories");

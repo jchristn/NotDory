@@ -109,15 +109,18 @@ A fresh deployment seeds a default admin user (`admin@isis.local` / `isisadmin`,
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | POST | `/v1.0/api/session` | session or credential | Start an agent session: the project's scope (created if new), the protocol, categories, instructions, and recent memories |
-| GET | `/v1.0/api/session` | session or credential | The same from the query string (`project`, `createIfMissing`, `maxMemories`); `format=text` returns markdown for a harness hook |
+| GET | `/v1.0/api/session` | session or credential | The same from the query string (`project`, `remote`, `directory`, `createIfMissing`, `maxMemories`); `format=text` returns markdown for a harness hook |
 | GET | `/v1.0/api/agent-protocol` | anonymous | What agents are told on connect: the server instructions and every tool description, with defaults and `overridden` flags |
 | PUT | `/v1.0/api/agent-protocol` | system administrator | Replace the server instructions and tool description overrides (`{ serverInstructions, toolDescriptions: { name: text } }`); blank or omitted values use the built-in text; unknown tool names return 400; saved to the settings file |
 
-Session start takes the tenant from the caller, so it needs no tenant id. `project` is matched to a scope by name,
-ignoring case, spacing, and punctuation ("AgentMemory", "agent-memory", and "Agent Memory" find the same scope); with no
-match and `createIfMissing` (default true) it creates the scope with the tenant's embedding endpoint and first
-cross-encoder, as scope creation does. With no `project` it uses the tenant's only scope, or lists the scopes with a
-`notice`. The response's `protocol` is the server instructions in effect, prefixed with the scope to use, and
+Session start takes the tenant from the caller, so it needs no tenant id. It tries, in order, `project`, the
+repository name of `remote` (a git remote URL: https, ssh, or `git@host:owner/repo.git`), and `directory` (the working
+folder's name), matching each to a scope by name ignoring case, spacing, and punctuation ("AgentMemory",
+"agent-memory", and "Agent Memory" find the same scope). The repository name comes before the folder name because it
+is the same in every clone. With no match and `createIfMissing` (default true) it creates a scope named for `project`
+or the repository, with the tenant's embedding endpoint and first cross-encoder, as scope creation does; a `directory`
+alone never creates one. With nothing that names a project it uses the tenant's only scope, or lists the scopes with a
+`notice`. Query-string values are URL-decoded. The response's `protocol` is the server instructions in effect, prefixed with the scope to use, and
 `recentMemories` lists up to `maxMemories` (default 15, at most 100) memories newest first.
 
 The agent protocol is also the `agent` section of the server settings (`serverInstructions`, `toolDescriptions`), so

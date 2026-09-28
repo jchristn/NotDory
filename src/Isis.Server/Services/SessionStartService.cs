@@ -65,27 +65,43 @@ namespace Isis.Server.Services
 
             Scope? scope = null;
             bool created = false;
-            if (request.Project != null)
+
+            // Candidate names, most specific first: what the caller called the project, the repository name from the git
+            // remote (stable across clones), then the working directory's name.
+            string? repository = RepositoryName(request.Remote);
+            List<string> candidates = new List<string>();
+            foreach (string? candidate in new[] { request.Project, repository, request.Directory })
             {
-                scope = Match(scopes, request.Project);
-                if (scope == null && request.CreateIfMissing)
-                {
-                    Scope draft = new Scope { Name = request.Project, Description = "Memory for the " + request.Project + " project." };
-                    ScopeProvisionResult provisioned = await _Provisioner.CreateAsync(tenantId, draft, token).ConfigureAwait(false);
-                    scope = provisioned.Scope;
-                    created = scope != null;
-                    if (scope == null) result.Notice = "No scope matches '" + request.Project + "' and one could not be created: " + provisioned.Message;
-                }
-                else if (scope == null)
-                {
-                    result.Notice = "No scope matches '" + request.Project + "'. Pick one from scopes, or call again with createIfMissing true.";
-                }
+                if (!string.IsNullOrWhiteSpace(candidate) && !candidates.Contains(candidate, StringComparer.OrdinalIgnoreCase)) candidates.Add(candidate);
             }
-            else if (scopes.Count == 1)
+
+            foreach (string candidate in candidates)
             {
+                scope = Match(scopes, candidate);
+                if (scope != null) break;
+            }
+
+            // Create only for a named project or a real repository, never for a bare folder name.
+            string? newName = request.Project ?? repository;
+            if (scope == null && newName != null && request.CreateIfMissing)
+            {
+                Scope draft = new Scope { Name = newName, Description = "Memory for the " + newName + " project." };
+                ScopeProvisionResult provisioned = await _Provisioner.CreateAsync(tenantId, draft, token).ConfigureAwait(false);
+                scope = provisioned.Scope;
+                created = scope != null;
+                if (scope == null) result.Notice = "No scope matches '" + newName + "' and one could not be created: " + provisioned.Message;
+            }
+            else if (scope == null && newName == null && scopes.Count == 1)
+            {
+                // Nothing names a project (at most a folder name that matched nothing): use the tenant's only scope.
                 scope = scopes[0];
             }
-            else
+            else if (scope == null && candidates.Count > 0)
+            {
+                result.Notice = "No scope matches '" + string.Join("', '", candidates) + "'. Pick one from scopes, or call session_start with project set to the repository name"
+                    + (request.CreateIfMissing ? "." : " and createIfMissing true.");
+            }
+            else if (scope == null)
             {
                 result.Notice = scopes.Count == 0
                     ? "This tenant has no scopes yet. Call session_start with project set to the repository or project name to create one."
@@ -144,6 +160,22 @@ namespace Isis.Server.Services
             if (exact != null) return exact;
             string key = Normalize(project);
             return key.Length == 0 ? null : scopes.FirstOrDefault(s => Normalize(s.Name) == key);
+        }
+
+        /// <summary>
+        /// The repository name in a git remote URL: the last path segment without <c>.git</c>, for https, ssh, and
+        /// scp-style (<c>git@host:owner/repo.git</c>) remotes.
+        /// </summary>
+        /// <param name="remote">The remote URL, or null.</param>
+        /// <returns>The repository name, or null when there is none.</returns>
+        public static string? RepositoryName(string? remote)
+        {
+            if (string.IsNullOrWhiteSpace(remote)) return null;
+            string path = remote.Trim().TrimEnd('/', '\\');
+            int cut = Math.Max(path.LastIndexOf('/'), Math.Max(path.LastIndexOf(':'), path.LastIndexOf('\\')));
+            string name = cut >= 0 ? path.Substring(cut + 1) : path;
+            if (name.EndsWith(".git", StringComparison.OrdinalIgnoreCase)) name = name.Substring(0, name.Length - 4);
+            return name.Length == 0 ? null : name;
         }
 
         /// <summary>

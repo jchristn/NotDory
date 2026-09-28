@@ -109,6 +109,7 @@ namespace Test.Shared
                     TestCase.Async("rest", "agent-protocol-edit", "PUT /agent-protocol: admin only, unknown tools rejected, edits saved to the settings file and used by session start, reset restores defaults", AgentProtocolEditAsync),
                     TestCase.Async("rest", "session-start", "POST /session matches the project's scope and returns protocol, categories, instructions, and recent memories; GET format=text renders markdown", SessionStartAsync),
                     TestCase.Async("rest", "session-start-choice", "Session start without a match or project lists scopes, and creates the project's scope when asked", SessionStartChoiceAsync),
+                    TestCase.Async("rest", "session-start-remote", "Session start matches by the git remote's repository name before the folder name, creates a scope for a new repository, and never for a bare folder", SessionStartRemoteAsync),
                     TestCase.Async("rest", "memory-upsert-category-name", "Memory upsert accepts a category name (created once) and rejects an unknown cat_ id", MemoryUpsertCategoryNameAsync),
                     TestCase.Async("rest", "endpoint-reasoning", "Endpoint reasoning setting round-trips through create and update and defaults to Default", EndpointReasoningRestAsync),
                     TestCase.Async("rest", "endpoint-health-check-url", "Endpoint health check URL accepts a path or a full http URL and rejects other schemes", EndpointHealthCheckUrlAsync),
@@ -1128,6 +1129,36 @@ namespace Test.Shared
             TestCase.Require(created["scope"]?["created"]?.GetValue<bool>() == true && created["scope"]?["name"]?.GetValue<string>() == "brand-new" && created["scope"]?["storeProvider"]?.GetValue<string>() == "RecallDb", "An unmatched project should get a new RecallDB scope: " + created.ToJsonString());
             JsonNode reused = JsonNode.Parse(await (await PostAsync(access, "/v1.0/api/session", new { project = "Brand New" }).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
             TestCase.Require(reused["scope"]?["id"]?.GetValue<string>() == created["scope"]?["id"]?.GetValue<string>() && reused["scope"]?["created"]?.GetValue<bool>() == false, "The next session should find the scope it created.");
+        }
+
+        private static async Task SessionStartRemoteAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient access = h.AccessClient();
+            string only = await CreateScopeAsync(access, h, "Isis").ConfigureAwait(false);
+
+            // Nothing names a project and the tenant has one scope: use it, even though the folder name matches nothing.
+            JsonNode lone = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?directory=Downloads").ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(lone["scope"]?["id"]?.GetValue<string>() == only, "A folder name alone should fall back to the tenant's only scope: " + lone.ToJsonString());
+
+            // The clone lives in a folder named differently from the repository: the remote finds the scope.
+            JsonNode clone = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?directory=AgentMemory&remote=" + Uri.EscapeDataString("https://github.com/jchristn/isis.git")).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(clone["scope"]?["id"]?.GetValue<string>() == only && clone["scope"]?["created"]?.GetValue<bool>() == false, "The remote's repository name should find the scope: " + clone.ToJsonString());
+
+            await CreateScopeAsync(access, h, "other").ConfigureAwait(false);
+            // A bare folder that matches nothing, with several scopes: no scope is created.
+            JsonNode bare = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?directory=Downloads").ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(bare["scope"] == null && bare["scopes"]?.AsArray().Count == 2, "A folder name alone should never create a scope: " + bare.ToJsonString());
+
+            // A folder name that matches an existing scope finds it.
+            JsonNode byFolder = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?directory=Other").ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(byFolder["scope"]?["name"]?.GetValue<string>() == "other", "A folder name should find a matching scope.");
+
+            // A new repository gets its own scope, named for the repository.
+            using HttpClient admin = h.AdminClient();
+            await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "emb", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "all-minilm", dimensionality = 384 }).ConfigureAwait(false);
+            JsonNode fresh = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?directory=work&remote=" + Uri.EscapeDataString("git@github.com:acme/new-service.git")).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(fresh["scope"]?["name"]?.GetValue<string>() == "new-service" && fresh["scope"]?["created"]?.GetValue<bool>() == true, "A new repository should get a scope named for it: " + fresh.ToJsonString());
         }
 
         private static async Task MemoryUpsertCategoryNameAsync()

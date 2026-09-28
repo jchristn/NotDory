@@ -35,7 +35,7 @@ other MCP server in the config. Restart the agent afterward to pick up the chang
 
 | Agent | How it connects | Config it edits |
 | --- | --- | --- |
-| **claude** | runs the `claude` CLI (`claude mcp add` / `claude mcp remove`) | Claude Code's own store |
+| **claude** | runs the `claude` CLI at user scope (`claude mcp add --scope user`), then installs the Isis SessionStart hook (`isis-claude-hook.ps1` / `isis-claude-hook.sh`) | Claude Code's own store, and `~/.claude/settings.json` for the hook |
 | **codex** | writes an `mcpServers.isis` entry (`type: http`) | `~/.codex/config.json` |
 | **cursor** | writes an `mcpServers.isis` entry | `~/.cursor/mcp.json` |
 | **gemini** | writes an `mcpServers.isis` entry (`httpUrl`) | `~/.gemini/settings.json` |
@@ -79,3 +79,20 @@ ISIS_ACCESS_KEY=access_ci sh scripts/linux/install-cursor.sh
 Change the default credential before exposing Isis outside a trusted local environment; the defaults are
 local-development values. See `docs/CONNECTING_AGENTS.md` and `docs/INSTRUCTIONS_FOR_*.md` for the full
 per-agent connection notes.
+
+## Claude Code: every project, no further steps
+
+`install-claude` is the only step. It registers Isis for every project (user scope) and installs a SessionStart hook
+in `~/.claude/settings.json`. At the start of each session the hook sends Isis the project's git remote and folder name
+(`GET /v1.0/api/session?remote=...&directory=...&format=text`), and Claude Code adds the returned context (how to use
+Isis, the project's scope, its categories and instructions, and the most recent memories) to the model's context
+before its first turn. The server picks the scope by the remote's repository name, then the folder name, so a clone in
+a differently named folder still finds its memory; a new repository gets a scope named for it; a folder that is not a
+git repository and matches nothing gets none. The hook prints nothing when Isis is unreachable, so it never blocks a
+session.
+
+- `ISIS_MCP_URL` (default `http://127.0.0.1:8720/mcp`), `ISIS_ACCESS_KEY`, and `ISIS_REST_URL` (default: the MCP host
+  on port 8700) configure it; `ISIS_SESSION_HOOK=0` skips the hook.
+- Re-running updates the Isis entry and hook in place and keeps every other hook and setting (the settings file is
+  backed up to `.bak`). `remove-claude` removes both.
+- On macOS and Linux the hook is written with `python3` or `node`; without either the script prints the hook to add.

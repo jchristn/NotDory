@@ -19,7 +19,7 @@ namespace Isis.Core.Helpers
         {
             new KeyValuePair<string, string>(
                 "session_start",
-                "Start here, once per session: returns your memory scope for the project (created if new), how to use Isis, the scope's categories and instructions, and the most recent memories. Pass project as the repository or project name (for example the working directory's name). No tenantId needed."),
+                "Start here, once per session: returns your memory scope for the project (created if new), how to use Isis, the scope's categories and instructions, and the most recent memories. Pass project as the git repository name (from the origin remote) or, outside a repository, the project or working directory name. No tenantId needed."),
             new KeyValuePair<string, string>(
                 "whoami",
                 "Show which tenant and principal your credential maps to. Not needed to get started: session_start returns the same, and no tool needs a tenantId."),
