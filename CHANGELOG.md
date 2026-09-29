@@ -7,6 +7,10 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Added
 
+- **Agents audit memory when they save.** The default server instructions and the `memory_upsert` description now
+  permit and expect an agent, each time it writes memories, to check the scope's categories (create or update any that
+  are missing or unclear) and to check that memory is complete enough for a new agent to start from, adding, updating,
+  superseding, or deleting memories until it is. No confirmation is required first.
 - **Claude Code needs one install step, for every project.** `scripts/*/install-claude` registers Isis at user scope
   and installs the SessionStart hook (new `isis-claude-hook.ps1` / `isis-claude-hook.sh`, idempotent, other hooks and
   settings kept, `remove-claude` undoes both). The hook sends the project's git remote and folder name, and session

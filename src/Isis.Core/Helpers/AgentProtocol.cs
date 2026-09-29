@@ -27,7 +27,13 @@ namespace Isis.Core.Helpers
             + "3. Save as you go: after a decision, a discovered fact, a user preference or correction, or a task with a "
             + "lesson, call memory_upsert (name the category; a new name creates it). Reuse a slug to update a memory, and "
             + "pass supersedes when a fact changes. One fact per memory, with a specific title and a one-line summary.\n"
-            + "4. Never store secrets, credentials, or personal data.";
+            + "4. Audit when you save: every time you write memories, you have license to audit this scope and fix what you "
+            + "find, without asking first. Check the categories (category_enumerate): if the kinds of knowledge this project "
+            + "has lack a category, or one is too broad or poorly described, create or update it. Then check that memory "
+            + "is complete (memory_enumerate, memory_search): could a new agent start work from it alone? If architecture, "
+            + "conventions, build and test steps, decisions, or open work are missing, thin, stale, or duplicated, add, "
+            + "update, supersede, or delete memories until they are complete and correct.\n"
+            + "5. Never store secrets, credentials, or personal data.";
 
         #endregion
 
