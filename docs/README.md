@@ -13,7 +13,7 @@ it over **REST** and a dashboard.
 | [REST_API.md](REST_API.md) | Full reference for the REST API: authentication, tenants, users, credentials, the memory domain (scopes, categories, memories, search, chat, model endpoints), instructions, batch operations, request history, and server settings. |
 | [INSTRUCTIONS_FOR_CLAUDE_CODE.md](INSTRUCTIONS_FOR_CLAUDE_CODE.md), [INSTRUCTIONS_FOR_CODEX.md](INSTRUCTIONS_FOR_CODEX.md), [INSTRUCTIONS_FOR_CURSOR.md](INSTRUCTIONS_FOR_CURSOR.md), [INSTRUCTIONS_FOR_GEMINI.md](INSTRUCTIONS_FOR_GEMINI.md), [INSTRUCTIONS_FOR_MUX.md](INSTRUCTIONS_FOR_MUX.md) | Per-agent guides to paste into an agent's system prompt or project rules: how to connect, plus the memory workflow and tool reference. |
 | [../SEARCH_PIPELINE.md](../SEARCH_PIPELINE.md) | How retrieval works: hybrid vector and full-text search, fusion, reranking, multi-query search, and chat retrieval. |
-| [ISIS_PLAN.md](ISIS_PLAN.md) | The original product plan: architecture, domain model, storage/search providers, REST and MCP surfaces, dashboard, deployment, and roadmap. Historical; the documents above describe the current state. |
+| [ISIS_PLAN.md](../archive/ISIS_PLAN.md) | The original product plan: architecture, domain model, storage/search providers, REST and MCP surfaces, dashboard, deployment, and roadmap. Historical; the documents above describe the current state. |
 
 ## MCP at a Glance
 

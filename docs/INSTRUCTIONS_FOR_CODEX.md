@@ -147,7 +147,7 @@ Match every write to a category and follow that category's `instructions`. When 
 |------|-----------|-------------|
 | `session_start` | `project`, `createIfMissing`, `maxMemories` | Start here, once per session: your scope for the project (created if new), how to use Isis, the categories and instructions, and the most recent memories. |
 | `whoami` | -- | Show your tenant and principal. Not needed to start: `session_start` returns the same. |
-| `instructions` | `scopeId` | Read the tenant's standing memory manual (or a scope's effective instructions). Call right after `whoami`. |
+| `instructions` | `scopeId` | Re-read the tenant's standing memory manual (or a scope's effective instructions); `session_start` already returns them. |
 | `scope_enumerate` | -- | List the memory scopes in a tenant. |
 | `scope_create` | `name` (required); `description`, `storeProvider`, `embeddingEndpointId`, `dimensionality`, `filesystemLayout`, `targetPath` | Create a scope when none fits (typically once per project). |
 | `endpoint_enumerate` | `kind` | List model endpoints (`Embedding`/`Inference`; rerankers are inference endpoints) -- e.g. to choose an `embeddingEndpointId`, or to confirm whether semantic (RecallDb) scopes are possible. |

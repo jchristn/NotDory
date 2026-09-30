@@ -51,7 +51,7 @@ for code ("what lives where", "what this function does", "I did X"), writing, em
 ## Benefits
 
 - **Stop re-acquiring context.** Break-even is roughly the second reuse; after that the savings
-  compound (see `docs/ISIS_PLAN.md` §Value Model).
+  compound (see `archive/ISIS_PLAN.md` §Value Model).
 - **Agent-managed.** The agent curates its own memory over MCP — no manual data entry.
 - **Right context, proactively.** Category instructions and cross-cutting policies mean the model is
   told *how* to use a memory space, not just handed rows.
@@ -178,7 +178,7 @@ Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀──
 
 ## How it works
 
-1. **Agents talk MCP, operators talk REST.** Agents call the MCP tools (`whoami`, `guide`,
+1. **Agents talk MCP, operators talk REST.** Agents call the MCP tools (`session_start`,
    `memory_upsert`, `memory_search`, `chat`, and scope, category, endpoint, and instruction management;
    no `isis_` prefix, your client namespaces them); operators and the dashboard use the tenant-scoped
    REST API.

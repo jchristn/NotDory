@@ -327,5 +327,5 @@ other hooks. See
   [INSTRUCTIONS_FOR_GEMINI.md](INSTRUCTIONS_FOR_GEMINI.md),
   [INSTRUCTIONS_FOR_MUX.md](INSTRUCTIONS_FOR_MUX.md): per-agent connection and usage guides.
 - [SEARCH_PIPELINE.md](../SEARCH_PIPELINE.md): how retrieval works.
-- [ISIS_PLAN.md](ISIS_PLAN.md): the original product plan (historical).
+- [ISIS_PLAN.md](../archive/ISIS_PLAN.md): the original product plan (historical).
 </content>

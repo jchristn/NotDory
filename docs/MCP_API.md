@@ -904,6 +904,6 @@ upstream `statusCode`:
   MCP clients to Isis, including the `isis mcp install` helper.
 - [REST_API.md](REST_API.md): the REST API each tool proxies, including request limits and error codes.
 - [../SEARCH_PIPELINE.md](../SEARCH_PIPELINE.md): how search and chat retrieval work, stage by stage.
-- [ISIS_PLAN.md](ISIS_PLAN.md): the original product plan (historical).
+- [ISIS_PLAN.md](../archive/ISIS_PLAN.md): the original product plan (historical).
 </content>
 </invoke>
