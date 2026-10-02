@@ -61,7 +61,7 @@ You have access to the NotDory agent-memory platform via MCP tools. NotDory is *
 
 **Chat-with-Memory** is retrieval-augmented reasoning over a whole scope, available as the `chat` tool: it uses the same retrieval as `memory_search`, then adds an inference step to synthesize a grounded answer that cites the memory ids it used. Chat keeps no conversation state, so for a follow-up question pass the earlier messages in `history` (oldest first, each `{ role, content }` with `role` = `user` or `assistant`); the server rewrites the follow-up into a standalone question before searching.
 
-The store behind a scope determines search power: `RecallDb` supports `Semantic` and `Hybrid` search (vector plus full-text, with optional cross-encoder reranking when the scope has a rerank endpoint); `Filesystem` is `Keyword`-only. A `RecallDb` scope with `filesystemMirror` on searches like any RecallDb scope and also keeps an Open Knowledge Format copy of every memory at its `targetPath`.
+The store behind a scope determines search power: `RecallDb` supports `Semantic` and `Hybrid` search (vector plus full-text, with optional cross-encoder reranking when the scope has a rerank endpoint); `Filesystem` is `Keyword`-only. A `RecallDb` scope with `filesystemMirror` on searches like any RecallDb scope and also keeps an Open Knowledge Format copy of every memory in a `.okf` directory under its `targetPath` (the repository root).
 
 ## Core Workflow
 

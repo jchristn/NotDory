@@ -3,10 +3,10 @@ okf_version: "0.2"
 ---
 # cat_muqc4lkf_GnQe0cOo5FhYaecgFm1
 
-* [How agents are onboarded: server instructions, session_start, SessionStart hook](cat_muqc4lkf_GnQe0cOo5FhYaecgFm1/agent-onboarding-and-session-start.md) - MCP initialize carries instructions; session_start resolves/creates the scope by remote repo name then folder; text is admin-editable via agent-protocol.
+* [How agents are onboarded: server instructions, session_start, SessionStart hook](cat_muqc4lkf_GnQe0cOo5FhYaecgFm1/agent-onboarding-and-session-start.md) - MCP initialize carries instructions (one scope per project, onboard new or thin scopes); session_start resolves or creates the scope, takes the repo-root path for the OKF mirror, and adds a notice for new or empty scopes; the text is admin-editable.
 * [Authentication and tenancy model](cat_muqc4lkf_GnQe0cOo5FhYaecgFm1/auth-model.md) - Users log in with email+password for a bearer session token; MCP/automation use a credential access key (x-access-key or Bearer).
 * [Dashboard nav: 7 tabbed hubs defined in navConfig.jsx](cat_muqc4lkf_GnQe0cOo5FhYaecgFm1/dashboard-navigation.md) - Workspace (Home, Memory, Recall) + Administration (Models, Access, Monitoring, System); tabs via ?tab=; old URLs redirect via legacyPaths.
-* [RecallDb scopes can mirror every memory to an OKF bundle (filesystemMirror)](cat_muqc4lkf_GnQe0cOo5FhYaecgFm1/filesystem-mirror.md) - Scope.FilesystemMirror + TargetPath: MirroredMemoryStore writes RecallDB and an OKF bundle concurrently; search uses RecallDB only.
+* [RecallDb scopes can mirror every memory to an OKF bundle in <targetPath>/.okf (filesystemMirror)](cat_muqc4lkf_GnQe0cOo5FhYaecgFm1/filesystem-mirror.md) - Scope.FilesystemMirror + TargetPath (the repo root): MirroredMemoryStore writes RecallDB and an OKF v0.2 bundle at <targetPath>/.okf concurrently; search uses RecallDB only; on by default when a targetPath is given.
 * [Pluggable IMemoryStore providers chosen per scope](cat_muqc4lkf_GnQe0cOo5FhYaecgFm1/memory-store-providers.md) - RecallDB (semantic+hybrid, default, optional OKF filesystem mirror) or Filesystem (keyword, git-trackable). Verbex was removed 2026-10-01.
 * [A scope writes to exactly one store; no dual-write or cross-scope search](cat_muqc4lkf_GnQe0cOo5FhYaecgFm1/one-store-per-scope-no-mirroring.md) - MemoryStoreFactory picks one IMemoryStore per scope; no mirroring to Filesystem + RecallDB, and memory_search takes a single scopeId. (deprecated)
 * [Search and chat retrieval pipeline stages](cat_muqc4lkf_GnQe0cOo5FhYaecgFm1/retrieval-pipeline.md) - Parallel vector + full-text, weighted RRF with recency, chunk rollup, optional rerank, supersession, link expansion; documented in SEARCH_PIPELINE.md.
@@ -39,6 +39,6 @@ okf_version: "0.2"
 
 # cat_muqc4qmx_JakomwWhV0BBghvFt6b
 
-* [Known gaps in v0.1.0 alpha](cat_muqc4qmx_JakomwWhV0BBghvFt6b/known-gaps-v0-1-0.md) - No test.sh or docker/update.sh counterparts; mirror is write-only; new dashboard nav not browser-tested; remote deployment needs the new images; alpha has no migration guarantees.
+* [Known gaps in v0.1.0 alpha](cat_muqc4qmx_JakomwWhV0BBghvFt6b/known-gaps-v0-1-0.md) - No test.sh or docker/update.sh; the mirror is one-way; the dashboard nav and chart are not browser-tested; the remote deployment needs new images and has a stray "~" directory; alpha has no migration guarantees.
 * [Running tenant's "Start here" instruction still says Isis](cat_muqc4qmx_JakomwWhV0BBghvFt6b/stale-isis-tenant-instruction.md) - ins_mtw23496_mC4eOGSdSxXcMHUcgN1 in ten_default still names the product Isis; Migration011 cannot fix it because it only replaces known seeded texts.
 
