@@ -14,8 +14,14 @@ import { formatNumber } from '../i18n/formatters';
  *      { label, [key]: number, tooltip?: [{k, v}] }
  *
  * Both modes share the Y axis (~3 ticks), distributed X labels, and a portal-rendered hover tooltip.
+ * With `labelAll`, every bar gets an X label: horizontal when they all fit, otherwise vertical, with the chart growing
+ * taller to make room for them.
  */
-function ActivityChart({ buckets = [], series = null, height = 220, onBucketClick = null, emptyLabel }) {
+const LABEL_FONT = 6;
+const LABEL_CHAR_W = LABEL_FONT * 0.6; // rough average glyph width, in viewBox units
+const MAX_VERTICAL_CHARS = 32;
+
+function ActivityChart({ buckets = [], series = null, height = 220, onBucketClick = null, emptyLabel, labelAll = false }) {
   const { t, i18n } = useTranslation();
   const [hover, setHover] = useState(null);
 
@@ -23,6 +29,17 @@ function ActivityChart({ buckets = [], series = null, height = 220, onBucketClic
   const padding = { top: 16, right: 12, bottom: 28, left: 44 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
+  const slotW = buckets.length > 0 ? chartW / buckets.length : chartW;
+
+  // Labels go vertical only when labelling every bar and the widest label would overrun its slot.
+  const longestLabel = Math.max(0, ...buckets.map((b) => String(b.label ?? '').length));
+  const vertical = labelAll && longestLabel * LABEL_CHAR_W > slotW - 4;
+  const shownLabel = (b) => {
+    const text = String(b.label ?? '');
+    return vertical && text.length > MAX_VERTICAL_CHARS ? `${text.slice(0, MAX_VERTICAL_CHARS - 1)}…` : text;
+  };
+  const labelRoom = vertical ? Math.ceil(Math.min(longestLabel, MAX_VERTICAL_CHARS) * LABEL_CHAR_W) + 10 : padding.bottom;
+  const totalH = padding.top + chartH + labelRoom;
 
   const multi = Array.isArray(series) && series.length > 0;
 
@@ -45,7 +62,7 @@ function ActivityChart({ buckets = [], series = null, height = 220, onBucketClic
   const barW = buckets.length > 0 ? Math.max(1, chartW / buckets.length - barGap) : 0;
 
   const yTicks = [0, 0.5, 1].map((f) => ({ f, value: Math.round(maxVal * f) }));
-  const labelStride = Math.max(1, Math.ceil(buckets.length / 8));
+  const labelStride = labelAll ? 1 : Math.max(1, Math.ceil(buckets.length / 8));
 
   const handleMove = useCallback((e, bucket) => {
     setHover({ x: e.clientX, y: e.clientY, bucket });
@@ -81,7 +98,7 @@ function ActivityChart({ buckets = [], series = null, height = 220, onBucketClic
       )}
       <svg
         width="100%"
-        viewBox={`0 0 ${width} ${height}`}
+        viewBox={`0 0 ${width} ${totalH}`}
         role="img"
         preserveAspectRatio="xMidYMid meet"
       >
@@ -133,20 +150,40 @@ function ActivityChart({ buckets = [], series = null, height = 220, onBucketClic
         })}
 
         {/* X axis labels */}
-        {buckets.map((b, i) =>
-          i % labelStride === 0 ? (
+        {buckets.map((b, i) => {
+          if (i % labelStride !== 0) return null;
+          const cx = padding.left + i * slotW + barGap / 2 + barW / 2;
+          if (vertical) {
+            const y = padding.top + chartH + 6;
+            return (
+              <text
+                key={`lbl-${i}`}
+                x={cx}
+                y={y}
+                transform={`rotate(-90 ${cx} ${y})`}
+                textAnchor="end"
+                dominantBaseline="middle"
+                fontSize={LABEL_FONT}
+                fill="var(--color-text-muted)"
+              >
+                <title>{b.label}</title>
+                {shownLabel(b)}
+              </text>
+            );
+          }
+          return (
             <text
               key={`lbl-${i}`}
-              x={padding.left + i * (chartW / buckets.length) + barW / 2}
-              y={height - 10}
+              x={cx}
+              y={padding.top + chartH + 18}
               textAnchor="middle"
-              fontSize="6"
+              fontSize={LABEL_FONT}
               fill="var(--color-text-muted)"
             >
               {b.label}
             </text>
-          ) : null
-        )}
+          );
+        })}
       </svg>
 
       {hover &&

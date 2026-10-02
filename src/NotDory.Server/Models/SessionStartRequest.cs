@@ -60,6 +60,23 @@ namespace NotDory.Server.Models
         }
 
         /// <summary>
+        /// The project's absolute path (the repository root), as the agent harness sees it. When session start creates the
+        /// project's scope and this directory is visible to the NotDory server, the scope mirrors its memories to an Open
+        /// Knowledge Format bundle in <c>{Path}/.okf</c>. It is not used to find a scope.
+        /// </summary>
+        public string? Path
+        {
+            get
+            {
+                return _Path;
+            }
+            set
+            {
+                _Path = string.IsNullOrWhiteSpace(value) ? null : InputGuard.MaxLength(value.Trim(), 1024, nameof(Path));
+            }
+        }
+
+        /// <summary>
         /// Create the project's scope when none matches (default true), so a new project has memory from its first session.
         /// </summary>
         public bool CreateIfMissing { get; set; } = true;
@@ -86,6 +103,7 @@ namespace NotDory.Server.Models
         private string? _Project = null;
         private string? _Remote = null;
         private string? _Directory = null;
+        private string? _Path = null;
         private int _MaxMemories = 15;
 
         #endregion

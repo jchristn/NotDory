@@ -196,7 +196,7 @@ namespace NotDory.Server
             new TenantRoutes(_Database, _AuthorizationService, tenantLifecycle).Register(_Server);
             new UserRoutes(_Database, _AuthorizationService).Register(_Server);
             new CredentialRoutes(_Database, _AuthorizationService).Register(_Server);
-            new ScopeRoutes(_Database, _AuthorizationService, _MemoryService).Register(_Server);
+            new ScopeRoutes(_Database, _AuthorizationService, _MemoryService, Settings.Storage).Register(_Server);
             new CategoryRoutes(_Database, _AuthorizationService, _MemoryService).Register(_Server);
             new MemoryRoutes(_Database, _AuthorizationService, _MemoryService, _LookupCache, _QueryPreparer).Register(_Server);
             new ModelEndpointRoutes(_Database, _AuthorizationService, _HealthCheck).Register(_Server);

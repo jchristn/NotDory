@@ -357,7 +357,7 @@ not hold the answer.
 |---|---|---|
 | RecallDB (default) | Vector, full text, hybrid | Everything in section 3 |
 | Filesystem | Keyword only | Memories as files (single file, hierarchy, or OKF bundle), trackable in git. Extra queries run as keyword searches; supersession and links apply, and reranking does when the scope names a reranker. Chat uses the overview (section 4) |
-| RecallDB with a filesystem mirror | Vector, full text, hybrid | Same as RecallDB: searches never read the mirror. Every write also goes to an OKF bundle at the scope's `targetPath` |
+| RecallDB with a filesystem mirror | Vector, full text, hybrid | Same as RecallDB: searches never read the mirror. Every write also goes to an OKF bundle in `.okf` under the scope's `targetPath` |
 
 ---
 

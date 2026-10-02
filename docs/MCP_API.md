@@ -94,8 +94,10 @@ NotDory tells a connecting agent how to use it through two channels, both editab
 
 - **Server instructions**, in the `initialize` result. Agent harnesses place them in the model's system prompt, so they
   reach the model even when the harness defers loading tool descriptions. The built-in text tells the agent to call
-  `session_start` with the project name, search memory before answering or changing code, save decisions, facts,
-  preferences, and corrections as it goes, and never store secrets. `session_start` repeats the same text with the
+  `session_start` with the project name, keep one scope per project it does a meaningful amount of work on and onboard
+  a new or thin scope (examine the project's structure and key details, describe the scope, create categories, and save
+  memories), search memory before answering or changing code, save decisions, facts, preferences, and corrections as it
+  goes, and never store secrets. `session_start` repeats the same text with the
   session's scope id.
 - **Tool descriptions**, in `tools/list`. Each says when to use the tool. An administrator can override any of them.
 
@@ -196,6 +198,7 @@ Proxies `POST /v1.0/api/session`.
 | `project` | string | No | null | The git repository name if there is one, else the project or working directory name. Null picks the tenant's only scope when there is exactly one |
 | `remote` | string | No | null | Git remote URL; its repository name is tried after `project` (stable across clones) |
 | `directory` | string | No | null | Working directory name, tried last; it finds a scope but never creates one |
+| `path` | string | No | null | The repository root's absolute path. A newly created scope mirrors to an OKF bundle in `<path>/.okf` when the server can see that directory; otherwise the `notice` says why not |
 | `createIfMissing` | boolean | No | true | Create the project's scope (with the tenant's embedding endpoint) when none matches |
 | `maxMemories` | integer | No | 15 | How many recent memories to include, 0 to 100 |
 
@@ -313,8 +316,8 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes`.
 | `embeddingEndpointId` | string | No | null | Embedding endpoint id for semantic scopes |
 | `dimensionality` | integer | No | null | Embedding vector dimension |
 | `filesystemLayout` | string | No | null | Layout for a `Filesystem` scope: `SingleFile`, `Hierarchy`, or `OkfBundle` |
-| `targetPath` | string | No | null | Directory on the NotDory server host: the root of a `Filesystem` scope, or where a `RecallDb` scope's filesystem mirror is written |
-| `filesystemMirror` | boolean | No | false | `RecallDb` scopes only: also write every memory, concurrently, to an Open Knowledge Format bundle at `targetPath` (required). Search still uses RecallDB; deleting the scope leaves the files |
+| `targetPath` | string | No | null | Directory on the NotDory server host: the root of a `Filesystem` scope, or, for a `RecallDb` scope's filesystem mirror, the root (usually a repository root) under which the `.okf` bundle directory is written |
+| `filesystemMirror` | boolean | No | true when `targetPath` is given | `RecallDb` scopes only: also write every memory, concurrently, to an Open Knowledge Format bundle in a `.okf` directory under `targetPath` (required). Search still uses RecallDB; deleting the scope leaves the files. Pass `false` to opt out; the default comes from the server setting `storage.mirrorByDefault` |
 | `chunkingMode` | string | No | `OnOverflow` | When to chunk oversized memory bodies for embedding: `OnOverflow`, `Always`, or `Off` |
 | `chunkStrategy` | string | No | `FixedTokenCount` | Chunk splitting strategy (e.g. `FixedTokenCount`, `SentenceBased`, `ParagraphBased`, `Recursive`) |
 | `chunkMaxTokens` | integer | No | 0 | Per-chunk token budget (0 = use the embedding model's resolved budget) |

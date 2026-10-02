@@ -508,6 +508,7 @@ namespace NotDory.McpServer
                         project = new { type = "string", description = "The git repository name if there is one (from the origin remote), else the project or working directory name; matched to a scope ignoring case and punctuation." },
                         remote = new { type = "string", description = "Optional git remote URL; its repository name is tried after project." },
                         directory = new { type = "string", description = "Optional working directory name, tried last; it finds a scope but never creates one." },
+                        path = new { type = "string", description = "The absolute path of the repository root (your working directory's project). When a new scope is created and the NotDory server can see this directory, the scope mirrors its memories to an Open Knowledge Format bundle in <path>/.okf." },
                         createIfMissing = new { type = "boolean", description = "Create the project's scope when none matches (default true)." },
                         maxMemories = new { type = "integer", description = "How many recent memories to include, 0 to 100 (default 15)." }
                     },
@@ -519,6 +520,7 @@ namespace NotDory.McpServer
                     if (p?.GetString("project") != null) body["project"] = p.GetString("project");
                     if (p?.GetString("remote") != null) body["remote"] = p.GetString("remote");
                     if (p?.GetString("directory") != null) body["directory"] = p.GetString("directory");
+                    if (p?.GetString("path") != null) body["path"] = p.GetString("path");
                     bool? createIfMissing = p?.GetBoolean("createIfMissing");
                     if (createIfMissing.HasValue) body["createIfMissing"] = createIfMissing.Value;
                     long? maxMemories = p?.GetInt64("maxMemories");
@@ -569,8 +571,8 @@ namespace NotDory.McpServer
                         embeddingEndpointId = new { type = "string", description = "Embedding endpoint id for RecallDb semantic scopes." },
                         dimensionality = new { type = "integer", description = "Embedding vector dimension for RecallDb scopes." },
                         filesystemLayout = new { type = "string", description = "SingleFile, Hierarchy, or OkfBundle (Open Knowledge Format), for Filesystem scopes." },
-                        targetPath = new { type = "string", description = "Directory or file path on the NotDory server host: where a Filesystem scope's files, or a RecallDb scope's filesystem mirror, are written." },
-                        filesystemMirror = new { type = "boolean", description = "RecallDb scopes only: also write every memory to targetPath as an Open Knowledge Format bundle, concurrently with RecallDB; search still uses RecallDB. Requires targetPath. Default false." },
+                        targetPath = new { type = "string", description = "Directory or file path on the NotDory server host: where a Filesystem scope's files are written, or, for a RecallDb scope's filesystem mirror, the root (usually a repository root) under which the .okf bundle directory is written." },
+                        filesystemMirror = new { type = "boolean", description = "RecallDb scopes only: also write every memory, concurrently with RecallDB, as an Open Knowledge Format bundle in a .okf directory under targetPath (usually a repository root); search still uses RecallDB. Requires targetPath. Default: on when targetPath is given (server setting storage.mirrorByDefault); pass false to opt out." },
                         chunkingMode = new { type = "string", description = "When to chunk oversized bodies for embedding: OnOverflow (default), Always, or Off." },
                         chunkStrategy = new { type = "string", description = "Chunk splitting strategy, for example FixedTokenCount (default), SentenceBased, ParagraphBased, Recursive." },
                         chunkMaxTokens = new { type = "integer", description = "Per-chunk token budget (0 = the embedding model's budget)." },
@@ -838,8 +840,8 @@ namespace NotDory.McpServer
                         scopeId = new { type = "string" },
                         name = new { type = "string" },
                         description = new { type = "string" },
-                        filesystemMirror = new { type = "boolean", description = "RecallDb scopes only: also write every memory to targetPath as an Open Knowledge Format bundle. Turning it on copies the scope's existing memories into the bundle." },
-                        targetPath = new { type = "string", description = "Directory on the NotDory server host for the filesystem mirror (or a Filesystem scope's files). Changing it while the mirror is on copies existing memories to the new directory." },
+                        filesystemMirror = new { type = "boolean", description = "RecallDb scopes only: also write every memory as an Open Knowledge Format bundle in a .okf directory under targetPath (usually a repository root). Turning it on copies the scope's existing memories into the bundle." },
+                        targetPath = new { type = "string", description = "Directory on the NotDory server host under which the filesystem mirror writes its .okf bundle directory, usually a repository root (or a Filesystem scope's files). Changing it while the mirror is on copies existing memories to the new directory." },
                         rerankEndpointId = new { type = "string", description = "Inference endpoint that reranks (a cross-encoder or a chat model), or an empty string to stop reranking." },
                         rerankCandidates = new { type = "integer", description = "Candidates sent to the reranker (1..100)." },
                         rerankMinScore = new { type = "number", description = "Drop reranked hits scoring below this (0..1)." },

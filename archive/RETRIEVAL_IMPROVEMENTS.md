@@ -30,7 +30,7 @@ the end.
 | 12 | Check for duplicates at write time: search for similar memories on upsert and flag or auto-link likely replacements | Superseded facts | 8 | 4 | 12 | Done (round 3); flags only, no auto-link |
 | 13 | "Nothing relevant" cutoff on the reranker's score (needs #11) | No "nothing relevant" signal | 7 | 5 | 12 | Done (round 3); off by default (see results) |
 | 14 | Diversify results (MMR) so near-duplicate chunks don't crowd out other memories | Multi-memory | 5 | 7 | 12 | Done (round 3); off by default |
-| 15 | Use RecallDB's single-call hybrid search instead of NotDory's own two-call fusion (needs an SDK release that exposes the hybrid options) | Keyword latency | 6 | 5 | 11 | Later |
+| 15 | Use RecallDB's single-call hybrid search instead of NotDory's own two-call fusion (needs an SDK release that exposes the hybrid options) | Keyword latency | 6 | 5 | 11 | Done (round 9); two-call fusion remains the fallback |
 | 16 | Split multi-part questions into sub-queries with the chat model | Multi-memory | 6 | 4 | 10 | Later |
 | 17 | Query expansion (search with a model-drafted hypothetical answer) | Paraphrase | 5 | 5 | 10 | Later |
 | 18 | Cache auth, scope and endpoint lookups (saves ~11 ms per search, but delays credential revocation) | Keyword latency | 4 | 6 | 10 | Done (round 3); 10 s time to live |

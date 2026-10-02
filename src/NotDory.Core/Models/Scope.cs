@@ -236,7 +236,8 @@ namespace NotDory.Core.Models
 
         /// <summary>
         /// For the filesystem store, the target path where memory files are written; for a RecallDb scope with
-        /// <see cref="FilesystemMirror"/> on, the directory the mirror bundle is written to. A path on the server host.
+        /// <see cref="FilesystemMirror"/> on, the directory (usually a repository root) under which the mirror bundle is written, in a
+        /// <c>.okf</c> subdirectory. A path on the server host.
         /// </summary>
         public string? TargetPath
         {

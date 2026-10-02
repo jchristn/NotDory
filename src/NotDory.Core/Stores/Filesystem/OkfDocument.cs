@@ -12,8 +12,9 @@ namespace NotDory.Core.Stores.Filesystem
     /// <summary>
     /// Serializes and parses a single Open Knowledge Format (OKF) concept document: a markdown file with a
     /// YAML frontmatter block. The frontmatter carries OKF's core fields (<c>type</c>, <c>title</c>,
-    /// <c>description</c>, <c>resource</c>, <c>tags</c>, <c>timestamp</c>) plus NotDory provenance extras
-    /// (<c>slug</c>, <c>category</c>, <c>links</c>, <c>author</c>, <c>sessionId</c>, <c>model</c>,
+    /// <c>description</c>, <c>resource</c>, <c>tags</c>, <c>timestamp</c>, and <c>status: deprecated</c> for a replaced
+    /// memory) plus NotDory provenance extras
+    /// (<c>slug</c>, <c>category</c>, <c>links</c>, <c>author</c>, <c>sessionId</c>, <c>model</c>, <c>supersededBy</c>,
     /// <c>version</c>, <c>salience</c>, <c>created</c>, <c>metadata</c>). The markdown body is preserved
     /// verbatim. The reader is deliberately tolerant — it accepts foreign bundles that omit the NotDory extras,
     /// use bare (unquoted) scalars, and use either flow (<c>[a, b]</c>) or block (<c>- a</c>) lists — so a
@@ -32,6 +33,11 @@ namespace NotDory.Core.Stores.Filesystem
         /// The reserved change-log filename (navigation, not a memory).
         /// </summary>
         public const string LogFileName = "log.md";
+
+        /// <summary>
+        /// The OKF version NotDory writes, declared in the bundle-root index.md.
+        /// </summary>
+        public const string OkfVersion = "0.2";
 
         #endregion
 
@@ -77,6 +83,9 @@ namespace NotDory.Core.Stores.Filesystem
             AppendList(sb, "tags", memory.Tags);
             AppendScalar(sb, "timestamp", memory.LastUpdateUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
 
+            // OKF v0.2 lifecycle: a memory replaced by a newer one is kept for links and history but is no longer current.
+            if (!String.IsNullOrEmpty(memory.SupersededBy)) AppendScalar(sb, "status", "deprecated");
+
             // NotDory provenance extras (ignored by OKF consumers; carried for lossless round-trip).
             AppendScalar(sb, "created", memory.CreatedUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
             AppendScalar(sb, "slug", memory.Slug);
@@ -85,6 +94,7 @@ namespace NotDory.Core.Stores.Filesystem
             AppendScalarIfSet(sb, "author", memory.Author);
             AppendScalarIfSet(sb, "sessionId", memory.SessionId);
             AppendScalarIfSet(sb, "model", memory.Model);
+            AppendScalarIfSet(sb, "supersededBy", memory.SupersededBy);
             AppendScalar(sb, "version", memory.Version.ToString(CultureInfo.InvariantCulture));
             AppendScalar(sb, "salience", memory.Salience.ToString(CultureInfo.InvariantCulture));
             if (memory.Metadata != null && memory.Metadata.Count > 0)
@@ -128,6 +138,7 @@ namespace NotDory.Core.Stores.Filesystem
                 Author = NullIfEmpty(GetScalar(scalars, "author")),
                 SessionId = NullIfEmpty(GetScalar(scalars, "sessionId")),
                 Model = NullIfEmpty(GetScalar(scalars, "model")),
+                SupersededBy = NullIfEmpty(GetScalar(scalars, "supersededBy")),
                 Body = body
             };
 

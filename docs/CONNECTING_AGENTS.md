@@ -187,11 +187,11 @@ you write, and prefer summaries before full bodies.
 
 ### 1. Start the session
 
-Call `session_start` with the repository or project name. It returns your scope (created if new), how to use NotDory,
+Call `session_start` with the repository or project name, and `path` set to the repository root's absolute path. It returns your scope (created if new), how to use NotDory,
 the scope's categories and instructions, and the most recent memories. No tool needs a `tenantId`.
 
 ```json
-{ "project": "my-repo" }
+{ "project": "my-repo", "path": "/home/me/src/my-repo" }
 ```
 
 Response `data` (abridged):
@@ -210,6 +210,14 @@ Response `data` (abridged):
 
 Read the categories' instructions and the recent memories before planning; they say what belongs where and what is
 already known. `guide` and `instructions` re-read the same context later in a long session.
+
+Every project an agent does a meaningful amount of work on gets its own scope. When the scope is new, empty, or thin
+(`scope.created` is true, `memoryCount` is low, or the `notice` says so), onboard the project: examine its structure and
+key details (README and docs, build files, layout, entry points, tests, conventions), describe the scope with
+`scope_update`, create categories with descriptions and instructions with `category_create`, and save memories covering
+what was found with `memory_upsert`.
+
+When session start creates a scope and `path` (the repository root's absolute path) is a directory the NotDory server can see, the scope mirrors its memories to an Open Knowledge Format bundle in `<path>/.okf` (unless that directory already exists and is not empty, or `storage.mirrorByDefault` is false). Otherwise the `notice` says why the scope is not mirrored and how to turn the mirror on with `scope_update`.
 
 ### 3. Write a memory
 

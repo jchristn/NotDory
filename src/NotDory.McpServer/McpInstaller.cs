@@ -177,9 +177,10 @@ namespace NotDory.McpServer
             if (restUrl == null) throw new ArgumentNullException(nameof(restUrl));
             if (accessKey == null) throw new ArgumentNullException(nameof(accessKey));
             // Send the facts and let the server resolve the project: the git remote's repository name first (stable across
-            // clones, whatever the folder is called), then the folder name, which alone never creates a scope.
+            // clones, whatever the folder is called), then the folder name, which alone never creates a scope. The full path
+            // lets a new scope mirror to the project's .okf bundle when the server can see it.
             return "D=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; curl -fsS -m 8 -G -H \"x-access-key: " + accessKey + "\" "
-                + "--data-urlencode \"remote=$(git -C \"$D\" remote get-url origin 2>/dev/null)\" --data-urlencode \"directory=$(basename \"$D\")\" "
+                + "--data-urlencode \"remote=$(git -C \"$D\" remote get-url origin 2>/dev/null)\" --data-urlencode \"directory=$(basename \"$D\")\" --data-urlencode \"path=$D\" "
                 + "--data \"format=text\" \"" + restUrl.TrimEnd('/') + "/v1.0/api/session\" || true";
         }
 

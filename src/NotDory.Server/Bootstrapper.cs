@@ -154,6 +154,9 @@ namespace NotDory.Server
             string? dbFile = Environment.GetEnvironmentVariable("NOTDORY_DB_FILENAME");
             if (!String.IsNullOrEmpty(dbFile)) settings.Database.Filename = dbFile;
 
+            string? mirrorByDefault = Environment.GetEnvironmentVariable("NOTDORY_MIRROR_BY_DEFAULT");
+            if (!String.IsNullOrEmpty(mirrorByDefault) && Boolean.TryParse(mirrorByDefault, out bool mbd)) settings.Storage.MirrorByDefault = mbd;
+
             string? dbHost = Environment.GetEnvironmentVariable("NOTDORY_DB_SERVER");
             if (!String.IsNullOrEmpty(dbHost)) settings.Database.Hostname = dbHost;
 

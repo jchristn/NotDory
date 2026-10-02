@@ -2,6 +2,7 @@ namespace NotDory.Server.Services
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
     using System.Linq;
     using System.Text;
     using System.Threading;
@@ -9,7 +10,9 @@ namespace NotDory.Server.Services
     using NotDory.Core.Database;
     using NotDory.Core.Helpers;
     using NotDory.Core.Models;
+    using NotDory.Core.Stores;
     using NotDory.Server.Models;
+    using NotDory.Server.Settings;
 
     /// <summary>
     /// Session start: one call that takes an agent from "connected" to "working with memory". It resolves the caller's
@@ -23,6 +26,7 @@ namespace NotDory.Server.Services
         private readonly DatabaseDriverBase _Database;
         private readonly ScopeProvisioner _Provisioner;
         private readonly Func<string> _Instructions;
+        private readonly StorageSettings _Storage;
 
         #endregion
 
@@ -34,11 +38,13 @@ namespace NotDory.Server.Services
         /// <param name="database">The database.</param>
         /// <param name="instructions">Supplies the agent instructions in effect (the administrator's text or the built-in
         /// protocol); read on every call so an edit applies to the next session. Null uses the built-in protocol.</param>
+        /// <param name="storage">Storage settings (whether a new scope mirrors to the project's OKF bundle); null uses the defaults.</param>
         /// <exception cref="ArgumentNullException">Thrown when database is null.</exception>
-        public SessionStartService(DatabaseDriverBase database, Func<string>? instructions = null)
+        public SessionStartService(DatabaseDriverBase database, Func<string>? instructions = null, StorageSettings? storage = null)
         {
             _Database = database ?? throw new ArgumentNullException(nameof(database));
-            _Provisioner = new ScopeProvisioner(database);
+            _Storage = storage ?? new StorageSettings();
+            _Provisioner = new ScopeProvisioner(database, _Storage);
             _Instructions = instructions ?? (() => AgentProtocol.ServerInstructions);
         }
 
@@ -65,6 +71,7 @@ namespace NotDory.Server.Services
 
             Scope? scope = null;
             bool created = false;
+            string? mirrorNote = null;
 
             // Candidate names, most specific first: what the caller called the project, the repository name from the git
             // remote (stable across clones), then the working directory's name.
@@ -86,6 +93,7 @@ namespace NotDory.Server.Services
             if (scope == null && newName != null && request.CreateIfMissing)
             {
                 Scope draft = new Scope { Name = newName, Description = "Memory for the " + newName + " project." };
+                mirrorNote = PlanProjectMirror(draft, request.Path);
                 ScopeProvisionResult provisioned = await _Provisioner.CreateAsync(tenantId, draft, token).ConfigureAwait(false);
                 scope = provisioned.Scope;
                 created = scope != null;
@@ -127,6 +135,14 @@ namespace NotDory.Server.Services
             // Newest first: what was written most recently is usually what the next session needs.
             EnumerationResult<Memory> memories = await _Database.Memories.EnumerateAsync(tenantId, scope.Id, null, new EnumerationQuery { MaxResults = Math.Max(1, request.MaxMemories) }, token).ConfigureAwait(false);
             result.MemoryCount = memories.TotalRecords;
+            if (created || result.MemoryCount == 0)
+            {
+                result.Notice = "The scope '" + scope.Name + "' is " + (created ? "new" : "empty") + ". If you will do a meaningful amount of work "
+                    + "on this project, onboard it: examine the project structure and key details, describe the scope (scope_update), "
+                    + "create categories with descriptions and instructions (category_create), and save memories covering what you found (memory_upsert).";
+            }
+
+            if (mirrorNote != null) result.Notice = result.Notice == null ? mirrorNote : result.Notice + " " + mirrorNote;
             Dictionary<string, string> categoryNames = result.Categories.ToDictionary(c => c.Id, c => c.Name, StringComparer.Ordinal);
             if (request.MaxMemories > 0)
             {
@@ -142,6 +158,34 @@ namespace NotDory.Server.Services
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Point a new scope's Open Knowledge Format mirror at the project (the bundle goes in its <c>.okf/</c> directory)
+        /// when the server can see the project and that directory is free. OKF names no location; a bundle may be a
+        /// subdirectory of the repository it describes. The mirror owns its directory (it regenerates index.md and reads
+        /// every file under it), so an existing, non-empty <c>.okf/</c> is left alone.
+        /// </summary>
+        /// <param name="draft">The scope about to be created; its targetPath is set when the mirror can be used.</param>
+        /// <param name="projectPath">The project's absolute path from the agent harness, or null.</param>
+        /// <returns>Why the scope will not be mirrored, or null when it will be (or mirroring is off by default).</returns>
+        private string? PlanProjectMirror(Scope draft, string? projectPath)
+        {
+            if (!_Storage.MirrorByDefault) return null;
+            string how = " To mirror it, call scope_update with filesystemMirror true and targetPath set to the repository root as the NotDory server sees it (an absolute path); the bundle goes in its " + MirroredMemoryStore.BundleDirectoryName + " directory.";
+            if (projectPath == null)
+                return "The scope is not mirrored to an Open Knowledge Format bundle because session start got no project path (pass path, the repository root)." + how;
+            if (!Path.IsPathRooted(projectPath) || projectPath.StartsWith("~", StringComparison.Ordinal))
+                return "The scope is not mirrored because the project path '" + projectPath + "' is not absolute." + how;
+            if (!Directory.Exists(projectPath))
+                return "The scope is not mirrored because the NotDory server cannot see the project directory '" + projectPath + "' (it likely runs on another host or in a container)." + how;
+
+            string bundle = Path.Combine(projectPath, MirroredMemoryStore.BundleDirectoryName);
+            if (Directory.Exists(bundle) && Directory.EnumerateFileSystemEntries(bundle).Any())
+                return "The scope is not mirrored because '" + bundle + "' already exists and is not empty, and the mirror would take it over." + how;
+
+            draft.TargetPath = projectPath;
+            return null;
         }
 
         /// <summary>

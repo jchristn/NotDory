@@ -38,7 +38,7 @@ namespace NotDory.Server.Routes
             if (database == null) throw new ArgumentNullException(nameof(database));
             if (settings == null) throw new ArgumentNullException(nameof(settings));
             _Authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
-            _Sessions = new SessionStartService(database, () => settings.Agent.EffectiveServerInstructions());
+            _Sessions = new SessionStartService(database, () => settings.Agent.EffectiveServerInstructions(), settings.Storage);
         }
 
         #endregion
@@ -83,7 +83,8 @@ namespace NotDory.Server.Routes
                 {
                     Project = RouteHelpers.Query(context, "project"),
                     Remote = RouteHelpers.Query(context, "remote"),
-                    Directory = RouteHelpers.Query(context, "directory")
+                    Directory = RouteHelpers.Query(context, "directory"),
+                    Path = RouteHelpers.Query(context, "path")
                 };
                 string? create = RouteHelpers.Query(context, "createIfMissing");
                 if (create != null) request.CreateIfMissing = !string.Equals(create, "false", StringComparison.OrdinalIgnoreCase);

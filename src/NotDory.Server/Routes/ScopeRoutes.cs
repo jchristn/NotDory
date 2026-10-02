@@ -11,6 +11,7 @@ namespace NotDory.Server.Routes
     using NotDory.Core.Security;
     using NotDory.Server.Models;
     using NotDory.Server.Services;
+    using NotDory.Server.Settings;
     using WatsonWebserver.Core.OpenApi;
     using WatsonWebserver.Core;
     using WatsonWebserver;
@@ -37,11 +38,12 @@ namespace NotDory.Server.Routes
         /// <param name="database">The database driver.</param>
         /// <param name="authorization">The authorization service.</param>
         /// <param name="memoryService">The memory service (used for cascade delete of scope content).</param>
+        /// <param name="storage">Storage settings (whether new RecallDb scopes mirror by default); null uses the defaults.</param>
         /// <exception cref="ArgumentNullException">Thrown when a required argument is null.</exception>
-        public ScopeRoutes(DatabaseDriverBase database, AuthorizationService authorization, MemoryService memoryService)
+        public ScopeRoutes(DatabaseDriverBase database, AuthorizationService authorization, MemoryService memoryService, StorageSettings? storage = null)
         {
             _Database = database ?? throw new ArgumentNullException(nameof(database));
-            _Provisioner = new ScopeProvisioner(database);
+            _Provisioner = new ScopeProvisioner(database, storage);
             _Authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
             _MemoryService = memoryService ?? throw new ArgumentNullException(nameof(memoryService));
         }
@@ -103,7 +105,9 @@ namespace NotDory.Server.Routes
                 return;
             }
 
-            ScopeProvisionResult result = await _Provisioner.CreateAsync(tenantId, scope, context.Token).ConfigureAwait(false);
+            // Only an explicit filesystemMirror in the body overrides the default; the bound model cannot tell false from absent.
+            bool? filesystemMirror = RouteHelpers.BodyHasProperty(context, "filesystemMirror") ? scope.FilesystemMirror : null;
+            ScopeProvisionResult result = await _Provisioner.CreateAsync(tenantId, scope, context.Token, filesystemMirror).ConfigureAwait(false);
             if (result.Scope == null)
             {
                 await RouteHelpers.ErrorAsync(context, result.StatusCode, result.Error ?? "BadRequest", result.Message ?? "The scope could not be created.").ConfigureAwait(false);

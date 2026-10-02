@@ -15,7 +15,7 @@ SETTINGS="$HOME/.claude/settings.json"
 mkdir -p "$HOME/.claude"
 [ -f "$SETTINGS" ] && cp "$SETTINGS" "$SETTINGS.bak"
 
-COMMAND='D="${CLAUDE_PROJECT_DIR:-$PWD}"; curl -fsS -m 8 -G -H "x-access-key: '"$AK"'" --data-urlencode "remote=$(git -C "$D" remote get-url origin 2>/dev/null)" --data-urlencode "directory=$(basename "$D")" --data "format=text" "'"${REST_URL%/}"'/v1.0/api/session" || true'
+COMMAND='D="${CLAUDE_PROJECT_DIR:-$PWD}"; curl -fsS -m 8 -G -H "x-access-key: '"$AK"'" --data-urlencode "remote=$(git -C "$D" remote get-url origin 2>/dev/null)" --data-urlencode "directory=$(basename "$D")" --data-urlencode "path=$D" --data "format=text" "'"${REST_URL%/}"'/v1.0/api/session" || true'
 export NOTDORY_HOOK_ACTION="$ACTION" NOTDORY_HOOK_COMMAND="$COMMAND" NOTDORY_HOOK_SETTINGS="$SETTINGS"
 
 if command -v python3 >/dev/null 2>&1; then

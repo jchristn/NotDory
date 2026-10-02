@@ -10,6 +10,9 @@ import { IconExternal } from '../components/Icons';
 import { EXTERNAL_SERVICES } from '../utils/constants';
 import { formatNumber } from '../i18n/formatters';
 
+// The memories-per-scope chart shows at most this many scopes, the ones with the most memories.
+const MAX_CHART_SCOPES = 32;
+
 function HomeView() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -54,7 +57,8 @@ function HomeView() {
           }
         })
       );
-      setMemoriesPerScope(perScope);
+      perScope.sort((a, b) => b.total - a.total || String(a.label).localeCompare(String(b.label)));
+      setMemoriesPerScope(perScope.slice(0, MAX_CHART_SCOPES));
       setTotals({ memories: memTotal, categories: catTotal });
 
       try {
@@ -112,10 +116,18 @@ function HomeView() {
           </div>
 
           <div className="section">
-            <div className="section-title">{t('home.memoriesPerScope')}</div>
+            <div className="section-title">
+              {t('home.memoriesPerScope')}
+              {scopes.length > MAX_CHART_SCOPES && (
+                <span className="page-subtitle" style={{ marginLeft: 'var(--spacing-sm)', fontWeight: 'normal' }}>
+                  {t('home.memoriesPerScopeTop', { count: MAX_CHART_SCOPES, total: scopes.length })}
+                </span>
+              )}
+            </div>
             {memoriesPerScope.length ? (
               <ActivityChart
                 buckets={memoriesPerScope}
+                labelAll
                 onBucketClick={(b) => {
                   const scope = scopes.find((s) => (s.name || s.id || s.Id) === b.label);
                   if (scope) navigate(`/dashboard/scopes/${scope.id || scope.Id}/memories`);

@@ -230,13 +230,16 @@ namespace NotDory.Core.Stores.Filesystem
             return path;
         }
 
+        /// <summary>
+        /// Regenerate the bundle-root index.md per OKF v0.2 section 8: no frontmatter except the okf_version key a root
+        /// index may carry, then one section per category listing each concept as "* [title](path) - description".
+        /// </summary>
         private async Task RegenerateOkfIndexAsync(Scope scope, CancellationToken token)
         {
             string root = ResolveRoot(scope);
             if (!Directory.Exists(root)) return;
 
-            SortedDictionary<string, List<KeyValuePair<string, string>>> byCategory =
-                new SortedDictionary<string, List<KeyValuePair<string, string>>>(StringComparer.OrdinalIgnoreCase);
+            SortedDictionary<string, List<OkfIndexEntry>> byCategory = new SortedDictionary<string, List<OkfIndexEntry>>(StringComparer.OrdinalIgnoreCase);
 
             foreach (string path in Directory.EnumerateFiles(root, "*.md", SearchOption.AllDirectories))
             {
@@ -245,44 +248,57 @@ namespace NotDory.Core.Stores.Filesystem
 
                 Memory memory = OkfDocument.Parse(await File.ReadAllTextAsync(path, token).ConfigureAwait(false),
                     Path.GetFileNameWithoutExtension(path), CategoryFromPath(root, path));
-                string relative = Path.GetRelativePath(root, path).Replace('\\', '/');
-                string label = String.IsNullOrEmpty(memory.Title) ? memory.Slug : memory.Title!;
-                if (!byCategory.TryGetValue(memory.CategoryId, out List<KeyValuePair<string, string>>? entries))
+                if (!byCategory.TryGetValue(memory.CategoryId, out List<OkfIndexEntry>? entries))
                 {
-                    entries = new List<KeyValuePair<string, string>>();
+                    entries = new List<OkfIndexEntry>();
                     byCategory[memory.CategoryId] = entries;
                 }
 
-                entries.Add(new KeyValuePair<string, string>(label, relative));
+                entries.Add(new OkfIndexEntry
+                {
+                    Label = String.IsNullOrEmpty(memory.Title) ? memory.Slug : memory.Title!,
+                    RelativePath = Path.GetRelativePath(root, path).Replace('\\', '/'),
+                    Description = memory.Summary,
+                    Deprecated = memory.SupersededBy != null
+                });
             }
 
             StringBuilder sb = new StringBuilder();
             sb.Append(_OkfIndexDelimiter).Append('\n');
-            sb.Append("type: Index\n");
-            sb.Append("title: \"").Append((scope.Name ?? "Memory Index").Replace("\"", "\\\"")).Append("\"\n");
-            sb.Append("timestamp: ").Append(DateTime.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
+            sb.Append("okf_version: \"").Append(OkfDocument.OkfVersion).Append("\"\n");
             sb.Append(_OkfIndexDelimiter).Append('\n');
-            sb.Append("# ").Append(scope.Name ?? "Memory Index").Append("\n\n");
 
-            if (byCategory.Count == 0)
+            foreach (KeyValuePair<string, List<OkfIndexEntry>> category in byCategory)
             {
-                sb.Append("_No memories yet._\n");
-            }
-            else
-            {
-                foreach (KeyValuePair<string, List<KeyValuePair<string, string>>> category in byCategory)
+                sb.Append("# ").Append(category.Key).Append("\n\n");
+                foreach (OkfIndexEntry entry in category.Value.OrderBy(e => e.RelativePath, StringComparer.OrdinalIgnoreCase))
                 {
-                    sb.Append("## ").Append(category.Key).Append("\n\n");
-                    foreach (KeyValuePair<string, string> entry in category.Value.OrderBy(e => e.Value, StringComparer.OrdinalIgnoreCase))
-                    {
-                        sb.Append("- [").Append(entry.Key).Append("](").Append(entry.Value).Append(")\n");
-                    }
-
+                    sb.Append("* [").Append(entry.Label).Append("](").Append(entry.RelativePath).Append(')');
+                    if (!String.IsNullOrEmpty(entry.Description)) sb.Append(" - ").Append(OneLine(entry.Description!));
+                    if (entry.Deprecated) sb.Append(" (deprecated)");
                     sb.Append('\n');
                 }
+
+                sb.Append('\n');
             }
 
             await File.WriteAllTextAsync(Path.Combine(root, OkfDocument.IndexFileName), sb.ToString(), token).ConfigureAwait(false);
+        }
+
+        private static string OneLine(string text)
+        {
+            return String.Join(" ", text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)).Trim();
+        }
+
+        private sealed class OkfIndexEntry
+        {
+            public string Label { get; set; } = String.Empty;
+
+            public string RelativePath { get; set; } = String.Empty;
+
+            public string? Description { get; set; } = null;
+
+            public bool Deprecated { get; set; } = false;
         }
 
         private async Task<string> UpsertSingleFileAsync(Scope scope, Memory memory, CancellationToken token)

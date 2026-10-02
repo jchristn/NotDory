@@ -12,7 +12,8 @@ namespace NotDory.Core.Stores
 
     /// <summary>
     /// A memory store that writes every memory to a primary store (RecallDB) and, concurrently, to a filesystem mirror
-    /// laid out as an Open Knowledge Format bundle under the scope's target path. The primary store is the system of
+    /// laid out as an Open Knowledge Format bundle in a <c>.okf</c> directory under the scope's target path (typically a
+    /// repository root, so the bundle stays out of the way of the repository's own files). The primary store is the system of
     /// record: it serves every search and supplies the store key. The mirror is a git-trackable copy of the memory
     /// bodies. A write fails if either side fails, so the mirror never silently falls behind. Deleting the scope
     /// leaves the mirror files in place, because the target path is often inside a repository the user owns.
@@ -20,6 +21,11 @@ namespace NotDory.Core.Stores
     public class MirroredMemoryStore : IMemoryStore
     {
         #region Public-Members
+
+        /// <summary>
+        /// The directory, under the scope's target path, that holds the mirror bundle.
+        /// </summary>
+        public const string BundleDirectoryName = ".okf";
 
         /// <inheritdoc />
         public StoreCapabilities Capabilities
@@ -90,7 +96,22 @@ namespace NotDory.Core.Stores
         #region Public-Methods
 
         /// <summary>
-        /// The scope the mirror store sees: the same identity and target path, always in the OKF bundle layout.
+        /// The directory a scope's mirror bundle is written to: <see cref="BundleDirectoryName"/> under its target path.
+        /// </summary>
+        /// <param name="scope">The scope being mirrored.</param>
+        /// <returns>The bundle directory.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when scope is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the scope has no target path.</exception>
+        public static string BundlePath(Scope scope)
+        {
+            if (scope == null) throw new ArgumentNullException(nameof(scope));
+            if (String.IsNullOrWhiteSpace(scope.TargetPath)) throw new InvalidOperationException("Scope '" + scope.Id + "' mirrors to the filesystem but has no target path configured.");
+            return Path.Combine(scope.TargetPath!, BundleDirectoryName);
+        }
+
+        /// <summary>
+        /// The scope the mirror store sees: the same identity, always in the OKF bundle layout, rooted at
+        /// <see cref="BundlePath(Scope)"/>.
         /// </summary>
         /// <param name="scope">The scope being mirrored.</param>
         /// <returns>The mirror scope.</returns>
@@ -98,8 +119,7 @@ namespace NotDory.Core.Stores
         /// <exception cref="InvalidOperationException">Thrown when the scope has no target path.</exception>
         public static Scope MirrorScope(Scope scope)
         {
-            if (scope == null) throw new ArgumentNullException(nameof(scope));
-            if (String.IsNullOrWhiteSpace(scope.TargetPath)) throw new InvalidOperationException("Scope '" + scope.Id + "' mirrors to the filesystem but has no target path configured.");
+            string bundle = BundlePath(scope);
 
             return new Scope
             {
@@ -109,7 +129,7 @@ namespace NotDory.Core.Stores
                 Description = scope.Description,
                 StoreProvider = StoreProviderEnum.Filesystem,
                 FilesystemLayout = FilesystemLayoutEnum.OkfBundle,
-                TargetPath = scope.TargetPath
+                TargetPath = bundle
             };
         }
 

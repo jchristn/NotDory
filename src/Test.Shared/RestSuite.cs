@@ -110,6 +110,7 @@ namespace Test.Shared
                     TestCase.Async("rest", "agent-protocol-edit", "PUT /agent-protocol: admin only, unknown tools rejected, edits saved to the settings file and used by session start, reset restores defaults", AgentProtocolEditAsync),
                     TestCase.Async("rest", "session-start", "POST /session matches the project's scope and returns protocol, categories, instructions, and recent memories; GET format=text renders markdown", SessionStartAsync),
                     TestCase.Async("rest", "session-start-choice", "Session start without a match or project lists scopes, and creates the project's scope when asked", SessionStartChoiceAsync),
+                    TestCase.Async("rest", "session-start-mirror", "Session start mirrors a new scope to the project's .okf when the server can see the project, and says why when it cannot", SessionStartMirrorAsync),
                     TestCase.Async("rest", "session-start-remote", "Session start matches by the git remote's repository name before the folder name, creates a scope for a new repository, and never for a bare folder", SessionStartRemoteAsync),
                     TestCase.Async("rest", "memory-upsert-category-name", "Memory upsert accepts a category name (created once) and rejects an unknown cat_ id", MemoryUpsertCategoryNameAsync),
                     TestCase.Async("rest", "endpoint-reasoning", "Endpoint reasoning setting round-trips through create and update and defaults to Default", EndpointReasoningRestAsync),
@@ -985,6 +986,24 @@ namespace Test.Shared
             ExpectStatus(onFilesystem, HttpStatusCode.BadRequest, "filesystemMirror on a Filesystem scope");
             HttpResponseMessage noPath = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "no-path", filesystemMirror = true }).ConfigureAwait(false);
             ExpectStatus(noPath, HttpStatusCode.BadRequest, "filesystemMirror without a targetPath");
+            HttpResponseMessage tilde = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "tilde", targetPath = "~/Code/repo" }).ConfigureAwait(false);
+            ExpectStatus(tilde, HttpStatusCode.BadRequest, "a targetPath starting with '~'");
+
+            string defaultDir = Path.Combine(h.WorkDir, "default-repo");
+            using (JsonDocument doc = await ReadJsonAsync(await PostAsync(admin, ScopesPath(h.TenantId), new { name = "by-default", targetPath = defaultDir }).ConfigureAwait(false)).ConfigureAwait(false))
+            {
+                TestCase.Require(doc.RootElement.GetProperty("filesystemMirror").GetBoolean(), "A RecallDb scope given a targetPath should mirror by default.");
+            }
+
+            using (JsonDocument doc = await ReadJsonAsync(await PostAsync(admin, ScopesPath(h.TenantId), new { name = "opted-out", targetPath = defaultDir, filesystemMirror = false }).ConfigureAwait(false)).ConfigureAwait(false))
+            {
+                TestCase.Require(!doc.RootElement.GetProperty("filesystemMirror").GetBoolean(), "An explicit filesystemMirror false should opt out.");
+            }
+
+            using (JsonDocument doc = await ReadJsonAsync(await PostAsync(admin, ScopesPath(h.TenantId), new { name = "no-target" }).ConfigureAwait(false)).ConfigureAwait(false))
+            {
+                TestCase.Require(!doc.RootElement.GetProperty("filesystemMirror").GetBoolean(), "A scope with no targetPath has nowhere to mirror and should start unmirrored.");
+            }
 
             string mirrorDir = Path.Combine(h.WorkDir, "repo", ".notdory");
             HttpResponseMessage created = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "mirrored", filesystemMirror = true, targetPath = mirrorDir }).ConfigureAwait(false);
@@ -1144,6 +1163,7 @@ namespace Test.Shared
             TestCase.Require(session["tenantId"]?.GetValue<string>() == h.TenantId && (session["protocol"]?.GetValue<string>() ?? string.Empty).Contains(sid, StringComparison.Ordinal), "The session should carry the tenant and a protocol naming the scope.");
             TestCase.Require(session["memoryCount"]?.GetValue<long>() == 1 && session["recentMemories"]?[0]?["slug"]?.GetValue<string>() == "db-choice" && session["recentMemories"]?[0]?["category"]?.GetValue<string>() == "decisions", "The session should list the recent memory with its category name: " + session.ToJsonString());
             TestCase.Require(session["categories"]?.AsArray().Count == 1, "The session should list the scope's categories.");
+            TestCase.Require(session["notice"] == null, "A scope that already has memories should not carry an onboarding notice: " + session.ToJsonString());
 
             HttpResponseMessage text = await access.GetAsync("/v1.0/api/session?project=alpha-project&format=text&maxMemories=5").ConfigureAwait(false);
             ExpectStatus(text, HttpStatusCode.OK, "session start as text");
@@ -1168,8 +1188,37 @@ namespace Test.Shared
             await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "emb", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "all-minilm", dimensionality = 384 }).ConfigureAwait(false);
             JsonNode created = JsonNode.Parse(await (await PostAsync(access, "/v1.0/api/session", new { project = "brand-new" }).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
             TestCase.Require(created["scope"]?["created"]?.GetValue<bool>() == true && created["scope"]?["name"]?.GetValue<string>() == "brand-new" && created["scope"]?["storeProvider"]?.GetValue<string>() == "RecallDb", "An unmatched project should get a new RecallDB scope: " + created.ToJsonString());
+            TestCase.Require((created["notice"]?.GetValue<string>() ?? string.Empty).Contains("onboard", StringComparison.Ordinal), "A new scope should carry a notice to onboard the project: " + created.ToJsonString());
             JsonNode reused = JsonNode.Parse(await (await PostAsync(access, "/v1.0/api/session", new { project = "Brand New" }).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
             TestCase.Require(reused["scope"]?["id"]?.GetValue<string>() == created["scope"]?["id"]?.GetValue<string>() && reused["scope"]?["created"]?.GetValue<bool>() == false, "The next session should find the scope it created.");
+        }
+
+        private static async Task SessionStartMirrorAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient access = h.AccessClient();
+            using HttpClient admin = h.AdminClient();
+            await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "emb", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "all-minilm", dimensionality = 384 }).ConfigureAwait(false);
+
+            string repo = Path.Combine(h.WorkDir, "repo");
+            Directory.CreateDirectory(repo);
+            JsonNode mirrored = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?project=repo&path=" + Uri.EscapeDataString(repo)).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            string scopeId = mirrored["scope"]?["id"]?.GetValue<string>() ?? string.Empty;
+            JsonNode scope = JsonNode.Parse(await (await admin.GetAsync(ScopesPath(h.TenantId) + "/" + scopeId).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require(scope["filesystemMirror"]?.GetValue<bool>() == true && scope["targetPath"]?.GetValue<string>() == repo, "A new scope should mirror under the project path: " + scope.ToJsonString());
+            TestCase.Require(!(mirrored["notice"]?.GetValue<string>() ?? string.Empty).Contains("not mirrored", StringComparison.Ordinal), "A mirrored scope needs no mirror notice.");
+
+            string unseen = Path.Combine(h.WorkDir, "elsewhere", "missing");
+            JsonNode remote = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?project=remote-repo&path=" + Uri.EscapeDataString(unseen)).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require((remote["notice"]?.GetValue<string>() ?? string.Empty).Contains("cannot see the project directory", StringComparison.Ordinal), "A project the server cannot see should be explained: " + remote.ToJsonString());
+            TestCase.Require(!Directory.Exists(unseen), "The server must not create a project directory it cannot see.");
+
+            string taken = Path.Combine(h.WorkDir, "taken");
+            Directory.CreateDirectory(Path.Combine(taken, ".okf"));
+            File.WriteAllText(Path.Combine(taken, ".okf", "index.md"), "# Theirs\n");
+            JsonNode busy = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?project=taken&path=" + Uri.EscapeDataString(taken)).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            TestCase.Require((busy["notice"]?.GetValue<string>() ?? string.Empty).Contains("already exists and is not empty", StringComparison.Ordinal), "An existing bundle should be left alone: " + busy.ToJsonString());
+            TestCase.Require(File.ReadAllText(Path.Combine(taken, ".okf", "index.md")) == "# Theirs\n", "The existing bundle's index must not be touched.");
         }
 
         private static async Task SessionStartRemoteAsync()

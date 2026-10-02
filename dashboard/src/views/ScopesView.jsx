@@ -29,7 +29,8 @@ const EMPTY = {
   storeProvider: 'RecallDb',
   filesystemLayout: 'SingleFile',
   targetPath: '',
-  filesystemMirror: false,
+  // New RecallDb scopes mirror to an OKF bundle by default; an existing scope's form keeps its own setting.
+  filesystemMirror: true,
   dimensionality: 1536,
   recallCollectionId: '',
   embeddingEndpointId: '',
@@ -214,7 +215,7 @@ function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, inf
                   id="scopeMirrorPath"
                   value={form.targetPath}
                   onChange={(e) => set('targetPath', e.target.value)}
-                  placeholder="/data/memory"
+                  placeholder="/path/to/repository"
                   required
                 />
                 <div className="field-hint">{t('scopes.mirrorPathHint')}</div>

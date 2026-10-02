@@ -235,9 +235,12 @@ provider — pick the one that matches what you need:
 when you want memory to live *inside* a repository (single file, an organized markdown hierarchy, or an Open Knowledge
 Format bundle) and be reviewed in a pull request.
 
-**To get both**, create a RecallDB scope with `filesystemMirror: true` and a `targetPath`. Every memory is written to
-RecallDB and, concurrently, to an Open Knowledge Format bundle at `targetPath` (one markdown file per memory with YAML
-frontmatter, plus a generated `index.md`). RecallDB stays the system of record and serves every search; the bundle is
+**To get both**, create a RecallDB scope with a `targetPath` (the mirror is on by default when one is given; send
+`filesystemMirror: false` to opt out). Agents get this automatically: `session_start` with `path` set to the repository
+root mirrors a new scope there when the NotDory server can see that directory. Every memory is written to
+RecallDB and, concurrently, to an Open Knowledge Format bundle in a `.okf` directory under `targetPath` (one markdown
+file per memory with YAML frontmatter, plus a generated `index.md`). Point `targetPath` at the repository root; NotDory
+appends `.okf` itself, so the bundle stays out of the way of the repository's own files. RecallDB stays the system of record and serves every search; the bundle is
 a git-trackable copy. A write fails if either side fails, so the copy never silently falls behind. Turning the mirror
 on for an existing scope, or changing its `targetPath`, copies the existing memories into the bundle. Deleting the
 scope leaves the files in place. `targetPath` is a directory on the NotDory server host: in Docker, bind-mount the

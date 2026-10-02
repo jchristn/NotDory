@@ -139,6 +139,7 @@ export const en = {
       openService: 'Open',
       credentials: 'Credentials',
       memoriesPerScope: 'Memories per scope',
+      memoriesPerScopeTop: 'Top {{count}} of {{total}} by memory count',
       noScopes: 'No scopes yet. Create one to start storing memories.'
     },
     scopes: {
@@ -153,8 +154,8 @@ export const en = {
       filesystemMirror: 'Mirror to filesystem (OKF bundle)',
       filesystemMirrorLabel: 'Filesystem mirror',
       mirrorBadge: '+ OKF mirror',
-      filesystemMirrorHint: 'Also write every memory as an Open Knowledge Format bundle (one Markdown file per memory plus an index.md) under the target path. Search still uses RecallDB. Turning this on for an existing scope backfills its memories; deleting the scope leaves the files in place.',
-      mirrorPathHint: 'A directory on the NotDory server host. When running in Docker, it must be bind-mounted into the container.',
+      filesystemMirrorHint: 'Also write every memory as an Open Knowledge Format bundle (one Markdown file per memory plus an index.md) in a .okf folder under the target path. Search still uses RecallDB. Turning this on for an existing scope backfills its memories; deleting the scope leaves the files in place.',
+      mirrorPathHint: 'A directory on the NotDory server host, usually a repository root; NotDory writes the bundle to its .okf subfolder. When running in Docker, it must be bind-mounted into the container.',
       mirrorPathRequired: 'A target path is required when the filesystem mirror is on.',
       embeddingEndpoint: 'Embedding endpoint',
       empty: 'No scopes yet. Create your first memory space to begin.',

@@ -19,7 +19,7 @@ namespace NotDory.Core.Helpers
         {
             new KeyValuePair<string, string>(
                 "session_start",
-                "Start here, once per session: returns your memory scope for the project (created if new), how to use NotDory, the scope's categories and instructions, and the most recent memories. Pass project as the git repository name (from the origin remote) or, outside a repository, the project or working directory name. No tenantId needed."),
+                "Start here, once per session: returns your memory scope for the project (created if new), how to use NotDory, the scope's categories and instructions, and the most recent memories. Pass project as the git repository name (from the origin remote) or, outside a repository, the project or working directory name, and path as the repository root's absolute path: a new scope then mirrors its memories to an Open Knowledge Format bundle in <path>/.okf when the NotDory server can see that directory (the notice says when it cannot). No tenantId needed. Every project you do a meaningful amount of work on gets its own scope; when the returned scope is new or thin, onboard it: examine the project structure and key details, describe the scope (scope_update), create categories (category_create), and save memories (memory_upsert)."),
             new KeyValuePair<string, string>(
                 "whoami",
                 "Show which tenant and principal your credential maps to. Not needed to get started: session_start returns the same, and no tool needs a tenantId."),
@@ -31,11 +31,11 @@ namespace NotDory.Core.Helpers
                 "List the memory scopes in a tenant."),
             new KeyValuePair<string, string>(
                 "scope_create",
-                "Create a memory scope for a project when one does not already exist (check first with scope_enumerate). "
+                "Create a memory scope for a project when one does not already exist (check first with scope_enumerate; session_start also creates one for the project name). Each project you do a meaningful amount of work on gets its own scope; never store one project's knowledge in another's. After creating it, onboard the project: examine its structure and key details, create categories, and save memories. "
                 + "Required: name. Optional: description; storeProvider: RecallDb (default: semantic + keyword, needs an embedding endpoint) or Filesystem (keyword-only, git-trackable files). "
                 + "For RecallDb you may pass embeddingEndpointId and dimensionality, but if you omit them the tenant's embedding endpoint and its dimensionality are selected AUTOMATICALLY (list options with endpoint_enumerate). "
                 + "If the tenant has NO embedding endpoint, RecallDb is rejected with guidance; use storeProvider Filesystem instead. Filesystem also accepts filesystemLayout (SingleFile|Hierarchy|OkfBundle; OkfBundle writes a git-trackable Open Knowledge Format bundle: one markdown file per memory with YAML frontmatter plus a generated index.md) and targetPath. "
-                + "To get both, create a RecallDb scope with filesystemMirror true and a targetPath: every memory is written to RecallDB (which serves search) and, concurrently, to an OKF bundle at targetPath (a directory on the NotDory server host, for example inside the repository). "
+                + "To get both, give a RecallDb scope a targetPath: every memory is written to RecallDB (which serves search) and, concurrently, to an OKF bundle in a .okf directory under targetPath (an absolute directory on the NotDory server host, usually the repository root; '~' is not expanded). The mirror is on by default when targetPath is given; pass filesystemMirror false to opt out. "
                 + "Optional model and retrieval settings: rerankEndpointId, rerankCandidates, rerankMinScore, inferenceEndpointId (chat model), queryEndpointId (model for query rewriting and expansion), conversationRewrite, queryExpansion (Off|On|Auto), queryDecomposition; unset values use the server defaults."),
             new KeyValuePair<string, string>(
                 "endpoint_enumerate",
@@ -48,7 +48,7 @@ namespace NotDory.Core.Helpers
                 "List categories in a scope, including their usage instructions. Required: scopeId."),
             new KeyValuePair<string, string>(
                 "category_create",
-                "Create a category in a scope. Required: scopeId, name. Optional: description, instructions."),
+                "Create a category in a scope. Use it when onboarding a project and whenever a kind of knowledge the project has lacks a category (for example architecture, conventions, build-and-test, decisions, open-work). Always give a description and instructions saying what belongs in it. Required: scopeId, name. Optional: description, instructions."),
             new KeyValuePair<string, string>(
                 "memory_enumerate",
                 "List memory summaries in a scope. Required: scopeId. Optional: category (categoryId filter), maxResults."),
@@ -73,7 +73,7 @@ namespace NotDory.Core.Helpers
                 "Read a single scope by id. Required: scopeId."),
             new KeyValuePair<string, string>(
                 "scope_update",
-                "Update a scope's name, description, filesystem mirror, models, or retrieval settings (store provider and dimensionality are immutable); settings not passed are kept. Required: scopeId. Optional: name, description, filesystemMirror and targetPath (RecallDb scopes: also write every memory to an Open Knowledge Format bundle at targetPath; turning it on copies existing memories there), rerankEndpointId (empty string removes it), rerankCandidates, rerankMinScore, inferenceEndpointId and queryEndpointId (the models for chat and for query rewriting/expansion), conversationRewrite, queryExpansion (Off|On|Auto), queryDecomposition."),
+                "Update a scope's name, description, filesystem mirror, models, or retrieval settings (store provider and dimensionality are immutable); settings not passed are kept. Required: scopeId. Optional: name, description, filesystemMirror and targetPath (RecallDb scopes: also write every memory to an Open Knowledge Format bundle in a .okf directory under targetPath, usually the repository root; turning it on copies existing memories there), rerankEndpointId (empty string removes it), rerankCandidates, rerankMinScore, inferenceEndpointId and queryEndpointId (the models for chat and for query rewriting/expansion), conversationRewrite, queryExpansion (Off|On|Auto), queryDecomposition."),
             new KeyValuePair<string, string>(
                 "scope_delete",
                 "Delete a scope and cascade its categories, memories, and scope instructions. Required: scopeId."),

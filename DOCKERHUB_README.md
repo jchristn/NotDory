@@ -40,7 +40,7 @@ NotDory stores memory through a pluggable `IMemoryStore`, chosen **per scope**:
 
 - **RecallDB** (default) — Postgres-backed; the only provider offering **semantic** and **hybrid** (vector + lexical) search. NotDory computes the embedding vector via a configured, health-checked embedding endpoint and passes it to RecallDB (bring-your-own-vector). Embedding dimension is fixed per scope.
 - **Filesystem** — flat files (single file, a reviewable markdown hierarchy, or an Open Knowledge Format bundle) that travel inside the target repository; keyword/metadata search only.
-- **RecallDB + filesystem mirror** — a RecallDB scope with `filesystemMirror` on also writes every memory, concurrently, to an Open Knowledge Format bundle at its `targetPath`. Search uses RecallDB; the bundle is a git-trackable copy. Bind-mount the target directory into `notdory-server`.
+- **RecallDB + filesystem mirror** — a RecallDB scope with `filesystemMirror` on also writes every memory, concurrently, to an Open Knowledge Format bundle in a `.okf` directory under its `targetPath` (usually a repository root). Search uses RecallDB; the bundle is a git-trackable copy. Bind-mount the target directory into `notdory-server`.
 
 On a RecallDB scope, a search runs hybrid vector + full-text search, fuses the two rankings, and can rerank the candidates with a cross-encoder when the scope has a Rerank endpoint (start the stack with `--profile rerank` or `--profile rerank-gpu`).
 

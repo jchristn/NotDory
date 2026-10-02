@@ -8,17 +8,20 @@ namespace NotDory.Server.Services
     using NotDory.Core.Enums;
     using NotDory.Core.Models;
     using NotDory.Core.Recall;
+    using NotDory.Server.Settings;
 
     /// <summary>
     /// Creates scopes that are usable as created: a RecallDB scope gets the tenant's embedding endpoint and its dimension
     /// when none is named, and the tenant's first cross-encoder as its reranker; the models a scope names are checked for
-    /// the job. Shared by the scope routes and session start.
+    /// the job. A new RecallDb scope mirrors to the filesystem unless the request opts out (<see cref="StorageSettings"/>).
+    /// Shared by the scope routes and session start.
     /// </summary>
     public class ScopeProvisioner
     {
         #region Private-Members
 
         private readonly DatabaseDriverBase _Database;
+        private readonly StorageSettings _Storage;
 
         #endregion
 
@@ -28,10 +31,12 @@ namespace NotDory.Server.Services
         /// Instantiate the provisioner.
         /// </summary>
         /// <param name="database">The database.</param>
+        /// <param name="storage">Storage settings (the default filesystem mirror); null uses the defaults.</param>
         /// <exception cref="ArgumentNullException">Thrown when database is null.</exception>
-        public ScopeProvisioner(DatabaseDriverBase database)
+        public ScopeProvisioner(DatabaseDriverBase database, StorageSettings? storage = null)
         {
             _Database = database ?? throw new ArgumentNullException(nameof(database));
+            _Storage = storage ?? new StorageSettings();
         }
 
         #endregion
@@ -44,9 +49,11 @@ namespace NotDory.Server.Services
         /// <param name="tenantId">The tenant.</param>
         /// <param name="scope">The scope to create; its name is required.</param>
         /// <param name="token">Cancellation token.</param>
+        /// <param name="filesystemMirror">Whether the request asked for the filesystem mirror; null when it did not say, so
+        /// a RecallDb scope with a targetPath follows <see cref="StorageSettings.MirrorByDefault"/>.</param>
         /// <returns>The created scope, or why it was refused.</returns>
         /// <exception cref="ArgumentNullException">Thrown when tenantId or scope is null.</exception>
-        public async Task<ScopeProvisionResult> CreateAsync(string tenantId, Scope scope, CancellationToken token = default)
+        public async Task<ScopeProvisionResult> CreateAsync(string tenantId, Scope scope, CancellationToken token = default, bool? filesystemMirror = null)
         {
             if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
             if (scope == null) throw new ArgumentNullException(nameof(scope));
@@ -90,6 +97,7 @@ namespace NotDory.Server.Services
                     return ScopeProvisionResult.Refused(400, "BadRequest", "The embedding endpoint '" + endpoint.Id + "' has no dimensionality configured; pass 'dimensionality' explicitly (e.g. 384 for all-minilm).");
             }
 
+            ApplyMirrorDefault(scope, filesystemMirror);
             string? storageError = ValidateStorage(scope);
             if (storageError != null) return ScopeProvisionResult.Refused(400, "BadRequest", storageError);
 
@@ -115,7 +123,9 @@ namespace NotDory.Server.Services
             if (scope.StoreProvider != StoreProviderEnum.RecallDb)
                 return "filesystemMirror applies only to RecallDb scopes; a Filesystem scope already writes its memories as files.";
             if (string.IsNullOrWhiteSpace(scope.TargetPath))
-                return "filesystemMirror needs a targetPath: the directory, on the NotDory server host, that the Open Knowledge Format bundle is written to.";
+                return "filesystemMirror needs a targetPath: the directory, on the NotDory server host, that the Open Knowledge Format bundle is written under (in its .okf directory), usually the repository root.";
+            if (scope.TargetPath.StartsWith("~", StringComparison.Ordinal))
+                return "The targetPath '" + scope.TargetPath + "' starts with '~', which the server does not expand; pass an absolute path.";
 
             try
             {
@@ -151,6 +161,17 @@ namespace NotDory.Server.Services
         #endregion
 
         #region Private-Methods
+
+        /// <summary>
+        /// A new RecallDb scope given a targetPath mirrors to it unless the request said otherwise. NotDory never picks the
+        /// directory itself: the bundle belongs in the project (OKF recommends a git repository), which only the caller
+        /// knows, so a scope created with no targetPath and no explicit request starts unmirrored.
+        /// </summary>
+        private void ApplyMirrorDefault(Scope scope, bool? requested)
+        {
+            if (scope.StoreProvider != StoreProviderEnum.RecallDb) return;
+            scope.FilesystemMirror = requested ?? (_Storage.MirrorByDefault && !string.IsNullOrWhiteSpace(scope.TargetPath));
+        }
 
         private async Task<ModelEndpoint?> FirstActiveEndpointAsync(string tenantId, EndpointKindEnum kind, bool rerankOnly, CancellationToken token)
         {

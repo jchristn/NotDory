@@ -46,7 +46,7 @@ if ($hooks.Contains('SessionStart') -and $hooks['SessionStart']) {
 if ($Action -eq 'install') {
     $url = $RestUrl.TrimEnd('/') + '/v1.0/api/session'
     $command = 'D="${CLAUDE_PROJECT_DIR:-$PWD}"; curl -fsS -m 8 -G -H "x-access-key: ' + $AccessKey + '" ' +
-        '--data-urlencode "remote=$(git -C "$D" remote get-url origin 2>/dev/null)" --data-urlencode "directory=$(basename "$D")" ' +
+        '--data-urlencode "remote=$(git -C "$D" remote get-url origin 2>/dev/null)" --data-urlencode "directory=$(basename "$D")" --data-urlencode "path=$D" ' +
         '--data "format=text" "' + $url + '" || true'
     $hook = [ordered]@{ type = 'command'; command = $command; timeout = 10 }
     [void]$groups.Add([ordered]@{ hooks = @($hook) })

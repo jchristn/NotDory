@@ -134,6 +134,21 @@ namespace NotDory.Server.Settings
         }
 
         /// <summary>
+        /// Storage settings (whether new RecallDb scopes mirror to an OKF bundle by default).
+        /// </summary>
+        public StorageSettings Storage
+        {
+            get
+            {
+                return _Storage;
+            }
+            set
+            {
+                _Storage = value ?? new StorageSettings();
+            }
+        }
+
+        /// <summary>
         /// Retrieval settings (similarity check on upsert, reranker input size, chat link expansion).
         /// </summary>
         public RetrievalSettings Retrieval
@@ -202,6 +217,7 @@ namespace NotDory.Server.Settings
         private ObservabilitySettings _Observability = new ObservabilitySettings();
         private RetentionSettings _Retention = new RetentionSettings();
         private RetrievalSettings _Retrieval = new RetrievalSettings();
+        private StorageSettings _Storage = new StorageSettings();
         private CacheSettings _Cache = new CacheSettings();
         private RequestHistorySettings _RequestHistory = new RequestHistorySettings();
         private LoggingSettings _Logging = new LoggingSettings();

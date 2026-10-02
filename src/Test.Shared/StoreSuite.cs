@@ -61,6 +61,7 @@ namespace Test.Shared
                     TestCase.Async("store", "okf-upsert-writes-frontmatter", "OKF upsert writes a category/slug.md file with YAML frontmatter", OkfUpsertWritesFrontmatterAsync),
                     TestCase.Async("store", "okf-upsert-generates-index", "OKF upsert generates a root index.md linking the memory", OkfUpsertGeneratesIndexAsync),
                     TestCase.Async("store", "okf-roundtrip-fidelity", "OKF Serialize then Parse preserves every memory field", OkfRoundtripFidelityAsync),
+                    TestCase.Async("store", "okf-superseded-deprecated", "A superseded memory is written with OKF status deprecated and marked in the index", OkfSupersededDeprecatedAsync),
                     TestCase.Async("store", "okf-search-keyword-hit", "OKF keyword search returns a scored hit via the frontmatter read path", OkfSearchKeywordHitAsync),
                     TestCase.Async("store", "okf-index-not-a-memory", "OKF search does not return the generated index.md as a memory", OkfIndexNotAMemoryAsync),
                     TestCase.Async("store", "okf-reupsert-single-file", "OKF re-upsert of a slug keeps a single file", OkfReupsertSingleFileAsync),
@@ -498,8 +499,40 @@ namespace Test.Shared
                 string indexPath = Path.Combine(work, "index.md");
                 TestCase.Require(File.Exists(indexPath), "OKF upsert should generate a root index.md.");
                 string index = await File.ReadAllTextAsync(indexPath).ConfigureAwait(false);
-                TestCase.Require(index.Contains("type: Index"), "The index should declare the reserved Index type.");
-                TestCase.Require(index.Contains("](cat_1/orders.md)"), "The index should link the memory by its relative path.");
+                TestCase.Require(index.StartsWith("---\nokf_version: \"0.2\"\n---\n", StringComparison.Ordinal), "The root index should carry only okf_version as frontmatter (OKF v0.2 section 8): " + index);
+                TestCase.Require(!index.Contains("type:") && !index.Contains("timestamp:"), "The index must not carry concept frontmatter.");
+                TestCase.Require(index.Contains("# cat_1\n"), "The index should group concepts under a section per category.");
+                TestCase.Require(index.Contains("* [Orders](cat_1/orders.md)"), "The index should link the memory by its relative path.");
+            }
+            finally
+            {
+                TryDeleteDir(work);
+            }
+        }
+
+        private static async Task OkfSupersededDeprecatedAsync()
+        {
+            string work = WorkDir();
+            try
+            {
+                Scope scope = OkfScope(work);
+                IMemoryStore store = MemoryStoreFactory.Create(scope);
+                await store.EnsureScopeAsync(scope).ConfigureAwait(false);
+
+                Memory old = Mem(scope, "db-choice", "Database choice", "We use MySQL.");
+                old.Summary = "The database is MySQL.";
+                old.SupersededBy = "mem_new";
+                string key = await store.UpsertAsync(scope, old, One(old)).ConfigureAwait(false);
+                await store.UpsertAsync(scope, Mem(scope, "db-choice-2", "Database choice, revised", "We use Postgres."), One(Mem(scope, "db-choice-2", "Database choice, revised", "We use Postgres."))).ConfigureAwait(false);
+
+                string text = await File.ReadAllTextAsync(key).ConfigureAwait(false);
+                TestCase.Require(text.Contains("status: \"deprecated\"") && text.Contains("supersededBy: \"mem_new\""), "A superseded memory should be written with status deprecated: " + text);
+                TestCase.Require(OkfDocument.Parse(text, "db-choice", "cat_1").SupersededBy == "mem_new", "supersededBy should round-trip.");
+                string current = await File.ReadAllTextAsync(Path.Combine(work, "cat_1", "db-choice-2.md")).ConfigureAwait(false);
+                TestCase.Require(!current.Contains("status:"), "A current memory should carry no status (absent means stable).");
+
+                string index = await File.ReadAllTextAsync(Path.Combine(work, OkfDocument.IndexFileName)).ConfigureAwait(false);
+                TestCase.Require(index.Contains("* [Database choice](cat_1/db-choice.md) - The database is MySQL. (deprecated)"), "The index should give the description and mark the deprecated memory: " + index);
             }
             finally
             {
@@ -935,10 +968,11 @@ namespace Test.Shared
                 TestCase.Require(key == "rec:grip", "The primary store's key should be returned, got '" + key + "'.");
                 TestCase.Require(memory.StoreKey == null, "The mirror must not overwrite the caller's memory store key.");
                 TestCase.Require(primary.Keys.ContainsKey("grip"), "The primary store should have received the memory.");
-                string file = Path.Combine(work, "cat_1", "grip.md");
+                string file = Path.Combine(work, MirroredMemoryStore.BundleDirectoryName, "cat_1", "grip.md");
                 TestCase.Require(File.Exists(file), "The mirror should write an OKF file at " + file + ".");
                 TestCase.Require(File.ReadAllText(file).Contains("control the sleeve and collar"), "The OKF file should hold the memory body.");
-                TestCase.Require(File.Exists(Path.Combine(work, OkfDocument.IndexFileName)), "The mirror should generate the bundle index.");
+                TestCase.Require(File.Exists(Path.Combine(work, MirroredMemoryStore.BundleDirectoryName, OkfDocument.IndexFileName)), "The mirror should generate the bundle index.");
+                TestCase.Require(Directory.GetFileSystemEntries(work).Length == 1, "The mirror should write only its .okf directory under the target path.");
             }
             finally
             {
@@ -966,7 +1000,7 @@ namespace Test.Shared
                 await Task.WhenAll(writes).ConfigureAwait(false);
                 TestCase.Require(primary.Keys.Count == 20, "Every memory should reach the primary store.");
                 TestCase.Require(Directory.GetFiles(work, "*.md", SearchOption.AllDirectories).Length == 21, "Expected 20 memory files plus index.md.");
-                string index = File.ReadAllText(Path.Combine(work, OkfDocument.IndexFileName));
+                string index = File.ReadAllText(Path.Combine(work, MirroredMemoryStore.BundleDirectoryName, OkfDocument.IndexFileName));
                 for (int i = 0; i < 20; i++)
                 {
                     TestCase.Require(index.Contains("Memory " + i + "]"), "The index should list 'Memory " + i + "'.");
@@ -991,7 +1025,7 @@ namespace Test.Shared
 
                 await store.DeleteAsync(scope, memory).ConfigureAwait(false);
                 TestCase.Require(!primary.Keys.ContainsKey("grip"), "The primary store should have deleted the memory.");
-                TestCase.Require(!File.Exists(Path.Combine(work, "cat_1", "grip.md")), "The mirror should delete the OKF file.");
+                TestCase.Require(!File.Exists(Path.Combine(work, MirroredMemoryStore.BundleDirectoryName, "cat_1", "grip.md")), "The mirror should delete the OKF file.");
             }
             finally
             {
@@ -1032,7 +1066,7 @@ namespace Test.Shared
 
                 await store.DeleteScopeAsync(scope).ConfigureAwait(false);
                 TestCase.Require(primary.Calls.Contains("DeleteScope"), "The primary store's scope content should be torn down.");
-                TestCase.Require(File.Exists(Path.Combine(work, "cat_1", "grip.md")), "The mirror files should be left in place.");
+                TestCase.Require(File.Exists(Path.Combine(work, MirroredMemoryStore.BundleDirectoryName, "cat_1", "grip.md")), "The mirror files should be left in place.");
             }
             finally
             {

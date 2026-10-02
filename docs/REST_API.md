@@ -109,7 +109,7 @@ A fresh deployment seeds a default admin user (`admin@notdory.local` / `notdorya
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | POST | `/v1.0/api/session` | session or credential | Start an agent session: the project's scope (created if new), the protocol, categories, instructions, and recent memories |
-| GET | `/v1.0/api/session` | session or credential | The same from the query string (`project`, `remote`, `directory`, `createIfMissing`, `maxMemories`); `format=text` returns markdown for a harness hook |
+| GET | `/v1.0/api/session` | session or credential | The same from the query string (`project`, `remote`, `directory`, `path`, `createIfMissing`, `maxMemories`); `format=text` returns markdown for a harness hook |
 | GET | `/v1.0/api/agent-protocol` | anonymous | What agents are told on connect: the server instructions and every tool description, with defaults and `overridden` flags |
 | PUT | `/v1.0/api/agent-protocol` | system administrator | Replace the server instructions and tool description overrides (`{ serverInstructions, toolDescriptions: { name: text } }`); blank or omitted values use the built-in text; unknown tool names return 400; saved to the settings file |
 
@@ -119,7 +119,7 @@ folder's name), matching each to a scope by name ignoring case, spacing, and pun
 "agent-memory", and "Agent Memory" find the same scope). The repository name comes before the folder name because it
 is the same in every clone. With no match and `createIfMissing` (default true) it creates a scope named for `project`
 or the repository, with the tenant's embedding endpoint and first cross-encoder, as scope creation does; a `directory`
-alone never creates one. With nothing that names a project it uses the tenant's only scope, or lists the scopes with a
+alone never creates one. When session start creates a scope and `path` (the repository root's absolute path) is a directory the NotDory server can see, the scope mirrors its memories to an Open Knowledge Format bundle in `<path>/.okf` (unless that directory already exists and is not empty, or `storage.mirrorByDefault` is false). Otherwise the `notice` says why the scope is not mirrored and how to turn the mirror on with `scope_update`. With nothing that names a project it uses the tenant's only scope, or lists the scopes with a
 `notice`. Query-string values are URL-decoded. The response's `protocol` is the server instructions in effect, prefixed with the scope to use, and
 `recentMemories` lists up to `maxMemories` (default 15, at most 100) memories newest first.
 
@@ -331,10 +331,15 @@ null means the server default (the `retrieval` settings), so a scope only record
 | `queryDecomposition` | Split multi-part questions into sub-queries (true / false) | `retrieval.queryDecomposition`, false |
 
 A RecallDb scope can also keep a filesystem copy of its memory. Set `filesystemMirror` to true and `targetPath` to a
-directory on the NotDory server host (in Docker, a path bind-mounted into `notdory-server`). Every memory upsert and
-delete then goes to RecallDB and, concurrently, to an Open Knowledge Format bundle in that directory: one markdown file
+directory on the NotDory server host, usually a repository root (in Docker, a path bind-mounted into `notdory-server`).
+Every memory upsert and delete then goes to RecallDB and, concurrently, to an Open Knowledge Format bundle in a `.okf`
+directory that NotDory appends to `targetPath` (so `targetPath: "/repo"` writes `/repo/.okf/`): one markdown file
 per memory (under a folder per category id) with YAML frontmatter, plus a generated `index.md`. RecallDB remains the
-system of record and serves every search and chat. The write fails if either side fails. Creating or updating a scope
+system of record and serves every search and chat. The write fails if either side fails. The mirror is on by default
+for a new RecallDb scope given a `targetPath` (server setting `storage.mirrorByDefault`, default true); send
+`filesystemMirror: false` to opt out, and a scope created without a `targetPath` starts unmirrored. A `targetPath`
+starting with `~` is rejected, because the server does not expand it. The root `index.md` follows OKF v0.2: its only
+frontmatter is `okf_version: "0.2"`, and a memory replaced by a newer one is written with `status: deprecated`. Creating or updating a scope
 with `filesystemMirror` on a `Filesystem` scope, without a `targetPath`, or with a `targetPath` the server cannot create
 returns 400. An update that turns the mirror on, or changes its `targetPath`, copies the scope's existing memories into
 the bundle before responding. Deleting the scope leaves the bundle on disk.

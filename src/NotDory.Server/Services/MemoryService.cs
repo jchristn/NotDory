@@ -315,7 +315,7 @@ namespace NotDory.Server.Services
                         ? await _Database.Memories.UpdateAsync(target, token).ConfigureAwait(false)
                         : await _Database.Memories.CreateAsync(target, token).ConfigureAwait(false);
 
-                    await ApplySupersessionAsync(scope, saved, existing == null, token).ConfigureAwait(false);
+                    await ApplySupersessionAsync(store, scope, saved, existing == null, token).ConfigureAwait(false);
                     if (DuplicateCheckEnabled && store.Capabilities.SupportsSemantic && chunks.Count > 0 && chunks[0].Embedding != null)
                     {
                         saved.SimilarMemories = await FindSimilarAsync(store, scope, saved, chunks[0].Embedding!, token).ConfigureAwait(false);
@@ -947,9 +947,10 @@ namespace NotDory.Server.Services
             return result;
         }
 
-        private async Task ApplySupersessionAsync(Scope scope, Memory saved, bool created, CancellationToken token)
+        private async Task ApplySupersessionAsync(IMemoryStore store, Scope scope, Memory saved, bool created, CancellationToken token)
         {
             // Mark the memories this one names as replaced, and release any it named before but no longer does.
+            List<string> changed = new List<string>();
             List<Memory> targets = new List<Memory>();
             if (saved.Supersedes.Count > 0)
             {
@@ -964,6 +965,7 @@ namespace NotDory.Server.Services
                 targets = targets.Where(m => !string.Equals(m.Id, saved.Id, StringComparison.Ordinal)).GroupBy(m => m.Id).Select(g => g.First()).ToList();
                 List<string> toMark = targets.Where(m => !string.Equals(m.SupersededBy, saved.Id, StringComparison.Ordinal)).Select(m => m.Id).ToList();
                 if (toMark.Count > 0) await _Database.Memories.SetSupersededByAsync(scope.TenantId, toMark, saved.Id, token).ConfigureAwait(false);
+                changed.AddRange(toMark);
             }
 
             if (!created)
@@ -972,6 +974,7 @@ namespace NotDory.Server.Services
                 List<Memory> previous = await _Database.Memories.ReadSupersededByAsync(scope.TenantId, saved.Id, token).ConfigureAwait(false);
                 List<string> released = previous.Where(m => !current.Contains(m.Id)).Select(m => m.Id).ToList();
                 if (released.Count > 0) await _Database.Memories.SetSupersededByAsync(scope.TenantId, released, null, token).ConfigureAwait(false);
+                changed.AddRange(released);
             }
             else
             {
@@ -982,6 +985,35 @@ namespace NotDory.Server.Services
                 {
                     await _Database.Memories.SetSupersededByAsync(scope.TenantId, new List<string> { saved.Id }, superseder.Id, token).ConfigureAwait(false);
                     saved.SupersededBy = superseder.Id;
+                    changed.Add(saved.Id);
+                }
+            }
+
+            await RewriteOkfFilesAsync(store, scope, changed, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Rewrite the OKF files of memories whose supersession changed, so each file's status (deprecated or current)
+        /// matches the database. Only OKF bundles carry the status: a mirrored RecallDb scope and a Filesystem scope in the
+        /// OkfBundle layout.
+        /// </summary>
+        private async Task RewriteOkfFilesAsync(IMemoryStore store, Scope scope, List<string> memoryIds, CancellationToken token)
+        {
+            if (memoryIds.Count == 0) return;
+            bool okfStore = scope.StoreProvider == StoreProviderEnum.Filesystem && scope.FilesystemLayout == FilesystemLayoutEnum.OkfBundle;
+            if (!(store is MirroredMemoryStore) && !okfStore) return;
+
+            List<Memory> memories = await _Database.Memories.ReadManyAsync(scope.TenantId, memoryIds.Distinct(StringComparer.Ordinal).ToList(), token).ConfigureAwait(false);
+            foreach (Memory memory in memories)
+            {
+                if (store is MirroredMemoryStore mirrored)
+                {
+                    await mirrored.UpsertMirrorAsync(scope, memory, token).ConfigureAwait(false);
+                }
+                else
+                {
+                    MemoryChunk whole = new MemoryChunk { Ordinal = 0, Text = memory.Body, StartOffset = 0, EndOffset = memory.Body.Length };
+                    await store.UpsertAsync(scope, memory, new List<MemoryChunk> { whole }, token).ConfigureAwait(false);
                 }
             }
         }

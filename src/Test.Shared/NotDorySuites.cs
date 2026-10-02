@@ -250,11 +250,11 @@ namespace Test.Shared
                 if (written != 3) throw new InvalidOperationException("Expected 3 memories mirrored, got " + written + ".");
                 for (int i = 0; i < 3; i++)
                 {
-                    string path = Path.Combine(mirror, category.Id, "note-" + i + ".md");
+                    string path = Path.Combine(mirror, MirroredMemoryStore.BundleDirectoryName, category.Id, "note-" + i + ".md");
                     if (!File.Exists(path) || !File.ReadAllText(path).Contains("body " + i)) throw new InvalidOperationException("Expected the OKF file " + path + " with its body.");
                 }
 
-                if (!File.Exists(Path.Combine(mirror, "index.md"))) throw new InvalidOperationException("Expected the mirror's index.md.");
+                if (!File.Exists(Path.Combine(mirror, MirroredMemoryStore.BundleDirectoryName, "index.md"))) throw new InvalidOperationException("Expected the mirror's index.md.");
             }
             finally
             {

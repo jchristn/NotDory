@@ -8,25 +8,50 @@ All notable changes to NotDory are documented here. This project adheres to
 ### Added
 
 - **Filesystem mirror for RecallDB scopes.** A RecallDb scope with `filesystemMirror: true` and a `targetPath` writes
-  every memory to RecallDB and, concurrently, to an Open Knowledge Format bundle in that directory (one markdown file per
-  memory with YAML frontmatter, plus a generated `index.md`), so a project gets semantic search and a git-trackable copy
-  of its memory in the repository. RecallDB stays the system of record and serves every search and chat; a write fails if
+  every memory to RecallDB and, concurrently, to an Open Knowledge Format bundle in a `.okf` directory under it (one
+  markdown file per memory with YAML frontmatter, plus a generated `index.md`), so a project gets semantic search and a
+  git-trackable copy of its memory in the repository. `targetPath` is meant to be the repository root: NotDory appends
+  `.okf` itself (`MirroredMemoryStore.BundleDirectoryName`), so the bundle and its `index.md` never mix with, or index,
+  the repository's own files. RecallDB stays the system of record and serves every search and chat; a write fails if
   either side fails; mirror writes to one directory are serialized so `index.md` stays complete. Turning the mirror on
   (or changing its `targetPath`) copies the scope's existing memories into the bundle, and deleting the scope leaves the
   files in place. Validation returns 400 for a mirror on a Filesystem scope, without a `targetPath`, or with a path the
   server cannot create. New `MirroredMemoryStore`, migration `2026-10-01-scope-filesystem-mirror` (Migration012), REST,
   MCP (`scope_create` and `scope_update` take `filesystemMirror` and `targetPath`), dashboard (scope form checkbox and
   scope detail), docs, and tests.
+- **The OKF mirror is on by default and follows OKF v0.2.** A new RecallDb scope given a `targetPath` mirrors unless the
+  request sends `filesystemMirror: false` (new server setting `storage.mirrorByDefault`, default true, env
+  `NOTDORY_MIRROR_BY_DEFAULT`); NotDory never picks a directory itself, so a scope created without one starts
+  unmirrored. `session_start` takes `path`, the repository root's absolute path (the Claude Code SessionStart hook,
+  `notdory mcp install`, and the per-OS hook scripts now send it): a scope it creates mirrors to `<path>/.okf` when the
+  server can see that directory and `.okf` is absent or empty, and otherwise its `notice` says why not and how to turn
+  the mirror on. OKF prescribes no location; it recommends keeping a bundle in git, as a subdirectory of the repository
+  it describes, and `.okf/` at the repository root is the directory community OKF tooling defaults to. The generated
+  root `index.md` now conforms to OKF v0.2 section 8 (its only frontmatter is `okf_version: "0.2"`, with one
+  `# <category>` section per category listing `* [title](path) - description`), and a memory replaced by a newer one is
+  written with `status: deprecated` and `supersededBy` (its file is rewritten when supersession changes). A `targetPath`
+  starting with `~` is rejected with 400, because the server does not expand it. The dashboard's new-scope form has the
+  mirror checked by default.
 - **Dashboard navigation consolidated into seven tabbed hubs.** The sidebar goes from 17 items in 7 groups to two
   sections: **Workspace** (Home; Memory: Scopes, Memories, Instructions; Recall: Search, Chat) and **Administration**
   (Models: Embedding, Inference; Access: Tenants, Users, Credentials; Monitoring: Requests, Operations, API Explorer;
   System: Settings, Agent Onboarding, Collections). The active tab is in the URL (`?tab=`), tabs support arrow-key
   navigation, admin gating is unchanged and applied per tab, and every old URL redirects to its hub and tab with the
   query string kept. The nav is defined once in `dashboard/src/config/navConfig.jsx`.
+- **Home's memories-per-scope chart labels every bar.** Labels stay horizontal when they all fit and turn vertical when
+  they don't, with the chart growing taller to fit them (vertical labels over 32 characters are shortened, with the full
+  name on hover). The chart shows at most 32 scopes, those with the most memories, and says so when there are more.
 - **Request History table fits the page.** The Path column is truncated with the full path on hover, Principal and Tenant
   are hidden by default (they can be shown from the column picker), and wide tables scroll inside their frame instead of
   widening the page.
 
+- **Agents keep one scope per project and onboard it.** The default server instructions (and so every `session_start`
+  protocol) now tell an agent that every project it does a meaningful amount of work on gets its own scope, and that a
+  new, empty, or thin scope is onboarded: examine the project's structure and key details, describe the scope
+  (`scope_update`), create categories with descriptions and instructions (`category_create`), and save memories
+  (`memory_upsert`). `session_start` adds a `notice` saying so when the scope was just created or has no memories, and
+  the `session_start`, `scope_create`, and `category_create` tool descriptions and the per-agent instruction docs say
+  the same. Administrators who overrode the server instructions or those tool descriptions keep their text.
 - **Agents audit memory when they save.** The default server instructions and the `memory_upsert` description now
   permit and expect an agent, each time it writes memories, to check the scope's categories (create or update any that
   are missing or unclear) and to check that memory is complete enough for a new agent to start from, adding, updating,

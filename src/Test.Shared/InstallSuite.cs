@@ -255,7 +255,7 @@ namespace Test.Shared
                 if (start.Count != 2) throw new InvalidOperationException("Expected the other hook plus one NotDory hook, got " + start.Count + ".");
                 string command = start[1]!["hooks"]![0]!["command"]!.GetValue<string>();
                 if (!command.Contains("key456", StringComparison.Ordinal) || command.Contains("key123", StringComparison.Ordinal)) throw new InvalidOperationException("Re-installing should replace the NotDory hook: " + command);
-                if (!command.Contains("http://127.0.0.1:8700/v1.0/api/session", StringComparison.Ordinal) || !command.Contains("format=text", StringComparison.Ordinal) || !command.Contains("CLAUDE_PROJECT_DIR", StringComparison.Ordinal) || !command.EndsWith("|| true", StringComparison.Ordinal))
+                if (!command.Contains("http://127.0.0.1:8700/v1.0/api/session", StringComparison.Ordinal) || !command.Contains("format=text", StringComparison.Ordinal) || !command.Contains("CLAUDE_PROJECT_DIR", StringComparison.Ordinal) || !command.Contains("path=$D", StringComparison.Ordinal) || !command.EndsWith("|| true", StringComparison.Ordinal))
                     throw new InvalidOperationException("The hook should fetch session start as text for the project directory and never fail: " + command);
                 if (!File.Exists(target + ".bak")) throw new InvalidOperationException("The settings file should be backed up.");
             }

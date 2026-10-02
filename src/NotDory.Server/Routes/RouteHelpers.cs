@@ -1,6 +1,7 @@
 namespace NotDory.Server.Routes
 {
     using System;
+    using System.Linq;
     using System.Runtime.CompilerServices;
     using System.Threading.Tasks;
     using NotDory.Core.Models;
@@ -162,6 +163,28 @@ namespace NotDory.Server.Routes
             string? search = Query(context, "q");
             if (!string.IsNullOrEmpty(search)) query.SearchTerm = search;
             return query;
+        }
+
+        /// <summary>
+        /// Whether the request body is a JSON object that names a property (case-insensitive), so a route can tell a value
+        /// the caller sent from a model default.
+        /// </summary>
+        /// <param name="context">HTTP context.</param>
+        /// <param name="name">The property name.</param>
+        /// <returns>True when the top-level object carries the property.</returns>
+        public static bool BodyHasProperty(HttpContextBase context, string name)
+        {
+            string body = context.Request.DataAsString;
+            if (string.IsNullOrEmpty(body) || body.Length > _MaxBodyBytes) return false;
+            try
+            {
+                if (!(System.Text.Json.Nodes.JsonNode.Parse(body) is System.Text.Json.Nodes.JsonObject obj)) return false;
+                return obj.Any(p => string.Equals(p.Key, name, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return false;
+            }
         }
 
         /// <summary>

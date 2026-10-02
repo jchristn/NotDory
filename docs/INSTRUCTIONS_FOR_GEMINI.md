@@ -56,16 +56,32 @@ Every memory session follows this pattern: **Discover -> Recall -> Record -> Cur
 Start every session with one call, before planning anything:
 
 ```
-session_start({ project: "<repository or project name>" })
+session_start({ project: "<repository or project name>", path: "<absolute path of the repository root>" })
   -> your scope for the project (created if new), how to use NotDory, the scope's categories
      and their instructions, the tenant's standing instructions, and the most recent memories
 ```
 
 It replaces the old whoami, instructions, scope_enumerate, and guide sequence. No tool needs a `tenantId`: your
 credential identifies your tenant (pass one only to work in another tenant you can access). Use the returned `scopeId`
-on every memory tool. With no `project` and several scopes, the response lists them so you can pick one. Read the
+on every memory tool. `path` lets a new scope mirror its memories to an Open Knowledge Format bundle in
+`<path>/.okf`, which you can commit with the code; the `notice` says when the NotDory server cannot see that directory.
+With no `project` and several scopes, the response lists them so you can pick one. Read the
 categories' **instructions** and the recent memories before writing anything: they are the contract for what belongs
 where.
+
+**One scope per project.** Every project you do a meaningful amount of work on gets its own scope; never put one
+project's knowledge in another project's scope. `session_start` creates the scope when none matches the project name,
+and its `notice` says so when the scope is new or empty. When the scope is new, empty, or thin, onboard the project
+before or alongside your task:
+
+1. **Examine the project.** Read the structure and key details: README and docs, build and package files, directory
+   layout, entry points, tests, configuration, and conventions.
+2. **Describe the scope.** `scope_update({ scopeId, description })` with what the project is.
+3. **Create categories** for the kinds of knowledge the project has (for example `architecture`, `conventions`,
+   `build-and-test`, `decisions`, `open-work`), each with a `description` and `instructions` saying what belongs in it:
+   `category_create({ scopeId, name, description, instructions })`.
+4. **Create memories** for what you found (`memory_upsert`), enough that a new agent could start work from memory
+   alone.
 
 ### 2. Recall
 
@@ -92,7 +108,7 @@ memory_upsert({ scopeId, category, slug, title, summary, body, type, links, supe
 
 The upsert response can include `similarMemories`: existing memories that look like duplicates of the one you just wrote. If one says the same thing, reuse its slug (update it) instead of keeping both, or supersede it.
 
-Create a category only when no existing one fits:
+Outside onboarding, create a category only when no existing one fits:
 
 ```
 category_create({ scopeId, name, description, instructions })
@@ -129,7 +145,7 @@ Match every write to a category and follow that category's `instructions`. When 
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `session_start` | `project`, `createIfMissing`, `maxMemories` | Start here, once per session: your scope for the project (created if new), how to use NotDory, the categories and instructions, and the most recent memories. |
+| `session_start` | `project`, `path`, `createIfMissing`, `maxMemories` | Start here, once per session: your scope for the project (created if new), how to use NotDory, the categories and instructions, and the most recent memories. |
 | `whoami` | -- | Show your tenant and principal. Not needed to start: `session_start` returns the same. |
 | `instructions` | `scopeId` | Re-read the tenant's standing memory manual (or a scope's effective instructions); `session_start` already returns them. |
 | `scope_enumerate` | -- | List the memory scopes in a tenant. |
@@ -152,6 +168,7 @@ The server exposes 33 tools in all. The rest are management tools: `scope_read`/
 ## Decision-Making Guidance
 
 - **Always start with `session_start`** (project = the repository or project name) and keep its `scopeId`. Its categories, instructions, and recent memories are your context for the session.
+- **One scope per project.** If you do a meaningful amount of work on a project, it gets its own scope. When that scope is new, empty, or thin, onboard it: examine the project, describe the scope, create categories with instructions, and save memories.
 - **Read the instructions and categories `session_start` returns before writing.** Category `instructions` and the tenant's standing instructions are the contract; honor them.
 - **Prefer summaries to bodies.** Enumerate and search return token-cheap summaries; only `memory_read` pulls a full body. Pull bodies deliberately.
 - **Search before you write** to avoid creating a duplicate under a new slug. If a memory exists, update it by re-using its slug. If an upsert returns `similarMemories`, resolve the duplicate.
