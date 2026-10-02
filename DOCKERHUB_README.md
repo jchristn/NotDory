@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD033 MD041 -->
-<img src="https://raw.githubusercontent.com/jchristn/notdory/main/assets/logo.png" width="128" alt="NotDory" />
+<img src="https://raw.githubusercontent.com/jchristn/NotDory/main/assets/notdory.png" width="128" alt="NotDory" />
 
 # NotDory — Agent Memory Platform
 

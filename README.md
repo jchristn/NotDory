@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD033 MD041 -->
 <p align="center">
-  <img src="assets/logo.png" width="192" height="192" alt="NotDory" />
+  <img src="assets/notdory.png" width="192" height="192" alt="NotDory" />
 </p>
 
 <h1 align="center">NotDory — Agent Memory Platform</h1>
