@@ -275,8 +275,8 @@ namespace Test.Benchmark.Reporting
                 md.Append(" |\n");
             }
 
-            md.Append("\n## Failed isis-arm answers\n\n");
-            foreach (AgentItem item in report.Items.Where(i => i.Arm == "isis" && !i.Success))
+            md.Append("\n## Failed notdory-arm answers\n\n");
+            foreach (AgentItem item in report.Items.Where(i => i.Arm == "notdory" && !i.Success))
             {
                 string answer = item.Answer.Replace("\n", " ");
                 if (answer.Length > 300) answer = answer.Substring(0, 300) + "…";
@@ -340,7 +340,7 @@ namespace Test.Benchmark.Reporting
 
         private static int StageOrder(string stage)
         {
-            string[] order = PrometheusSnapshot.StageFamilies.Select(f => f.Replace("isis_", string.Empty).Replace("_duration_seconds", string.Empty)).ToArray();
+            string[] order = PrometheusSnapshot.StageFamilies.Select(f => f.Replace("notdory_", string.Empty).Replace("_duration_seconds", string.Empty)).ToArray();
             int index = Array.IndexOf(order, stage);
             return index < 0 ? int.MaxValue : index;
         }
@@ -358,15 +358,15 @@ namespace Test.Benchmark.Reporting
             }
 
             if (!string.IsNullOrEmpty(entry.Note)) md.Append(entry.Note).Append("\n\n");
-            md.Append("| Published baseline | Metric | Value | Isis mode | Isis | Net vs baseline | Source |\n|---|---|---|---|---|---|---|\n");
+            md.Append("| Published baseline | Metric | Value | NotDory mode | NotDory | Net vs baseline | Source |\n|---|---|---|---|---|---|---|\n");
             foreach (PublishedBaseline baseline in entry.Baselines)
             {
                 foreach (ModeSummary mode in report.Modes.Where(m => baseline.CompareModes.Contains(m.Mode, StringComparer.OrdinalIgnoreCase)))
                 {
-                    if (!mode.Metrics.TryGetValue(baseline.Metric, out double isis)) continue;
-                    double net = isis - baseline.Value;
+                    if (!mode.Metrics.TryGetValue(baseline.Metric, out double notdory)) continue;
+                    double net = notdory - baseline.Value;
                     md.Append("| ").Append(baseline.System).Append(" | ").Append(baseline.Metric).Append(" | ").Append(baseline.Value.ToString("0.000")).Append(" | ").Append(mode.Mode);
-                    md.Append(" | ").Append(isis.ToString("0.000")).Append(" | ").Append((net >= 0 ? "+" : "") + net.ToString("0.000")).Append(" | ");
+                    md.Append(" | ").Append(notdory.ToString("0.000")).Append(" | ").Append((net >= 0 ? "+" : "") + net.ToString("0.000")).Append(" | ");
                     md.Append(string.IsNullOrEmpty(baseline.Url) ? baseline.Source : "[" + baseline.Source + "](" + baseline.Url + ")").Append(" |\n");
                 }
             }

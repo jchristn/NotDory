@@ -2,21 +2,21 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   # Watson's Prometheus exporter and RecallDB's OpenTelemetry exporter emit dotted instrument names
-  # (e.g. isis.http.server.request.duration) when the scraper negotiates UTF-8 names, which Prometheus 3.x
-  # does by default. Our dashboards use the underscore convention (isis_http_server_request_duration).
+  # (e.g. notdory.http.server.request.duration) when the scraper negotiates UTF-8 names, which Prometheus 3.x
+  # does by default. Our dashboards use the underscore convention (notdory_http_server_request_duration).
   # Requesting the legacy validation scheme makes the exporters return underscore-escaped names so they line up.
   metric_name_validation_scheme: legacy
 
 scrape_configs:
-  # Isis REST server exposes its OpenTelemetry Prometheus endpoint on a dedicated in-process port (9464),
+  # NotDory REST server exposes its OpenTelemetry Prometheus endpoint on a dedicated in-process port (9464),
   # separate from the API listener (8700). Watson's built-in telemetry is collected by the in-process OTel
-  # MeterProvider and served here alongside the custom Isis instruments.
-  - job_name: 'isis-server'
+  # MeterProvider and served here alongside the custom NotDory instruments.
+  - job_name: 'notdory-server'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['isis-server:9464']
+      - targets: ['notdory-server:9464']
         labels:
-          service: 'isis-server'
+          service: 'notdory-server'
 
   # RecallDB server exposes its OpenTelemetry Prometheus endpoint on a dedicated port.
   - job_name: 'recalldb-server'

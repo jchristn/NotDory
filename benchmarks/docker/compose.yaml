@@ -1,5 +1,5 @@
-# Isis benchmark infrastructure: an isolated pgvector + RecallDB pair on non-default ports, so a benchmark
-# never touches the development stack (docker/compose.yaml) or a live deployment. Isis itself runs from
+# NotDory benchmark infrastructure: an isolated pgvector + RecallDB pair on non-default ports, so a benchmark
+# never touches the development stack (docker/compose.yaml) or a live deployment. NotDory itself runs from
 # source against this stack (see benchmarks/README.md) so benchmarks always measure the working tree.
 #
 #   docker compose -f benchmarks/docker/compose.yaml up -d
@@ -7,32 +7,32 @@
 #   docker compose -f benchmarks/docker/compose.yaml --profile rerank-gpu up -d   # or the GPU reranker (NVIDIA hosts)
 #   docker compose -f benchmarks/docker/compose.yaml down -v     # discard all benchmark data
 
-name: isis-bench
+name: notdory-bench
 
 services:
 
   postgres:
-    container_name: 'isis-bench-postgres'
+    container_name: 'notdory-bench-postgres'
     image: 'ankane/pgvector:v0.5.1'
     ports:
       - '127.0.0.1:15432:5432'
     environment:
-      POSTGRES_DB: 'isis'
-      POSTGRES_USER: 'isis'
-      POSTGRES_PASSWORD: 'isis'
+      POSTGRES_DB: 'notdory'
+      POSTGRES_USER: 'notdory'
+      POSTGRES_PASSWORD: 'notdory'
     command: ['postgres', '-c', 'shared_buffers=1GB', '-c', 'max_connections=300']
     volumes:
-      - isis-bench-postgres:/var/lib/postgresql/data
+      - notdory-bench-postgres:/var/lib/postgresql/data
       - ../../docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -p 5432 -U isis -d isis']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -p 5432 -U notdory -d notdory']
       interval: 5s
       timeout: 2s
       retries: 10
       start_period: 30s
 
   recalldb-server:
-    container_name: 'isis-bench-recalldb'
+    container_name: 'notdory-bench-recalldb'
     image: 'jchristn77/recalldb-server:v0.2.1'
     ports:
       - '127.0.0.1:18600:8600'
@@ -40,8 +40,8 @@ services:
       RECALLDB_DB_HOST: 'postgres'
       RECALLDB_DB_PORT: '5432'
       RECALLDB_DB_NAME: 'recalldb'
-      RECALLDB_DB_USER: 'isis'
-      RECALLDB_DB_PASS: 'isis'
+      RECALLDB_DB_USER: 'notdory'
+      RECALLDB_DB_PASS: 'notdory'
       RECALLDB_MCP_ENABLED: 'false'
       RECALLDB_OBS_ENABLED: 'false'
     volumes:
@@ -50,40 +50,40 @@ services:
       postgres:
         condition: service_healthy
 
-  # Optional cross-encoder reranker (Hugging Face Text Embeddings Inference) for --rerank runs. Isis calls it as a
+  # Optional cross-encoder reranker (Hugging Face Text Embeddings Inference) for --rerank runs. NotDory calls it as a
   # Rerank endpoint with apiFormat Tei at http://127.0.0.1:18800.
   rerank:
-    container_name: 'isis-bench-rerank'
+    container_name: 'notdory-bench-rerank'
     image: 'ghcr.io/huggingface/text-embeddings-inference:cpu-1.8'
     profiles: ['rerank']
     ports:
       - '127.0.0.1:18800:80'
     command: ['--model-id', 'cross-encoder/ms-marco-MiniLM-L-6-v2']
     volumes:
-      - isis-bench-rerank:/data
+      - notdory-bench-rerank:/data
 
   # A larger cross-encoder for comparison (--rerank-url http://127.0.0.1:18801 --rerank-model BAAI/bge-reranker-base).
   rerank-bge:
-    container_name: 'isis-bench-rerank-bge'
+    container_name: 'notdory-bench-rerank-bge'
     image: 'ghcr.io/huggingface/text-embeddings-inference:cpu-1.8'
     profiles: ['rerank']
     ports:
       - '127.0.0.1:18801:80'
     command: ['--model-id', 'BAAI/bge-reranker-base']
     volumes:
-      - isis-bench-rerank-bge:/data
+      - notdory-bench-rerank-bge:/data
 
   # GPU-served reranker for NVIDIA hosts (replaces the CPU one on port 18800). Pick the TEI image tag that matches the
   # GPU generation (see the TEI documentation); the plain 1.8 tag targets Ampere.
   rerank-gpu:
-    container_name: 'isis-bench-rerank-gpu'
+    container_name: 'notdory-bench-rerank-gpu'
     image: 'ghcr.io/huggingface/text-embeddings-inference:1.8'
     profiles: ['rerank-gpu']
     ports:
       - '127.0.0.1:18800:80'
     command: ['--model-id', 'cross-encoder/ms-marco-MiniLM-L-6-v2']
     volumes:
-      - isis-bench-rerank:/data
+      - notdory-bench-rerank:/data
     deploy:
       resources:
         reservations:
@@ -93,6 +93,6 @@ services:
               capabilities: [gpu]
 
 volumes:
-  isis-bench-postgres:
-  isis-bench-rerank:
-  isis-bench-rerank-bge:
+  notdory-bench-postgres:
+  notdory-bench-rerank:
+  notdory-bench-rerank-bge:

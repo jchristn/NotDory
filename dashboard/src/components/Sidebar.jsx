@@ -74,7 +74,7 @@ function Sidebar() {
   return (
     <aside className={`sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
       <div className="sidebar-brand">
-        <img src="/logo.png" alt="Isis" />
+        <img src="/logo.png" alt="NotDory" />
         <div className="brand-text">
           <span className="brand-name">{t('app.name')}</span>
           <span className="brand-tag">{t('app.tagline')}</span>
@@ -104,7 +104,7 @@ function Sidebar() {
         ))}
       </nav>
       <div className="sidebar-footer">
-        <span className="nav-label">Isis 0.1.0 · ALPHA</span>
+        <span className="nav-label">NotDory 0.1.0 · ALPHA</span>
       </div>
     </aside>
   );

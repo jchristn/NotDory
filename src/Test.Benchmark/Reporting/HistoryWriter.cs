@@ -141,13 +141,13 @@ namespace Test.Benchmark.Reporting
             }
 
             int lastIndex = summaries.FindLastIndex(s => s != null);
-            double? isis = lastIndex >= 0 && summaries[lastIndex]!.Metrics.TryGetValue(metric, out double v) ? v : (double?)null;
-            md.Append("\n| Published baseline | ").Append(metric).Append(" | Isis ").Append(mode).Append(" (").Append(lastIndex >= 0 ? rounds[lastIndex].Name : "-").Append(") | Net vs baseline | Source |\n|---|---|---|---|---|\n");
+            double? notdory = lastIndex >= 0 && summaries[lastIndex]!.Metrics.TryGetValue(metric, out double v) ? v : (double?)null;
+            md.Append("\n| Published baseline | ").Append(metric).Append(" | NotDory ").Append(mode).Append(" (").Append(lastIndex >= 0 ? rounds[lastIndex].Name : "-").Append(") | Net vs baseline | Source |\n|---|---|---|---|---|\n");
             foreach (PublishedBaseline baseline in applicable)
             {
                 md.Append("| ").Append(baseline.System).Append(" | ").Append(baseline.Value.ToString("0.000", CultureInfo.InvariantCulture)).Append(" | ");
-                md.Append(isis.HasValue ? isis.Value.ToString("0.000", CultureInfo.InvariantCulture) : "-").Append(" | ");
-                md.Append(isis.HasValue ? Signed(isis.Value - baseline.Value) : "-").Append(" | ");
+                md.Append(notdory.HasValue ? notdory.Value.ToString("0.000", CultureInfo.InvariantCulture) : "-").Append(" | ");
+                md.Append(notdory.HasValue ? Signed(notdory.Value - baseline.Value) : "-").Append(" | ");
                 md.Append(string.IsNullOrEmpty(baseline.Url) ? baseline.Source : "[" + baseline.Source + "](" + baseline.Url + ")").Append(" |\n");
             }
         }

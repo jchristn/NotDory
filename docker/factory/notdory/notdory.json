@@ -1,0 +1,48 @@
+{
+  "NodeId": "notdory-demo",
+  "Rest": {
+    "Hostname": "*",
+    "Port": 8700,
+    "Ssl": false
+  },
+  "Database": {
+    "Type": "Postgresql",
+    "Hostname": "postgres",
+    "Port": 5432,
+    "DatabaseName": "notdory",
+    "Username": "notdory",
+    "Password": "notdory",
+    "Schema": "public"
+  },
+  "RecallDb": {
+    "Endpoint": "http://recalldb-server:8600",
+    "AdminApiKey": "recalldbadmin"
+  },
+  "Auth": {
+    "Issuer": "notdory",
+    "SeedAdminEmail": "admin@notdory.local",
+    "SeedAdminPassword": "notdoryadmin",
+    "DefaultAccessKey": "notdorydefaultkey",
+    "DefaultSecretKey": "notdorydefaultsecret"
+  },
+  "Logging": {
+    "ConsoleLogging": true,
+    "FileLogging": true,
+    "LogDirectory": "logs",
+    "LogFilename": "notdory.log"
+  },
+  "Observability": {
+    "Enabled": true,
+    "ServiceName": "notdory-server",
+    "PrometheusEnabled": true,
+    "PrometheusHostname": "*",
+    "PrometheusPort": 9464,
+    "PrometheusPath": "/metrics",
+    "TracingEnabled": true,
+    "OtlpEndpoint": "http://tempo:4317",
+    "OtlpProtocol": "grpc",
+    "SamplingRatio": 1.0,
+    "IncludeRuntimeMetrics": true,
+    "IncludeProcessMetrics": true
+  }
+}

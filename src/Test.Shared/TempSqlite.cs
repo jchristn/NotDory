@@ -3,8 +3,8 @@ namespace Test.Shared
     using System;
     using System.IO;
     using System.Threading.Tasks;
-    using Isis.Core.Database;
-    using Isis.Core.Enums;
+    using NotDory.Core.Database;
+    using NotDory.Core.Enums;
     using Microsoft.Data.Sqlite;
 
     /// <summary>
@@ -42,7 +42,7 @@ namespace Test.Shared
         /// <returns>The temporary database.</returns>
         public static async Task<TempSqlite> CreateAsync()
         {
-            string file = Path.Combine(Path.GetTempPath(), "isis-t-" + Guid.NewGuid().ToString("N") + ".db");
+            string file = Path.Combine(Path.GetTempPath(), "notdory-t-" + Guid.NewGuid().ToString("N") + ".db");
             DatabaseDriverBase db = DatabaseDriverFactory.Create(new DatabaseSettings { Type = DatabaseTypeEnum.Sqlite, Filename = file });
             await db.InitializeAsync().ConfigureAwait(false);
             return new TempSqlite(db, file);

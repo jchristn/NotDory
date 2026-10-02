@@ -8,7 +8,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Version>0.1.0</Version>
     <Authors>Joel Christner</Authors>
-    <Product>Isis</Product>
+    <Product>NotDory</Product>
     <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
 

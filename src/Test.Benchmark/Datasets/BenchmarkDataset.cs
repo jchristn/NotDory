@@ -3,7 +3,7 @@ namespace Test.Benchmark.Datasets
     using System.Collections.Generic;
 
     /// <summary>
-    /// A provider-neutral benchmark dataset: one or more corpora, each ingested into its own Isis scope and
+    /// A provider-neutral benchmark dataset: one or more corpora, each ingested into its own NotDory scope and
     /// queried with labelled questions.
     /// </summary>
     public class BenchmarkDataset

@@ -122,13 +122,13 @@ export function getRequestBodyTemplate(requestBody, spec) {
 }
 
 /**
- * Curated sample request bodies for Isis write endpoints, used as a fallback when the OpenAPI document
- * carries no requestBody schema (Isis registers routes with summary/tag only). Matched by method + a path
+ * Curated sample request bodies for NotDory write endpoints, used as a fallback when the OpenAPI document
+ * carries no requestBody schema (NotDory registers routes with summary/tag only). Matched by method + a path
  * suffix regex; order matters (more specific paths first).
  */
 const REQUEST_SAMPLES = [
-  { m: 'POST', re: /\/tenants-for-email$/, body: { email: 'admin@isis.local' } },
-  { m: 'POST', re: /\/token$/, body: { email: 'admin@isis.local', password: 'isisadmin', tenantId: 'ten_default' } },
+  { m: 'POST', re: /\/tenants-for-email$/, body: { email: 'admin@notdory.local' } },
+  { m: 'POST', re: /\/token$/, body: { email: 'admin@notdory.local', password: 'notdoryadmin', tenantId: 'ten_default' } },
   { m: 'POST', re: /\/tenants$/, body: { name: 'Acme', description: '' } },
   { m: 'PUT', re: /\/tenants\/\{[^}]+\}$/, body: { name: 'Acme', description: '' } },
   { m: 'POST', re: /\/users$/, body: { firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com', password: 'change-me', isTenantAdmin: false, active: true } },
@@ -149,7 +149,7 @@ const REQUEST_SAMPLES = [
   { m: 'POST', re: /\/collections$/, body: { name: 'my-collection', dimensionality: 384 } }
 ];
 
-/** Return a curated sample JSON body string for a known Isis write operation, or '' if none applies. */
+/** Return a curated sample JSON body string for a known NotDory write operation, or '' if none applies. */
 export function sampleBodyFor(op) {
   if (!op || ['GET', 'HEAD', 'DELETE'].includes(op.method)) return '';
   const match = REQUEST_SAMPLES.find((s) => s.m === op.method && s.re.test(op.path));

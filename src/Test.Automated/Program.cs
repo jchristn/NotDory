@@ -6,7 +6,7 @@ namespace Test.Automated
     using Touchstone.Cli;
 
     /// <summary>
-    /// Automated Isis test runner.
+    /// Automated NotDory test runner.
     /// </summary>
     public static class Program
     {
@@ -18,7 +18,7 @@ namespace Test.Automated
         public static async Task<int> Main(string[] args)
         {
             return await ConsoleRunner.RunAsync(
-                IsisSuites.GetSuites(),
+                NotDorySuites.GetSuites(),
                 resultsPath: ParseResultsPath(args)).ConfigureAwait(false);
         }
 

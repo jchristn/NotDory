@@ -5,18 +5,18 @@ namespace Test.Shared
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
-    using Isis.Core;
-    using Isis.Core.Enums;
-    using Isis.Core.Helpers;
-    using Isis.Core.Models;
-    using Isis.Core.Stores;
-    using Isis.McpServer.Settings;
-    using Isis.Server.Serialization;
-    using Isis.Server.Settings;
+    using NotDory.Core;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Helpers;
+    using NotDory.Core.Models;
+    using NotDory.Core.Stores;
+    using NotDory.McpServer.Settings;
+    using NotDory.Server.Serialization;
+    using NotDory.Server.Settings;
     using Touchstone.Core;
 
     /// <summary>
-    /// Touchstone suite exercising the Isis domain models, identifier generation, JSON serialization,
+    /// Touchstone suite exercising the NotDory domain models, identifier generation, JSON serialization,
     /// and settings round trips. Pure in-process assertions with no external dependencies.
     /// </summary>
     public static class ModelSuite
@@ -31,7 +31,7 @@ namespace Test.Shared
         {
             return new TestSuiteDescriptor(
                 "model",
-                "Isis Model Suite",
+                "NotDory Model Suite",
                 new List<TestCaseDescriptor>
                 {
                     // 1. Validation: null / empty / whitespace setters throw ArgumentNullException.
@@ -82,7 +82,7 @@ namespace Test.Shared
                     TestCase.Sync("model", "json-case-insensitive", "Json deserialization is case-insensitive", JsonCaseInsensitive),
 
                     // 7. Settings.
-                    TestCase.Sync("model", "isissettings-roundtrip", "IsisSettings round-trips through a file", IsisSettingsRoundTrip),
+                    TestCase.Sync("model", "notdorysettings-roundtrip", "NotDorySettings round-trips through a file", NotDorySettingsRoundTrip),
                     TestCase.Sync("model", "mcpsettings-defaults", "McpServerSettings defaults and RestBaseUrl", McpSettingsDefaults),
                     TestCase.Sync("model", "mcpsettings-fromfile-missing", "McpServerSettings.FromFile returns defaults for a missing file", McpSettingsFromFileMissing),
 
@@ -520,21 +520,21 @@ namespace Test.Shared
 
         #region Private-Methods-Settings
 
-        private static void IsisSettingsRoundTrip()
+        private static void NotDorySettingsRoundTrip()
         {
-            string path = Path.Combine(Path.GetTempPath(), "isis-settings-" + Guid.NewGuid().ToString("N") + ".json");
+            string path = Path.Combine(Path.GetTempPath(), "notdory-settings-" + Guid.NewGuid().ToString("N") + ".json");
             try
             {
-                IsisSettings s = new IsisSettings();
+                NotDorySettings s = new NotDorySettings();
                 s.Rest.Port = 9310;
                 s.Auth.DefaultSecretKey = "round-trip-key";
                 s.Database.Type = DatabaseTypeEnum.Postgresql;
                 s.ToFile(path);
 
-                IsisSettings loaded = IsisSettings.FromFile(path);
-                TestCase.Require(loaded.Rest.Port == 9310, "IsisSettings.Rest.Port should round trip.");
-                TestCase.Require(loaded.Auth.DefaultSecretKey == "round-trip-key", "IsisSettings.Auth.DefaultSecretKey should round trip.");
-                TestCase.Require(loaded.Database.Type == DatabaseTypeEnum.Postgresql, "IsisSettings.Database.Type should round trip.");
+                NotDorySettings loaded = NotDorySettings.FromFile(path);
+                TestCase.Require(loaded.Rest.Port == 9310, "NotDorySettings.Rest.Port should round trip.");
+                TestCase.Require(loaded.Auth.DefaultSecretKey == "round-trip-key", "NotDorySettings.Auth.DefaultSecretKey should round trip.");
+                TestCase.Require(loaded.Database.Type == DatabaseTypeEnum.Postgresql, "NotDorySettings.Database.Type should round trip.");
             }
             finally
             {
@@ -552,7 +552,7 @@ namespace Test.Shared
 
         private static void McpSettingsFromFileMissing()
         {
-            string path = Path.Combine(Path.GetTempPath(), "isis-mcp-missing-" + Guid.NewGuid().ToString("N") + ".json");
+            string path = Path.Combine(Path.GetTempPath(), "notdory-mcp-missing-" + Guid.NewGuid().ToString("N") + ".json");
             TestCase.Require(!File.Exists(path), "Precondition: the settings file should not exist.");
             McpServerSettings s = McpServerSettings.FromFile(path);
             TestCase.Require(s.Port == 8720, "FromFile(nonexistent) should return defaults (Port 8720).");

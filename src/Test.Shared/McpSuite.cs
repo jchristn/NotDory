@@ -12,13 +12,13 @@ namespace Test.Shared
     using System.Text.Json;
     using System.Threading;
     using System.Threading.Tasks;
-    using Isis.McpServer;
-    using Isis.McpServer.Settings;
+    using NotDory.McpServer;
+    using NotDory.McpServer.Settings;
     using Touchstone.Core;
 
     /// <summary>
-    /// Automated Isis MCP server suite. Each case boots an in-process Isis REST server (via <see cref="ServerHarness"/>)
-    /// and an <see cref="IsisMcpServer"/> bound to a free loopback port, then exercises the proxy pipeline and the raw
+    /// Automated NotDory MCP server suite. Each case boots an in-process NotDory REST server (via <see cref="ServerHarness"/>)
+    /// and an <see cref="NotDoryMcpServer"/> bound to a free loopback port, then exercises the proxy pipeline and the raw
     /// MCP transport. The proxy returns a Dictionary&lt;string,object?&gt; envelope with keys success (bool),
     /// statusCode (int), tool (string), and data (a System.Text.Json.JsonElement).
     /// </summary>
@@ -27,14 +27,14 @@ namespace Test.Shared
         #region Public-Methods
 
         /// <summary>
-        /// Get the Isis MCP Touchstone test suite.
+        /// Get the NotDory MCP Touchstone test suite.
         /// </summary>
         /// <returns>The suite descriptor.</returns>
         public static TestSuiteDescriptor Suite()
         {
             return new TestSuiteDescriptor(
                 "mcp2",
-                "Isis MCP Suite",
+                "NotDory MCP Suite",
                 new List<TestCaseDescriptor>
                 {
                     TestCase.Async("mcp2", "whoami", "whoami resolves the default tenant", WhoamiAsync),
@@ -60,7 +60,7 @@ namespace Test.Shared
                     TestCase.Async("mcp2", "bearer-access-key", "raw MCP initialize authenticates with a bearer access key", BearerAccessKeyHandshakeAsync),
                     TestCase.Async("mcp2", "mcp-handshake", "raw MCP initialize returns serverInfo", HandshakeAsync),
                     TestCase.Async("mcp2", "tools-parity", "tools/list exposes exactly the REST-parity tool set and nothing else", ToolsParityAsync),
-                    TestCase.Async("mcp2", "tools-list-stateless-exact", "stateless tools/list carries only the Isis tools (no Voltaic demo tools)", StatelessToolsListExactAsync),
+                    TestCase.Async("mcp2", "tools-list-stateless-exact", "stateless tools/list carries only the NotDory tools (no Voltaic demo tools)", StatelessToolsListExactAsync),
                     TestCase.Async("mcp2", "ping-handshake-empty", "protocol ping returns an empty result, not \"pong\"", PingHandshakeEmptyAsync),
                     TestCase.Async("mcp2", "ping-stateless-removed", "stateless ping is not a 2026-07-28 method and gets -32601", PingStatelessRemovedAsync),
                     TestCase.Async("mcp2", "ping-unauthenticated", "protocol ping without credentials is rejected with 401", PingUnauthenticatedAsync),
@@ -73,7 +73,7 @@ namespace Test.Shared
                     TestCase.Async("mcp2", "initialize-caps-stateless-version", "initialize requesting 2026-07-28 negotiates the newest handshake revision", InitializeCapsStatelessVersionAsync),
                     TestCase.Async("mcp2", "endpoint-crud", "endpoint_create/read/update/delete proxy round-trips", EndpointCrudAsync),
                     TestCase.Async("mcp2", "scope-update-delete", "scope_update and scope_delete proxy round-trips", ScopeUpdateDeleteAsync),
-                    TestCase.Async("mcp2", "initialize-instructions", "initialize carries the Isis protocol as server instructions, and session_start heads tools/list", InitializeInstructionsAsync),
+                    TestCase.Async("mcp2", "initialize-instructions", "initialize carries the NotDory protocol as server instructions, and session_start heads tools/list", InitializeInstructionsAsync),
                     TestCase.Async("mcp2", "session-start-tool", "session_start matches the project to its scope and returns protocol, categories, and recent memories", SessionStartToolAsync),
                     TestCase.Async("mcp2", "agent-protocol-live", "An administrator's edit of the instructions and a tool description reaches initialize and tools/list without a restart", AgentProtocolLiveAsync),
                     TestCase.Async("mcp2", "tenant-optional", "memory tools work without tenantId, and memory_upsert creates a category named for the first time", TenantOptionalAsync)
@@ -317,7 +317,7 @@ namespace Test.Shared
 
             if (response.StatusCode != HttpStatusCode.OK) throw new InvalidOperationException("Expected HTTP 200 from the MCP initialize handshake, got " + (int)response.StatusCode + " (" + text + ").");
             if (!text.Contains("serverInfo", StringComparison.Ordinal)) throw new InvalidOperationException("Expected the initialize response to contain serverInfo: " + text);
-            if (!text.Contains("Isis.McpServer", StringComparison.Ordinal)) throw new InvalidOperationException("Expected the initialize response to name the Isis.McpServer: " + text);
+            if (!text.Contains("NotDory.McpServer", StringComparison.Ordinal)) throw new InvalidOperationException("Expected the initialize response to name the NotDory.McpServer: " + text);
         }
 
         private static async Task MemorySearchMinScoreAsync()
@@ -414,7 +414,7 @@ namespace Test.Shared
 
         private static async Task StatelessClaudeSequenceAsync()
         {
-            // Regression for the "Claude Code sees no Isis tools" bug (Voltaic before 1.1.0): Claude Code 2.1.x never
+            // Regression for the "Claude Code sees no NotDory tools" bug (Voltaic before 1.1.0): Claude Code 2.1.x never
             // sends initialize. It opens with server/discover, picks the stateless 2026-07-28 revision, and rejects any
             // result missing resultType, or a list result missing ttlMs/cacheScope.
             using McpContext ctx = await McpContext.StartAsync().ConfigureAwait(false);
@@ -445,7 +445,7 @@ namespace Test.Shared
                 if (tool.GetProperty("name").GetString() == "memory_search") hasSearch = true;
             }
 
-            if (!hasSearch) throw new InvalidOperationException("tools/list should return the Isis tools (memory_search missing).");
+            if (!hasSearch) throw new InvalidOperationException("tools/list should return the NotDory tools (memory_search missing).");
 
             Dictionary<string, object?> callParams = new Dictionary<string, object?> { { "name", "whoami" }, { "arguments", new Dictionary<string, object?>() } };
             using JsonDocument call = await SendStatelessAsync(client, ctx.Harness.AccessKey, "tools/call", 3, callParams, "whoami", HttpStatusCode.OK).ConfigureAwait(false)
@@ -594,7 +594,7 @@ namespace Test.Shared
 
             RawResponse ping = await SendRawAsync(client, null, null, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}").ConfigureAwait(false);
             if (ping.StatusCode != HttpStatusCode.Unauthorized) throw new InvalidOperationException("An unauthenticated ping should be rejected with 401, got " + (int)ping.StatusCode + ": " + ping.Text);
-            if (ping.Text.Contains("ten_default", StringComparison.Ordinal)) throw new InvalidOperationException("An unauthenticated ping must not reach Isis: " + ping.Text);
+            if (ping.Text.Contains("ten_default", StringComparison.Ordinal)) throw new InvalidOperationException("An unauthenticated ping must not reach NotDory: " + ping.Text);
         }
 
         private static async Task RemovedToolsRejectedAsync()
@@ -685,7 +685,7 @@ namespace Test.Shared
 
             HashSet<string> extra = new HashSet<string>(actual, StringComparer.Ordinal);
             extra.ExceptWith(_ExpectedTools);
-            if (extra.Count > 0) throw new InvalidOperationException(label + " publishes tools Isis does not register: " + string.Join(", ", extra));
+            if (extra.Count > 0) throw new InvalidOperationException(label + " publishes tools NotDory does not register: " + string.Join(", ", extra));
         }
 
         private static bool IsFailure(RawResponse response)
@@ -778,7 +778,7 @@ namespace Test.Shared
             using JsonDocument doc = JsonDocument.Parse(json);
             string instructions = doc.RootElement.GetProperty("result").TryGetProperty("instructions", out JsonElement value) ? (value.GetString() ?? string.Empty) : string.Empty;
             if (!instructions.Contains("session_start", StringComparison.Ordinal) || !instructions.Contains("memory_search", StringComparison.Ordinal) || !instructions.Contains("memory_upsert", StringComparison.Ordinal))
-                throw new InvalidOperationException("initialize should carry the Isis protocol as instructions, got: " + text);
+                throw new InvalidOperationException("initialize should carry the NotDory protocol as instructions, got: " + text);
 
             using HttpClient listClient = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + ctx.McpPort) };
             using JsonDocument list = await SendStatelessAsync(listClient, ctx.Harness.AccessKey, "tools/list", 2, new Dictionary<string, object?>(), null, HttpStatusCode.OK).ConfigureAwait(false)
@@ -944,7 +944,7 @@ namespace Test.Shared
         {
             internal ServerHarness Harness { get; private set; } = null!;
 
-            internal IsisMcpServer Mcp { get; private set; } = null!;
+            internal NotDoryMcpServer Mcp { get; private set; } = null!;
 
             internal int McpPort { get; private set; }
 
@@ -970,7 +970,7 @@ namespace Test.Shared
                 ctx.McpPort = settings.Port;
 
                 ctx._Cts = new CancellationTokenSource();
-                ctx.Mcp = new IsisMcpServer(settings);
+                ctx.Mcp = new NotDoryMcpServer(settings);
                 ctx.Mcp.Start(ctx._Cts.Token);
                 await WaitForMcpAsync(settings.Port).ConfigureAwait(false);
 

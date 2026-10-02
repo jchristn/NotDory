@@ -7,14 +7,14 @@ namespace Test.Shared
     using System.Text.Json.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
-    using Isis.Core.Database;
-    using Isis.Core.Database.Migrations;
-    using Isis.Core.Enums;
-    using Isis.Core.Helpers;
-    using Isis.Core.Models;
-    using Isis.Core.Recall;
-    using Isis.Core.Stores;
-    using Isis.Server.Services;
+    using NotDory.Core.Database;
+    using NotDory.Core.Database.Migrations;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Helpers;
+    using NotDory.Core.Models;
+    using NotDory.Core.Recall;
+    using NotDory.Core.Stores;
+    using NotDory.Server.Services;
     using Touchstone.Core;
 
     /// <summary>

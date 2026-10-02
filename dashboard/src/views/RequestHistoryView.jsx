@@ -67,7 +67,7 @@ function RequestHistoryView() {
   const [search, setSearch] = useState('');
   const [rangeId, setRangeId] = useState(() => {
     try {
-      const stored = localStorage.getItem('isis_reqhistory_range');
+      const stored = localStorage.getItem('notdory_reqhistory_range');
       return RANGES.some((r) => r.id === stored) ? stored : 'day';
     } catch {
       return 'day';
@@ -77,7 +77,7 @@ function RequestHistoryView() {
   // Remember the selected chart timeframe across visits.
   useEffect(() => {
     try {
-      localStorage.setItem('isis_reqhistory_range', rangeId);
+      localStorage.setItem('notdory_reqhistory_range', rangeId);
     } catch {
       /* ignore storage failures */
     }

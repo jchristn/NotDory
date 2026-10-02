@@ -4,7 +4,7 @@ setlocal
 REM ==========================================================================
 REM update.bat - Pull the latest published images and recreate the stack.
 REM
-REM Pulls the newest jchristn77/isis-* images, tears the running stack down,
+REM Pulls the newest jchristn77/notdory-* images, tears the running stack down,
 REM brings it back up (detached) on the freshly pulled images, and prints the
 REM final container status. Non-destructive: named volumes are preserved.
 REM ==========================================================================
@@ -13,7 +13,7 @@ set "SCRIPT_DIR=%~dp0"
 
 echo.
 echo ==========================================================
-echo   Isis - Update Docker Stack
+echo   NotDory - Update Docker Stack
 echo ==========================================================
 echo.
 

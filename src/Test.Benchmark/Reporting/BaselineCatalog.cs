@@ -7,7 +7,7 @@ namespace Test.Benchmark.Reporting
     using Test.Benchmark.Datasets;
 
     /// <summary>
-    /// Published baselines per dataset, read from benchmarks/baselines.json. Reports use it to show Isis's score next to
+    /// Published baselines per dataset, read from benchmarks/baselines.json. Reports use it to show NotDory's score next to
     /// published results and the net difference.
     /// </summary>
     public class BaselineCatalog

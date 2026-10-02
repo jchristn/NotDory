@@ -9,14 +9,14 @@ namespace Test.Shared
     using System.Text.Json;
     using System.Threading;
     using System.Threading.Tasks;
-    using Isis.Core.Database;
-    using Isis.Core.Enums;
-    using Isis.Core.Health;
-    using Isis.Core.Models;
-    using Isis.Core.Recall;
-    using Isis.Core.Stores;
-    using Isis.Server.Observability;
-    using Isis.Server.Services;
+    using NotDory.Core.Database;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Health;
+    using NotDory.Core.Models;
+    using NotDory.Core.Recall;
+    using NotDory.Core.Stores;
+    using NotDory.Server.Observability;
+    using NotDory.Server.Services;
 
     /// <summary>
     /// Service-layer Touchstone suite covering health checks, embedding/inference clients, and the
@@ -34,7 +34,7 @@ namespace Test.Shared
         {
             return new Touchstone.Core.TestSuiteDescriptor(
                 "service",
-                "Isis Service Suite",
+                "NotDory Service Suite",
                 new System.Collections.Generic.List<Touchstone.Core.TestCaseDescriptor>
                 {
                     // HealthCheckService.BuildKey
@@ -944,7 +944,7 @@ namespace Test.Shared
 
         private static string NewWork()
         {
-            return Path.Combine(Path.GetTempPath(), "isis-svc-" + Guid.NewGuid().ToString("N"));
+            return Path.Combine(Path.GetTempPath(), "notdory-svc-" + Guid.NewGuid().ToString("N"));
         }
 
         private static void TryDeleteDir(string dir)

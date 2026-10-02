@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Isis are documented here. This project adheres to
+All notable changes to NotDory are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
 ## [0.1.0] - ALPHA (in progress)
@@ -11,13 +11,13 @@ All notable changes to Isis are documented here. This project adheres to
   permit and expect an agent, each time it writes memories, to check the scope's categories (create or update any that
   are missing or unclear) and to check that memory is complete enough for a new agent to start from, adding, updating,
   superseding, or deleting memories until it is. No confirmation is required first.
-- **Claude Code needs one install step, for every project.** `scripts/*/install-claude` registers Isis at user scope
-  and installs the SessionStart hook (new `isis-claude-hook.ps1` / `isis-claude-hook.sh`, idempotent, other hooks and
+- **Claude Code needs one install step, for every project.** `scripts/*/install-claude` registers NotDory at user scope
+  and installs the SessionStart hook (new `notdory-claude-hook.ps1` / `notdory-claude-hook.sh`, idempotent, other hooks and
   settings kept, `remove-claude` undoes both). The hook sends the project's git remote and folder name, and session
   start resolves the scope by the remote's repository name, then the folder name, so a clone in a differently named
   folder still finds its memory, a new repository gets a scope named for it, and a bare folder never creates one
   (`remote` and `directory` on `POST`/`GET /v1.0/api/session` and the `session_start` tool).
-- **From connect to using memory in one step.** Isis now tells a connecting agent how to use it and gives it its
+- **From connect to using memory in one step.** NotDory now tells a connecting agent how to use it and gives it its
   context in one call:
   - **Server instructions** in the MCP `initialize` result (which harnesses place in the model's system prompt, the one
     channel that reaches the model even when tool descriptions are deferred): call `session_start` with the project
@@ -30,7 +30,7 @@ All notable changes to Isis are documented here. This project adheres to
     well as a `cat_` id.
   - **Tool descriptions say when to use each tool** (`memory_search` before answering or changing code, `memory_upsert`
     after decisions and discoveries); `session_start` is listed first.
-  - **Claude Code SessionStart hook:** `isis mcp install` adds a hook that injects the session context before the first
+  - **Claude Code SessionStart hook:** `notdory mcp install` adds a hook that injects the session context before the first
     turn (`--no-session-hook` to skip, `--rest-url` for the REST API).
 - **Editable agent onboarding.** Everything sent to the model on connect (the server instructions and every tool
   description) is editable by a system administrator in the dashboard (**Agent onboarding**) or through
@@ -38,7 +38,7 @@ All notable changes to Isis are documented here. This project adheres to
   restart: the MCP server re-reads them every 30 seconds, re-registers the tools in order, and notifies connected
   clients that the tool list changed. Default tool descriptions live in `AgentToolCatalog`.
 - **Endpoint reasoning setting.** An inference endpoint's `reasoning` (`Default`, `Off`, `Low`, `Medium`, `High`) sets
-  how much a reasoning model thinks on Isis's calls to it: chat answers, query steps, and reranking, through PolyPrompt
+  how much a reasoning model thinks on NotDory's calls to it: chat answers, query steps, and reranking, through PolyPrompt
   2.7.1's per-call reasoning option. `Default` (every existing endpoint, via migration
   `2026-09-27-endpoint-reasoning`) sends nothing, so behavior is unchanged. It makes thinking models practical as
   rerankers and query models: qwen3:8b timed out as a reranker with thinking on. Set it per endpoint because models
@@ -50,7 +50,7 @@ All notable changes to Isis are documented here. This project adheres to
   rejected with 400. The dashboard's endpoint form explains both forms.
 - **Benchmark harness (`src/Test.Benchmark`, `benchmarks/`).** A black-box REST/MCP harness with `retrieval`, `chat`,
   `agent`, `load`, `stub`, `prepare`, and `compare` commands, an isolated pgvector + RecallDB stack, hand-labelled
-  datasets (`isis-live`, `atlas`), converters for BEIR and LongMemEval, and a CI regression gate. The first baseline
+  datasets (`notdory-live`, `atlas`), converters for BEIR and LongMemEval, and a CI regression gate. The first baseline
   is in `benchmarks/RESULTS.md`. Every retrieval report shows the dataset's published baselines
   (`benchmarks/baselines.json`) with the net difference, and a `history` command tabulates any set of rounds per
   question type with the net change and baselines.
@@ -82,10 +82,10 @@ All notable changes to Isis are documented here. This project adheres to
   missing or wrong-kind endpoint. Server settings `retrieval.queryExpansion` (default `Auto`) and
   `retrieval.queryDecomposition` replace the chat-only `chatQueryExpansion` and `chatQueryDecomposition`.
 - **Query expansion on by default for searches that are not reranked** (`queryExpansion: Auto`). Over two benchmark
-  runs it raised nDCG@10 on SciFact (+0.037) and LongMemEval (+0.021) and was neutral on isis-live and Atlas (the small
+  runs it raised nDCG@10 on SciFact (+0.037) and LongMemEval (+0.021) and was neutral on notdory-live and Atlas (the small
   model's drafts vary between runs by about 0.01); it adds a model call (about 2 s) per search and per chat question.
 - **RecallDB single-call hybrid search.** When the RecallDB server reports the capabilities, a hybrid search is one
-  request: RecallDB fuses both legs with Isis's weights, RRF constant, and recency and collapses chunks to one hit per
+  request: RecallDB fuses both legs with NotDory's weights, RRF constant, and recency and collapses chunks to one hit per
   memory. Results are identical to the two-call path, which remains the fallback (`retrieval.serverSideHybrid`).
 - **Weighted multi-query search.** Extra queries are fused by weighted reciprocal rank with the original query at 1.0:
   `additionalQueryWeight` weights `additionalQueries` and decomposed parts (server default
@@ -96,7 +96,7 @@ All notable changes to Isis are documented here. This project adheres to
 - **Query expansion.** `expand: true` on search (REST and MCP) has the inference endpoint draft a short hypothetical
   answer, searched by vector, and keywords, searched as text, fused at `expansionWeight` (default 0.5,
   `retrieval.expansionWeight`). Over two runs it raised nDCG@10 on SciFact (+0.037) and LongMemEval (+0.021) and
-  was neutral on isis-live and Atlas; it costs a model call per search (about 2 s) and trails the cross-encoder on
+  was neutral on notdory-live and Atlas; it costs a model call per search (about 2 s) and trails the cross-encoder on
   memory-style data. It runs automatically for searches that are not reranked (see
   per-scope models below).
 - **Input validation.** Every request value and setting is checked where it enters (`InputGuard`): numbers clamp to a
@@ -111,7 +111,7 @@ All notable changes to Isis are documented here. This project adheres to
   `chat` tool, and the dashboard, which sends the last 6). The inference endpoint rewrites a follow-up into a
   standalone query, retrieval searches both the question and the rewrite, the answer prompt shows the recent
   conversation, and the response carries `standaloneQuestion` (`retrieval.chatConversationRewrite`, default true;
-  `retrieval.chatHistoryTurns`, default 6). A benchmark dataset of follow-up questions, `isis-live-followups`, and
+  `retrieval.chatHistoryTurns`, default 6). A benchmark dataset of follow-up questions, `notdory-live-followups`, and
   `history` support in the harness's `chat` command measure it.
 - **Memory supersession.** An upsert can name the memories it replaces (`supersedes`, a list of slugs or ids). The
   server keeps `supersededBy` on each replaced memory (migration `2026-09-24-memory-supersession`). Search demotes a
@@ -142,6 +142,16 @@ All notable changes to Isis are documented here. This project adheres to
 
 ### Changed
 
+- **Renamed from Isis to NotDory** (breaking). The new name is used everywhere: projects and namespaces
+  (`NotDory.Core`, `NotDory.Server`, `NotDory.McpServer`, `NotDory.sln`), the settings file (`notdory.json`),
+  environment variables (`NOTDORY_*`), Docker images (`jchristn77/notdory-server`, `-mcp`, `-dashboard`), compose
+  services, the Postgres database (`notdory`), the MCP server key (`notdory`), the Claude Code hook
+  (`notdory-claude-hook.sh` / `.ps1`), Prometheus metrics (`notdory_*`), Grafana dashboards, the local-dev defaults
+  (`notdorydefaultkey`, `admin@notdory.local`), the Postman collection, and the repository URL
+  (`github.com/jchristn/notdory`). There are no aliases for the old names. To move an existing install, rename
+  `isis.json` and `ISIS_*` variables, recreate the stack (its Postgres volume holds a database named `isis`), and
+  re-run `scripts/*/remove-*` from the previous checkout and then `scripts/*/install-*` so agent configs point at
+  `notdory`.
 - **Retrieval improvements** (see `archive/RETRIEVAL_IMPROVEMENTS.md`):
   - Hybrid scores are now fused and normalized to 0..1. Hits carry `vectorScore`, `textScore`, `vectorRank`, and
     `textRank`, and search accepts a `minScore` threshold (REST and MCP).
@@ -150,10 +160,10 @@ All notable changes to Isis are documented here. This project adheres to
   - Chat retrieves 8 memories by default instead of 5, and its prompt now forbids unstated facts and requires a
     citation for every claim.
   - Default instructions tell agents to update a changed fact in place rather than add a duplicate.
-- **Voltaic 1.1.0.** The MCP server moves from Voltaic 0.6.1 to 1.1.0, which fixes Claude Code 2.1.x seeing no Isis
+- **Voltaic 1.1.0.** The MCP server moves from Voltaic 0.6.1 to 1.1.0, which fixes Claude Code 2.1.x seeing no NotDory
   tools (it uses `server/discover` and the stateless `2026-07-28` revision). Regression cases were added to the MCP
   suite.
-- **Voltaic 2.0.0.** The MCP server moves to Voltaic 2.0.0. `tools/list` now returns only the 32 Isis tools: the
+- **Voltaic 2.0.0.** The MCP server moves to Voltaic 2.0.0. `tools/list` now returns only the 32 NotDory tools: the
   Voltaic demo tools `ping`, `echo`, `getTime`, and `getSessions` are gone (`getSessions` disclosed every caller's
   `Mcp-Session-Id`). The protocol `ping` returns `{}` (`{"resultType":"complete"}` under `2026-07-28`) instead of
   `"pong"`, and still needs no credentials. A tool can no longer be called as a bare JSON-RPC method; use
@@ -170,18 +180,18 @@ All notable changes to Isis are documented here. This project adheres to
 - **RecallDb.Sdk 0.2.3.** A category-filtered vector search asks RecallDB for `EfSearch` 1000 when the server reports
   `search.vector.ef-search`: the filter applies to the vector index's nearest rows, and RecallDB measured a selective
   filter returning 0 of 10 hits at the default scan size and 9 of 10 at 1000. RecallDB now answers 409 for an existing
-  document key; an upsert that meets one (another writer recreated the memory between Isis's delete and create)
+  document key; an upsert that meets one (another writer recreated the memory between NotDory's delete and create)
   clears the memory's documents and writes once more.
 - **RecallDb.Sdk 0.2.2.** Exposes RecallDB's single-call hybrid search, per-leg ranks, stored vectors on request, and
-  a capabilities list, which Isis does not use yet. Behavior changes that reach Isis: existence checks throw on any
+  a capabilities list, which NotDory does not use yet. Behavior changes that reach NotDory: existence checks throw on any
   status other than 200 or 404, so a failing or unauthorized RecallDB is reported as an error instead of "missing",
-  and every request times out after 100 seconds. Retrieval results are unchanged (isis-live and Atlas Hybrid
+  and every request times out after 100 seconds. Retrieval results are unchanged (notdory-live and Atlas Hybrid
   nDCG@10 0.877 and 0.835, matching round 6).
 - **Chat grounds on the whole best-matching chunk** instead of a 240-character snippet. Answer accuracy on the
-  isis-live benchmark rose from 0.68 to 0.96.
+  notdory-live benchmark rose from 0.68 to 0.96.
 - **Hybrid search runs its vector and text legs in parallel**, and a multi-chunk memory's chunks are embedded
   concurrently (`retrieval.embeddingParallelism`, default 4).
-- **TextChunker 0.3.1.** Span-based chunking with token counts that match the embedding runtime. Isis's workarounds
+- **TextChunker 0.3.1.** Span-based chunking with token counts that match the embedding runtime. NotDory's workarounds
   for the 0.2.x bugs (surrogate-safe stand-in text, dropping redundant tail chunks) are removed, and its token
   margin drops from 4% to 1% (`MemoryChunker.TokenizerMarginFraction`). Chunk boundaries change, so re-ingest.
 - **Default chunk size.** When a scope does not set `chunkMaxTokens`, chunks are 75% of the model's budget, at most
@@ -191,7 +201,7 @@ All notable changes to Isis are documented here. This project adheres to
   (`TransientRetryHandler`); an endpoint still unavailable afterwards is reported as 503 instead of 400.
 - **Embedding task prefixes.** Models trained with them (nomic-embed-text, e5, bge, mxbai, snowflake-arctic-embed)
   get their document and query prefixes. Prefixes now live in embedding model profiles (below).
-- **Chat-model reranking.** A Rerank endpoint can use the `Ollama` or `OpenAI` format; Isis prompts the model once per
+- **Chat-model reranking.** A Rerank endpoint can use the `Ollama` or `OpenAI` format; NotDory prompts the model once per
   search to rate every candidate. A cross-encoder remains the recommended reranker.
 - **Rerank candidates default to 10** (was 20): equal quality on the benchmarks at about 40% less latency.
 - **Reranker in the reference stack.** `docker/compose.yaml` and the benchmark stack gain optional `rerank` (CPU) and
@@ -203,7 +213,7 @@ All notable changes to Isis are documented here. This project adheres to
 - **Hybrid fusion's RRF constant defaults to 20** (was 60; `HybridFusion.DefaultRrfK`). A sweep on four datasets
   favored it for both all-minilm and nomic-embed-text. Search accepts `textWeight` and `rrfK` to override the
   profile or default per query.
-- **Reranker on by default in the reference stack.** With `ISIS_DEFAULT_RERANK_BASEURL` set (as `docker/compose.yaml`
+- **Reranker on by default in the reference stack.** With `NOTDORY_DEFAULT_RERANK_BASEURL` set (as `docker/compose.yaml`
   does), the server seeds a Rerank endpoint once the reranker answers, and new RecallDB scopes attach the tenant's
   first active Rerank endpoint. A rerank endpoint that fails is skipped for 30 seconds (`RerankCooldown`), returning
   retrieval order with a notice.
@@ -212,7 +222,7 @@ All notable changes to Isis are documented here. This project adheres to
 
 - **The Windows Claude Code installer stopped after its first `claude` command.** `claude` is itself a batch file
   (`claude.cmd`), and a batch script that runs another without `call` never returns, so `install-claude.bat` ended
-  inside `claude mcp remove` (exit 1) and neither registered Isis nor installed the hook. Both Claude scripts now use
+  inside `claude mcp remove` (exit 1) and neither registered NotDory nor installed the hook. Both Claude scripts now use
   `call`.
 - **Query-string values are URL-decoded.** Watson returns them percent-encoded, so an encoded value (a git remote URL,
   a name with a space) arrived as `https%3A%2F%2F...` and matched nothing. `RouteHelpers.Query` now decodes them.
@@ -220,13 +230,13 @@ All notable changes to Isis are documented here. This project adheres to
   told agents that every tool needs a tenantId and to begin with whoami, instructions, scope_enumerate, and guide, and
   session_start returned them next to a protocol saying the opposite. New tenants now get text that matches session
   start (`DefaultInstructionText`), and migration `2026-09-28-session-start-instructions` updates existing tenants'
-  copies that still hold any text Isis has seeded (five historical versions); copies a tenant edited are left alone.
+  copies that still hold any text NotDory has seeded (five historical versions); copies a tenant edited are left alone.
 - **Failures while authenticating are recorded and mapped.** An exception thrown during authentication (for example a
   database error in the credential lookup) skipped post-routing, so the request answered 500 and left no row in request
   history. That is how the deployment's 20 minutes of 500s on access-key requests (2026-09-27, 08:14 to 08:35 UTC)
   became impossible to diagnose from the API. The authentication hook now catches the failure, answers it with the same
   status mapping as every other failure (a transient database error is a 503), and records it. Failed requests' history
-  rows carry the exception type and message in an internal `x-isis-exception` entry, never returned to the caller.
+  rows carry the exception type and message in an internal `x-notdory-exception` entry, never returned to the caller.
 - **One bad rerank reply no longer switches reranking off.** A chat reranker's unusable reply (gpt-oss:20b at low effort
   sometimes returned 9 scores for 10 passages) started the 30-second endpoint cooldown meant for outages; since a
   search that skips the reranker takes about 60 ms, that left 240 of 300 SciFact queries unreranked. Unusable replies
@@ -238,7 +248,7 @@ All notable changes to Isis are documented here. This project adheres to
 - **Request history and operation events are indexed by time.** The admin listings across tenants and the retention
   sweep scanned and sorted the whole table, the largest in the database once bodies are captured; migration
   `2026-09-27-history-created-indexes` adds `createdutc` indexes to both tables.
-- **The Docker stack's Postgres allows 300 connections.** Isis and RecallDB share it and each pools up to 100
+- **The Docker stack's Postgres allows 300 connections.** NotDory and RecallDB share it and each pools up to 100
   connections, so the default of 100 left no headroom during large ingests.
 - **Crashes and runaway work on bad input:** a null entry in `subQueries` returned 500; a huge `tokenBudget` overflowed
   while trimming snippets; a null memory `metadata` threw partway through an upsert; a null settings section saved
@@ -297,7 +307,7 @@ All notable changes to Isis are documented here. This project adheres to
 
 - **Tenant deletion now tears down the external RecallDB tenant.** A tenant nuke already dropped every
   scope's collection (and filesystem content) and all tenant-scoped DB records, but the RecallDB tenant
-  that Isis provisions on first use was left behind as an empty orphan. `IMemoryStore` gained a
+  that NotDory provisions on first use was left behind as an empty orphan. `IMemoryStore` gained a
   best-effort `DeleteTenantAsync` (RecallDB drops the tenant; filesystem/Verbex no-op), which the tenant
   cascade invokes once after its scopes are gone. Scope deletion is unchanged (it must not drop the
   shared tenant). Added store-level no-op tests and a tenant-cascade test asserting the teardown is issued.
@@ -339,7 +349,7 @@ All notable changes to Isis are documented here. This project adheres to
   `Append` (add a new instruction), `Replace` (override a same-named global's content in place), or
   `Hide` (suppress a same-named global) — matched to the global set by name. A new
   `GET …/scopes/{scopeId}/effective-instructions` route returns the merged, source-annotated result,
-  and the `isis_instructions` MCP tool takes an optional `scopeId` to return a scope's effective set.
+  and the `notdory_instructions` MCP tool takes an optional `scopeId` to return a scope's effective set.
   Implemented with a nullable `scopeId` (+ `mergeMode`) on the instruction model/table across all four
   DB providers, a pure `InstructionResolver`, scope-delete + tenant-delete cascades, a data-preserving
   migration (existing instructions become the tenant-global set), and a dashboard scope selector with a
@@ -351,7 +361,7 @@ All notable changes to Isis are documented here. This project adheres to
   distinct base URL per model — are first-class. Outbound authentication is now configurable via
   `authType`: `None`, `BearerToken`, `ApiKeyHeader` (operator-named header), `QueryParam`
   (operator-named query parameter, e.g. Gemini's `key`), `BasicAuth`, and `AccessKeySecret`
-  (access key + secret sent as two operator-named headers). Isis applies auth itself through a
+  (access key + secret sent as two operator-named headers). NotDory applies auth itself through a
   shared `EndpointAuthenticator` (used by the embedding client, the inference client via a
   delegating handler around PolyPrompt, and the health prober), independent of API format. Bumped
   the **PolyPrompt** dependency 2.2.1 → 2.6.0. The `model_endpoints` schema changed accordingly
@@ -367,11 +377,11 @@ All notable changes to Isis are documented here. This project adheres to
   `Authorization: Bearer <accessKey>` or in the `x-access-key` header; the `x-secret-key` header
   is now **optional** and validated only when present. The access key authenticates on its own —
   it is public and transferable, so it is a **capability token** to scope least-privilege — and a
-  request with no access key is rejected with `401`. This makes Isis reachable from MCP clients
+  request with no access key is rejected with `401`. This makes NotDory reachable from MCP clients
   such as **Mux** that can send only a single auth header. `scripts/*/install-mux.*` now writes
   Mux's native bearer schema (a `servers[]` entry with `auth: { type: "bearer", bearerToken:
   <accessKey> }` and no secret), and every `install-<agent>` script accepts the access key as an
-  optional first positional CLI argument (arg #1 > `ISIS_ACCESS_KEY` > default). Claude Code,
+  optional first positional CLI argument (arg #1 > `NOTDORY_ACCESS_KEY` > default). Claude Code,
   Codex, Cursor, and Gemini send the access key in the `x-access-key` header; none send a secret.
 - **Tenant auto-provisioning.** `POST /v1.0/api/tenants` (system administrator) now stands up a
   complete, ready-to-use environment in one call: the tenant plus an auto-generated tenant-admin
@@ -406,7 +416,7 @@ All notable changes to Isis are documented here. This project adheres to
 - **MCP `scope_create`** — create a memory scope for a project when none exists (params
   `tenantId`, `name`, optional `description` / `storeProvider` / `embeddingEndpointId` /
   `dimensionality` / `filesystemLayout` / `targetPath`), bringing the MCP tool count to twelve.
-  MCP auth (`x-access-key` + `x-secret-key`, dev defaults `isisdefaultkey` / `isisdefaultsecret`)
+  MCP auth (`x-access-key` + `x-secret-key`, dev defaults `notdorydefaultkey` / `notdorydefaultsecret`)
   is now documented in the `whoami` tool description.
 - **Server settings management (system administrator only).** `GET /v1.0/api/settings` returns
   `{ settings, settingsFile, liveSections }`; `PUT /v1.0/api/settings` persists a full settings body
@@ -414,7 +424,7 @@ All notable changes to Isis are documented here. This project adheres to
   signalled by `restartRequired: true`); `POST /v1.0/api/settings/restart` exits the node so Docker
   (`restart: unless-stopped`) relaunches it with the saved settings. Exposed in the dashboard with a
   **Restart Server** action.
-- **Default seeded model endpoints.** On first boot Isis seeds, for the default tenant when none
+- **Default seeded model endpoints.** On first boot NotDory seeds, for the default tenant when none
   exist, a default embedding endpoint (Ollama, model `all-minilm`, `http://localhost:11434`) and a
   default inference endpoint (Ollama, model `gemma3:4b`, `http://localhost:11434`).
 - **Dashboard enhancements:** Request History page wired to `/v1.0/api/requests`; a full-width,
@@ -432,19 +442,19 @@ All notable changes to Isis are documented here. This project adheres to
   Administrative power
   comes only from the user record's `IsAdmin` (system-wide) or `IsTenantAdmin` (tenant-wide) flags —
   there is no admin key or admin principal. Added user and credential management REST endpoints and
-  dashboard views. First-boot seeding now creates a bootstrap admin user (`admin@isis.local` /
-  `isisadmin`, env `ISIS_AUTH_SEED_ADMIN_EMAIL` / `ISIS_AUTH_SEED_ADMIN_PASSWORD`) in tenant
-  `ten_default` and a default credential (`isisdefaultkey` / `isisdefaultsecret`, env
-  `ISIS_AUTH_DEFAULT_ACCESS_KEY` / `ISIS_AUTH_DEFAULT_SECRET_KEY`). The MCP installer takes an
+  dashboard views. First-boot seeding now creates a bootstrap admin user (`admin@notdory.local` /
+  `notdoryadmin`, env `NOTDORY_AUTH_SEED_ADMIN_EMAIL` / `NOTDORY_AUTH_SEED_ADMIN_PASSWORD`) in tenant
+  `ten_default` and a default credential (`notdorydefaultkey` / `notdorydefaultsecret`, env
+  `NOTDORY_AUTH_DEFAULT_ACCESS_KEY` / `NOTDORY_AUTH_DEFAULT_SECRET_KEY`). The MCP installer takes an
   `--access-key` flag and writes the `x-access-key` header; a request with no access key is rejected
   with `401`.
 - Initial repository scaffolding: `README.md` (with the backing-store capability matrix and alpha
-  warning), `LICENSE.md` (MIT), `.gitignore`, `.dockerignore`, `isis.json`, and Pneuma-style build
+  warning), `LICENSE.md` (MIT), `.gitignore`, `.dockerignore`, `notdory.json`, and Pneuma-style build
   scripts (`build.bat`, `test.bat`, `build-server.bat`, `build-mcp.bat`, `build-dashboard.bat`,
   `build-all.bat`).
-- Product plan (`docs/ISIS_PLAN.md`), including the "Chat with Memory" surface and RecallDB
+- Product plan (`docs/NOTDORY_PLAN.md`), including the "Chat with Memory" surface and RecallDB
   pass-through collection management.
-- `Isis.Core` (builds clean; runtime-verified end to end):
+- `NotDory.Core` (builds clean; runtime-verified end to end):
   - Constants, PrettyId identifier generation, and domain enums.
   - Domain models: tenants, users, credentials, auth sessions, scopes, categories, memories, memory
     links (plus enumeration query/result types).
@@ -455,7 +465,7 @@ All notable changes to Isis are documented here. This project adheres to
     layouts, keyword search), and capability-accurate RecallDB/Verbex providers (integration wired in
     a later phase).
 
-- `Isis.Server` (REST, Watson 7.1 — runs and is tested end to end):
+- `NotDory.Server` (REST, Watson 7.1 — runs and is tested end to end):
   - Watson host with the `AuthenticateRequest` hook, CORS preflight/post-routing, and OpenAPI
     (`/openapi.json` + Swagger).
   - Authentication (email/password session tokens for users and the dashboard; per-tenant credential
@@ -467,12 +477,12 @@ All notable changes to Isis are documented here. This project adheres to
     provider and embedding dimension (no silent model swaps).
   - `MemoryService` ties the memory index to the scope's store; memory writes are idempotent by
     `(scope, category, slug)`.
-- `Isis.McpServer` (Voltaic 0.6.1, standalone — runs and is tested):
+- `NotDory.McpServer` (Voltaic 0.6.1, standalone — runs and is tested):
   - Streamable-HTTP MCP transport that speaks the MCP `initialize` handshake and hosts 10 agent tools
     (`whoami`, `scope_enumerate`, `guide`, `category_enumerate`/`_create`,
     `memory_enumerate`/`_read`/`_upsert`/`_search`/`_delete`).
   - Authenticates the caller from transport headers (`x-access-key` + `x-secret-key`) and proxies each
-    tool to the Isis REST API over loopback, forwarding the caller's credentials so REST performs the
+    tool to the NotDory REST API over loopback, forwarding the caller's credentials so REST performs the
     authoritative auth and tenant scoping.
 - Model endpoints + health checking:
   - `ModelEndpoint` (embedding/inference) with persistence (SQLite `model_endpoints` table,
@@ -482,7 +492,7 @@ All notable changes to Isis are documented here. This project adheres to
     auth**, applying one probe result to all endpoints sharing a target, with healthy/unhealthy
     threshold hysteresis. Live probe route at `/v1.0/api/tenants/{id}/endpoint-health`.
 - Embedding + inference + chat-with-memory:
-  - `EmbeddingService` and `InferenceService` (`Isis.Core.Recall`) that call configured model endpoints
+  - `EmbeddingService` and `InferenceService` (`NotDory.Core.Recall`) that call configured model endpoints
     in OpenAI-compatible and Ollama formats.
   - `MemoryChatService` — **Chat with Memory** RAG: retrieves the top memories from a scope, builds a
     grounded prompt, calls the inference endpoint, and returns a synthesized answer with **citations**.
@@ -503,12 +513,12 @@ All notable changes to Isis are documented here. This project adheres to
   a real `ankane/pgvector` container: schema creation, first-boot seeding, health, and scope CRUD all
   verified over the wire.
 - **Docker deployment assets** (`docker/`): `compose.yaml` (validated with `docker compose config`)
-  with named `jchristn77/isis-*:v0.1.0` images + build stanzas, shared pgvector Postgres (init creates
-  `isis` + `recalldb` databases), RecallDB server/dashboard, two nginx instances (REST + MCP with SSE
+  with named `jchristn77/notdory-*:v0.1.0` images + build stanzas, shared pgvector Postgres (init creates
+  `notdory` + `recalldb` databases), RecallDB server/dashboard, two nginx instances (REST + MCP with SSE
   passthrough), and the pinned observability stack (Prometheus/Tempo/Loki/Alloy/Grafana); Dockerfiles
   for server/mcp/dashboard; Grafana provisioning + an Overview dashboard; a factory/demo overlay; and
-  `DOCKERHUB_README.md`. New env overrides: `ISIS_REST_HOSTNAME`, `ISIS_DB_PORT`, `ISIS_RECALLDB_ENDPOINT`,
-  `ISIS_RECALLDB_ADMIN_KEY`.
+  `DOCKERHUB_README.md`. New env overrides: `NOTDORY_REST_HOSTNAME`, `NOTDORY_DB_PORT`, `NOTDORY_RECALLDB_ENDPOINT`,
+  `NOTDORY_RECALLDB_ADMIN_KEY`.
 - **Request history:** capture (best-effort, in the PostRouting hook, health excluded) into a
   `request_history` table via `IRequestHistoryMethods`, and REST routes `GET /v1.0/api/requests`
   (admin sees all, tenant sees its own), `GET /v1.0/api/requests/{id}`, and `DELETE /v1.0/api/requests`.
@@ -529,11 +539,11 @@ All notable changes to Isis are documented here. This project adheres to
   provider is validated by an **ephemeral-container round-trip test** (spins up the real database,
   creates the schema, exercises CRUD + JSON columns + pagination + tenant isolation, tears down) — all
   passing.
-- **`isis mcp install`** command in `Isis.McpServer`: upserts an `isis` MCP entry (`type: http`,
+- **`notdory mcp install`** command in `NotDory.McpServer`: upserts a `notdory` MCP entry (`type: http`,
   `url: http://127.0.0.1:8720/mcp`, `x-access-key` header) into the agent client
   config (`~/.claude.json` or a project `.mcp.json` with `--project`), preserving all other servers and
   keys, writing a `.bak` backup. Flags: `--access-key`/`--host`/`--port`/`--url`/`--project`;
-  reads defaults from `isis.mcp.json` + env.
+  reads defaults from `notdory.mcp.json` + env.
 - **MCP connection docs** (`docs/`): `MCP_API.md` (the 10 tools), `CONNECTING_AGENTS.md` (Claude
   Code / Cursor / generic client setup + first-calls walkthrough), and a docs `README.md` index.
 

@@ -8,9 +8,9 @@ namespace Test.Benchmark.Metrics
     using System.Threading.Tasks;
 
     /// <summary>
-    /// A point-in-time scrape of the Isis Prometheus endpoint. Two snapshots bracket a benchmark phase; their
+    /// A point-in-time scrape of the NotDory Prometheus endpoint. Two snapshots bracket a benchmark phase; their
     /// difference gives the server-side time spent per stage (embedding, store search, DB, ...) using the
-    /// histograms Isis already exports, without any extra instrumentation.
+    /// histograms NotDory already exports, without any extra instrumentation.
     /// </summary>
     public class PrometheusSnapshot
     {
@@ -21,15 +21,15 @@ namespace Test.Benchmark.Metrics
         /// </summary>
         public static readonly string[] StageFamilies = new string[]
         {
-            "isis_memory_search_duration_seconds",
-            "isis_embedding_duration_seconds",
-            "isis_store_search_duration_seconds",
-            "isis_memory_upsert_duration_seconds",
-            "isis_store_upsert_duration_seconds",
-            "isis_store_op_duration_seconds",
-            "isis_db_query_duration_seconds",
-            "isis_chat_ask_duration_seconds",
-            "isis_inference_duration_seconds"
+            "notdory_memory_search_duration_seconds",
+            "notdory_embedding_duration_seconds",
+            "notdory_store_search_duration_seconds",
+            "notdory_memory_upsert_duration_seconds",
+            "notdory_store_upsert_duration_seconds",
+            "notdory_store_op_duration_seconds",
+            "notdory_db_query_duration_seconds",
+            "notdory_chat_ask_duration_seconds",
+            "notdory_inference_duration_seconds"
         };
 
         /// <summary>
@@ -95,7 +95,7 @@ namespace Test.Benchmark.Metrics
                 double count = Value(family + "_count") - before.Value(family + "_count");
                 double sum = Value(family + "_sum") - before.Value(family + "_sum");
                 if (count <= 0) continue;
-                stages[family.Replace("isis_", string.Empty).Replace("_duration_seconds", string.Empty)] = new StageBreakdown
+                stages[family.Replace("notdory_", string.Empty).Replace("_duration_seconds", string.Empty)] = new StageBreakdown
                 {
                     Count = (long)Math.Round(count),
                     MeanMs = Math.Round(sum * 1000.0 / count, 2),
@@ -127,7 +127,7 @@ namespace Test.Benchmark.Metrics
                 int space = line.LastIndexOf(' ');
                 if (space <= 0) continue;
                 string name = brace > 0 && brace < space ? line.Substring(0, brace) : line.Substring(0, line.IndexOf(' '));
-                if (!name.StartsWith("isis_", StringComparison.Ordinal)) continue;
+                if (!name.StartsWith("notdory_", StringComparison.Ordinal)) continue;
                 if (!double.TryParse(line.Substring(space + 1), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)) continue;
 
                 _Totals[name] = (_Totals.TryGetValue(name, out double existing) ? existing : 0.0) + value;

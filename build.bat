@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
-echo === Backend build (Isis.sln) ===
-dotnet build src\Isis.sln -c Release
+echo === Backend build (NotDory.sln) ===
+dotnet build src\NotDory.sln -c Release
 if errorlevel 1 exit /b 1
 
 echo === Dashboard build ===

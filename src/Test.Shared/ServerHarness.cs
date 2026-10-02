@@ -9,30 +9,30 @@ namespace Test.Shared
     using System.Text.Json;
     using System.Threading;
     using System.Threading.Tasks;
-    using Isis.Core.Database;
-    using Isis.Core.Enums;
-    using Isis.Server;
-    using Isis.Server.Services;
-    using Isis.Server.Settings;
+    using NotDory.Core.Database;
+    using NotDory.Core.Enums;
+    using NotDory.Server;
+    using NotDory.Server.Services;
+    using NotDory.Server.Settings;
     using Microsoft.Data.Sqlite;
 
     /// <summary>
-    /// Boots an in-process Isis server against a temporary SQLite database and filesystem workspace for
+    /// Boots an in-process NotDory server against a temporary SQLite database and filesystem workspace for
     /// integration tests, and tears it down cleanly.
     /// </summary>
     internal sealed class ServerHarness : IDisposable
     {
         #region Internal-Members
 
-        internal IsisServer Server { get; private set; } = null!;
+        internal NotDoryServer Server { get; private set; } = null!;
         internal DatabaseDriverBase Database { get; private set; } = null!;
         internal int Port { get; private set; }
         internal string WorkDir { get; private set; } = string.Empty;
-        internal string AdminEmail { get; private set; } = "admin@isis.local";
-        internal string AdminPassword { get; private set; } = "isisadmin";
+        internal string AdminEmail { get; private set; } = "admin@notdory.local";
+        internal string AdminPassword { get; private set; } = "notdoryadmin";
         internal string AdminToken { get; private set; } = string.Empty;
-        internal string AccessKey { get; private set; } = "isisdefaultkey";
-        internal string SecretKey { get; private set; } = "isisdefaultsecret";
+        internal string AccessKey { get; private set; } = "notdorydefaultkey";
+        internal string SecretKey { get; private set; } = "notdorydefaultsecret";
         internal string TenantId { get; private set; } = DefaultSeeder.DefaultTenantId;
 
         #endregion
@@ -56,14 +56,14 @@ namespace Test.Shared
         internal static async Task<ServerHarness> StartAsync()
         {
             ServerHarness harness = new ServerHarness();
-            harness.WorkDir = Path.Combine(Path.GetTempPath(), "isis-test-" + Guid.NewGuid().ToString("N").Substring(0, 10));
+            harness.WorkDir = Path.Combine(Path.GetTempPath(), "notdory-test-" + Guid.NewGuid().ToString("N").Substring(0, 10));
             Directory.CreateDirectory(harness.WorkDir);
             harness.Port = GetFreePort();
 
-            IsisSettings settings = new IsisSettings();
+            NotDorySettings settings = new NotDorySettings();
             settings.NodeId = "test";
             settings.Rest = new RestSettings { Hostname = "127.0.0.1", Port = harness.Port, Ssl = false };
-            settings.Database = new DatabaseSettings { Type = DatabaseTypeEnum.Sqlite, Filename = Path.Combine(harness.WorkDir, "isis.db") };
+            settings.Database = new DatabaseSettings { Type = DatabaseTypeEnum.Sqlite, Filename = Path.Combine(harness.WorkDir, "notdory.db") };
             settings.Auth = new AuthSettings
             {
                 SeedAdminEmail = harness.AdminEmail,
@@ -80,7 +80,7 @@ namespace Test.Shared
             AuthorizationService authz = new AuthorizationService();
             MemoryService memory = new MemoryService(harness.Database);
 
-            harness.Server = new IsisServer(settings, harness.Database, auth, authz, memory, settingsFile: Path.Combine(harness.WorkDir, "isis.json"));
+            harness.Server = new NotDoryServer(settings, harness.Database, auth, authz, memory, settingsFile: Path.Combine(harness.WorkDir, "notdory.json"));
             harness.Server.Start();
 
             await harness.WaitForHealthAsync().ConfigureAwait(false);

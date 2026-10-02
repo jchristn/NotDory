@@ -11,7 +11,7 @@ namespace Test.Benchmark.Runners
     using Test.Benchmark.Metrics;
 
     /// <summary>
-    /// End-to-end chat-with-memory (RAG) benchmark: ask each labelled question through the Isis chat route, then
+    /// End-to-end chat-with-memory (RAG) benchmark: ask each labelled question through the NotDory chat route, then
     /// score answer correctness with an independent LLM judge, abstention on unanswerable questions, citation
     /// precision/recall (parsed from the answer text), and whether retrieval put the evidence in the prompt at all.
     /// </summary>

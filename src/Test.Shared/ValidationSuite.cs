@@ -6,18 +6,18 @@ namespace Test.Shared
     using System.Net.Http;
     using System.Threading.Tasks;
     using System.Text.Json;
-    using Isis.Core.Database;
-    using Isis.Core.Enums;
-    using Isis.Core.Health;
-    using Isis.Core.Helpers;
-    using Isis.Core.Models;
-    using Isis.Core.Recall;
-    using Isis.Core.Stores;
-    using Isis.Core.Stores.RecallDb;
-    using Isis.Server.Models;
-    using Isis.Server.Routes;
-    using Isis.Server.Services;
-    using Isis.Server.Settings;
+    using NotDory.Core.Database;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Health;
+    using NotDory.Core.Helpers;
+    using NotDory.Core.Models;
+    using NotDory.Core.Recall;
+    using NotDory.Core.Stores;
+    using NotDory.Core.Stores.RecallDb;
+    using NotDory.Server.Models;
+    using NotDory.Server.Routes;
+    using NotDory.Server.Services;
+    using NotDory.Server.Settings;
     using Touchstone.Core;
 
     /// <summary>
@@ -134,8 +134,8 @@ namespace Test.Shared
         private static void SettingsCase()
         {
             JsonSerializerOptions options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            IsisSettings? settings = JsonSerializer.Deserialize<IsisSettings>("{\"rest\":null,\"retrieval\":null,\"requestHistory\":null,\"nodeId\":\"\"}", options);
-            TestCase.Require(settings != null && settings.Rest != null && settings.Retrieval != null && settings.RequestHistory != null && settings.NodeId == "isis-1", "Null settings sections should become defaults.");
+            NotDorySettings? settings = JsonSerializer.Deserialize<NotDorySettings>("{\"rest\":null,\"retrieval\":null,\"requestHistory\":null,\"nodeId\":\"\"}", options);
+            TestCase.Require(settings != null && settings.Rest != null && settings.Retrieval != null && settings.RequestHistory != null && settings.NodeId == "notdory-1", "Null settings sections should become defaults.");
             RetentionSettings retention = new RetentionSettings { MaxAgeDays = 0, SweepIntervalMinutes = 100000 };
             TestCase.Require(retention.MaxAgeDays == 1 && retention.SweepIntervalMinutes == 1440, "Retention settings should clamp.");
             TestCase.Require(new AuthSettings { SessionLifetimeMinutes = -5 }.SessionLifetimeMinutes == 5, "Session lifetime should clamp to at least 5 minutes.");
@@ -171,13 +171,13 @@ namespace Test.Shared
 
         private static void SessionProjectMatchCase()
         {
-            List<Scope> scopes = new List<Scope> { new Scope { Id = "scp_a", Name = "AgentMemory" }, new Scope { Id = "scp_b", Name = "agent-memory-old" }, new Scope { Id = "scp_c", Name = "Isis" } };
+            List<Scope> scopes = new List<Scope> { new Scope { Id = "scp_a", Name = "AgentMemory" }, new Scope { Id = "scp_b", Name = "agent-memory-old" }, new Scope { Id = "scp_c", Name = "NotDory" } };
             TestCase.Require(SessionStartService.Match(scopes, "agentmemory")?.Id == "scp_a", "A case-insensitive exact name should match.");
             TestCase.Require(SessionStartService.Match(scopes, "Agent Memory")?.Id == "scp_a" && SessionStartService.Match(scopes, "agent_memory")?.Id == "scp_a", "Spacing and punctuation should be ignored.");
-            TestCase.Require(SessionStartService.Match(scopes, "isis")?.Id == "scp_c" && SessionStartService.Match(scopes, "nothing") == null && SessionStartService.Match(scopes, "---") == null, "Unrelated or empty names should not match.");
+            TestCase.Require(SessionStartService.Match(scopes, "notdory")?.Id == "scp_c" && SessionStartService.Match(scopes, "nothing") == null && SessionStartService.Match(scopes, "---") == null, "Unrelated or empty names should not match.");
             TestCase.Require(new SessionStartRequest { MaxMemories = 500 }.MaxMemories == 100 && new SessionStartRequest { Project = "  " }.Project == null, "The request should clamp and clean its input.");
             TestCase.Require(AgentProtocol.ServerInstructions.Contains("session_start", StringComparison.Ordinal) && AgentProtocol.ForScope("scp_x", "X").Contains("scp_x", StringComparison.Ordinal), "The protocol should name session_start and, per scope, the scope id.");
-            TestCase.Require(SessionStartService.RepositoryName("https://github.com/jchristn/isis.git") == "isis" && SessionStartService.RepositoryName("git@github.com:jchristn/isis.git") == "isis", "https and scp-style remotes should give the repository name.");
+            TestCase.Require(SessionStartService.RepositoryName("https://github.com/jchristn/notdory.git") == "notdory" && SessionStartService.RepositoryName("git@github.com:jchristn/notdory.git") == "notdory", "https and scp-style remotes should give the repository name.");
             TestCase.Require(SessionStartService.RepositoryName("ssh://git@host:22/group/sub/repo/") == "repo" && SessionStartService.RepositoryName(@"C:\repos\thing") == "thing", "ssh:// remotes, trailing slashes, and local paths should give the last segment.");
             TestCase.Require(SessionStartService.RepositoryName(null) == null && SessionStartService.RepositoryName("  ") == null && SessionStartService.RepositoryName("https://host/.git") == null, "No remote, or no name, gives null.");
         }

@@ -1,34 +1,34 @@
-// Application-wide constants for the Isis dashboard.
+// Application-wide constants for the NotDory dashboard.
 
 export const STORAGE_KEYS = {
-  serverUrl: 'isis_server_url',
-  token: 'isis_token',
-  tenantId: 'isis_tenant_id',
-  theme: 'isis_theme',
-  locale: 'isis.locale',
-  explorerHistory: 'isis_api_explorer_history'
+  serverUrl: 'notdory_server_url',
+  token: 'notdory_token',
+  tenantId: 'notdory_tenant_id',
+  theme: 'notdory_theme',
+  locale: 'notdory.locale',
+  explorerHistory: 'notdory_api_explorer_history'
 };
 
-// Runtime override (window.__ISIS_CONFIG__.serverUrl) wins over the Vite
+// Runtime override (window.__NOTDORY_CONFIG__.serverUrl) wins over the Vite
 // build-time __DEFAULT_SERVER_URL__ define; the compile-time value is only a
 // fallback for local dev where /config.js is not served. This lets operators
 // pin the login default per environment without rebuilding the image.
 const runtimeServerUrl =
   typeof window !== 'undefined' &&
-  window.__ISIS_CONFIG__ &&
-  typeof window.__ISIS_CONFIG__.serverUrl === 'string' &&
-  window.__ISIS_CONFIG__.serverUrl.length > 0
-    ? window.__ISIS_CONFIG__.serverUrl
+  window.__NOTDORY_CONFIG__ &&
+  typeof window.__NOTDORY_CONFIG__.serverUrl === 'string' &&
+  window.__NOTDORY_CONFIG__.serverUrl.length > 0
+    ? window.__NOTDORY_CONFIG__.serverUrl
     : null;
 export const DEFAULT_SERVER_URL =
   runtimeServerUrl ??
   (typeof __DEFAULT_SERVER_URL__ !== 'undefined' ? __DEFAULT_SERVER_URL__ : 'http://127.0.0.1:8700');
 export const DEFAULT_ADMIN_EMAIL =
-  typeof __DEFAULT_ADMIN_EMAIL__ !== 'undefined' ? __DEFAULT_ADMIN_EMAIL__ : 'admin@isis.local';
+  typeof __DEFAULT_ADMIN_EMAIL__ !== 'undefined' ? __DEFAULT_ADMIN_EMAIL__ : 'admin@notdory.local';
 export const DEFAULT_TENANT_ID =
   typeof __DEFAULT_TENANT_ID__ !== 'undefined' ? __DEFAULT_TENANT_ID__ : 'ten_default';
 
-export const GITHUB_URL = 'https://github.com/jchristn/isis';
+export const GITHUB_URL = 'https://github.com/jchristn/notdory';
 export const DISCORD_URL = 'https://discord.gg/tRAN8HgvK5';
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 250, 500, 1000];
@@ -55,7 +55,7 @@ export const API_FORMATS = ['Ollama', 'OpenAI', 'VLlm', 'Gemini'];
 export const INFERENCE_API_FORMATS = ['Ollama', 'OpenAI', 'VLlm', 'Gemini', 'Tei', 'Cohere'];
 export const RERANK_ONLY_FORMATS = ['Tei', 'Cohere'];
 export const canChat = (format) => !RERANK_ONLY_FORMATS.includes(format);
-// How much a reasoning model thinks on Isis's calls to an inference endpoint (ModelEndpoint.Reasoning).
+// How much a reasoning model thinks on NotDory's calls to an inference endpoint (ModelEndpoint.Reasoning).
 export const REASONING_MODES = ['Default', 'Off', 'Low', 'Medium', 'High'];
 
 export const HEALTH_METHODS = ['GET', 'HEAD'];

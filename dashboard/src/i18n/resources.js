@@ -4,7 +4,7 @@
 export const en = {
   translation: {
     app: {
-      name: 'Isis',
+      name: 'NotDory',
       tagline: 'Agent Memory Platform',
       loading: 'Loading…',
       restoring: 'Restoring session…'
@@ -51,7 +51,7 @@ export const en = {
       unsavedError: 'Something went wrong. Please try again.'
     },
     login: {
-      title: 'Sign in to Isis',
+      title: 'Sign in to NotDory',
       subtitle: 'Sign in with your email and password to manage agent memory.',
       serverUrl: 'Server URL',
       email: 'Email',
@@ -66,7 +66,7 @@ export const en = {
       connecting: 'Signing in…',
       noTenants: 'No tenants found for that email address.',
       failed: 'Could not sign in. Check the server URL, email, and password.',
-      devHint: 'Local dev default: admin@isis.local / “isisadmin”.'
+      devHint: 'Local dev default: admin@notdory.local / “notdoryadmin”.'
     },
     nav: {
       groups: {
@@ -274,7 +274,7 @@ export const en = {
       keywordOnly: 'This scope’s store supports keyword-only retrieval; answers may be less precise than semantic scopes.',
       empty: 'Pick a scope and ask a question to begin.',
       you: 'You',
-      isis: 'Isis',
+      notdory: 'NotDory',
       thinkingLabel: 'Thinking',
       retrievalTitle: 'Retrieved {{count}} memories',
       retrievalMode: 'Retrieval mode',
@@ -319,7 +319,7 @@ export const en = {
     },
     endpoints: {
       embeddingTitle: 'Embedding Endpoints',
-      embeddingSubtitle: 'Endpoints Isis uses to vectorize memory bodies and queries.',
+      embeddingSubtitle: 'Endpoints NotDory uses to vectorize memory bodies and queries.',
       inferenceTitle: 'Inference Endpoints',
       inferenceSubtitle: 'Every model that is not an embedding model: chat models, and cross-encoders (Tei or Cohere format) that only rerank. A scope chooses which endpoint answers chat, runs query steps, and reranks.',
       rerankOnly: 'Rerank only',
@@ -353,7 +353,7 @@ export const en = {
       maxInputTokensAuto: 'Auto',
       reasoning: 'Reasoning',
       reasoningModes: { Default: 'Model default', Off: 'Off', Low: 'Low', Medium: 'Medium', High: 'High' },
-      reasoningHint: 'How much a reasoning model thinks on every call Isis makes to this endpoint: chat answers, query steps, and reranking. Thinking costs seconds per call, so a reranker or query model usually wants Off or Low. Models honor different settings (gpt-oss takes Low but ignores Off; qwen3 turns Off but treats any level as on); define the same model twice to think for answers but not for reranking.',
+      reasoningHint: 'How much a reasoning model thinks on every call NotDory makes to this endpoint: chat answers, query steps, and reranking. Thinking costs seconds per call, so a reranker or query model usually wants Off or Low. Models honor different settings (gpt-oss takes Low but ignores Off; qwen3 turns Off but treats any level as on); define the same model twice to think for answers but not for reranking.',
       active: 'Active',
       health: 'Health',
       healthy: 'Healthy',
@@ -487,7 +487,7 @@ export const en = {
     },
     explorer: {
       title: 'API Explorer',
-      subtitle: 'Execute live Isis API calls, driven by the server’s OpenAPI document.',
+      subtitle: 'Execute live NotDory API calls, driven by the server’s OpenAPI document.',
       operations: 'Operations',
       searchOps: 'Filter operations…',
       pathParams: 'Path parameters',
@@ -516,7 +516,7 @@ export const en = {
     },
     agentProtocol: {
       title: 'Agent onboarding',
-      subtitle: 'What Isis tells a model when an agent connects: the instructions harnesses place in its system prompt, and each tool description.',
+      subtitle: 'What NotDory tells a model when an agent connects: the instructions harnesses place in its system prompt, and each tool description.',
       instructions: 'Server instructions',
       instructionsHint: 'Sent in the MCP initialize result and at the top of every session_start. Keep it short and direct: agents follow it as their standing procedure. Tenant-specific guidance belongs in Instructions, which session_start also returns.',
       tools: 'Tool descriptions',

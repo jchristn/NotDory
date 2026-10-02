@@ -3,7 +3,7 @@ namespace Test.Benchmark.Reporting
     using System.Collections.Generic;
 
     /// <summary>
-    /// A published result for a dataset, used to put Isis's score in context.
+    /// A published result for a dataset, used to put NotDory's score in context.
     /// </summary>
     public class PublishedBaseline
     {
@@ -25,7 +25,7 @@ namespace Test.Benchmark.Reporting
         public double Value { get; set; } = 0.0;
 
         /// <summary>
-        /// The Isis search modes this baseline is compared against (for example Hybrid and Keyword for BM25).
+        /// The NotDory search modes this baseline is compared against (for example Hybrid and Keyword for BM25).
         /// </summary>
         public List<string> CompareModes { get; set; } = new List<string> { "Hybrid" };
 

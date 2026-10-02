@@ -1,13 +1,30 @@
 <!-- markdownlint-disable MD033 MD041 -->
 <p align="center">
-  <img src="assets/logo.png" width="192" height="192" alt="Isis" />
+  <img src="assets/logo.png" width="192" height="192" alt="NotDory" />
 </p>
 
-<h1 align="center">Isis — Agent Memory Platform</h1>
+<h1 align="center">NotDory — Agent Memory Platform</h1>
 
-<p align="center"><em>Durable memory your agents manage themselves — so every session starts where the last left off.</em></p>
+<p align="center"><em>Your agents forget everything. NotDory doesn't.</em></p>
 
 ---
+
+Dory, the lovable blue tang from *Finding Nemo*, forgets everything a few seconds after it happens. She's
+charming, she means well, and she will introduce herself to you again tomorrow. Most AI agents are Dory: every
+new session greets your codebase like it's never seen it before, re-reading the same files, re-learning the same
+conventions, re-asking the same questions, and burning tokens just to get back to where they were yesterday.
+
+**NotDory is not Dory.** It gives your agents a memory that sticks, so they:
+
+- **Remember.** Decisions, conventions, facts, and "we tried that, it didn't work" survive across sessions,
+  harnesses, and projects.
+- **Pick up where they left off.** Session start hands the agent its project's context before the first turn.
+- **Use fewer tokens.** Recalling a note is far cheaper than re-scanning a repository to rediscover it.
+- **Get to outcomes faster.** Less rediscovery, more doing.
+- **Stop repeating mistakes.** A correction or preference is saved once and honored from then on.
+- **Share what they learn.** What Claude Code learns, Codex, Cursor, Gemini, and Mux can recall.
+
+Just keep swimming, and keep remembering.
 
 > ⚠️ **v0.1.0 — ALPHA. Everything is subject to change.** APIs, data models, storage layouts,
 > configuration keys, MCP tool names, database schemas, and dashboard surfaces **will change** —
@@ -15,19 +32,19 @@
 > for production memory you cannot afford to lose, and expect to re-create data across upgrades. Pin
 > to an exact image tag (e.g. `v0.1.0`) and read `CHANGELOG.md` before updating.
 
-Isis gives AI agents **durable memory** that survives across sessions, harnesses, and projects. The
+NotDory gives AI agents **durable memory** that survives across sessions, harnesses, and projects. The
 agent manages that memory itself — writing, organizing, and recalling it over **MCP** — while
 operators get a **REST** API and a React **dashboard** for management. The dominant cost in agentic
 work is re-acquiring context (re-scanning a filesystem, re-reading files, re-learning conventions
-every session); Isis turns that recurring cost into a one-time write plus cheap recall.
+every session); NotDory turns that recurring cost into a one-time write plus cheap recall.
 
 Memory is organized into **scopes** (a project, a book, or "global"), **categories** (buckets with
 usage instructions the model reads before writing), and **memories** (atomic notes with tags, links,
 provenance, and salience). Cross-cutting **policies** (a house writing style, GitHub commit rules)
-apply everywhere and are surfaced to the agent proactively. Isis is domain-agnostic: it works equally
+apply everywhere and are surfaced to the agent proactively. NotDory is domain-agnostic: it works equally
 for code ("what lives where", "what this function does", "I did X"), writing, email, or calendar work.
 
-## What Isis is
+## What NotDory is
 
 - **A memory layer for agents.** Agents read and write structured memory over MCP; the model decides
   what to remember and recalls it on demand.
@@ -38,7 +55,7 @@ for code ("what lives where", "what this function does", "I did X"), writing, em
 - **Multi-tenant and observable.** Tenants, users, and credentials with RBAC; metrics, traces, and
   logs wired into Grafana/Prometheus/Tempo/Loki out of the box.
 
-## What Isis is not
+## What NotDory is not
 
 - **Not production-ready.** It is alpha; see the warning above.
 - **Not a general-purpose vector database.** It is memory-shaped (scopes/categories/memories with
@@ -51,7 +68,7 @@ for code ("what lives where", "what this function does", "I did X"), writing, em
 ## Benefits
 
 - **Stop re-acquiring context.** Break-even is roughly the second reuse; after that the savings
-  compound (see `archive/ISIS_PLAN.md` §Value Model).
+  compound (see `archive/NOTDORY_PLAN.md` §Value Model).
 - **Agent-managed.** The agent curates its own memory over MCP — no manual data entry.
 - **Right context, proactively.** Category instructions and cross-cutting policies mean the model is
   told *how* to use a memory space, not just handed rows.
@@ -68,21 +85,21 @@ for code ("what lives where", "what this function does", "I did X"), writing, em
 
 ## Quick start (Docker)
 
-Docker is the supported way to run Isis. You need Docker with Compose.
+Docker is the supported way to run NotDory. You need Docker with Compose.
 
 ```bash
-git clone https://github.com/jchristn/isis
-cd isis/docker
+git clone https://github.com/jchristn/notdory
+cd notdory/docker
 cp .env.example .env      # then edit the secrets before anything non-local
 docker compose up -d --build
 ```
 
 Then:
 
-- **Dashboard** — <http://127.0.0.1:8701>. Sign in with the seeded admin **`admin@isis.local`** /
-  **`isisadmin`**, tenant **Default**. Change these before any shared deployment.
+- **Dashboard** — <http://127.0.0.1:8701>. Sign in with the seeded admin **`admin@notdory.local`** /
+  **`notdoryadmin`**, tenant **Default**. Change these before any shared deployment.
 - **REST API** — <http://127.0.0.1:8700> (direct) or <http://127.0.0.1:8080> (via nginx). OpenAPI at
-  `/openapi.json`; see `docs/REST_API.md` and the Postman collection at `docs/isis.postman_collection.json`.
+  `/openapi.json`; see `docs/REST_API.md` and the Postman collection at `docs/notdory.postman_collection.json`.
 - **MCP** — `http://127.0.0.1:8720/mcp`. Connect an agent with its credential access key (a bearer
   token, or the `x-access-key` header); no secret is sent. See `docs/CONNECTING_AGENTS.md`.
 - **Observability** — Grafana <http://127.0.0.1:3000>, Prometheus <http://127.0.0.1:9090>, RecallDB
@@ -90,7 +107,7 @@ Then:
 
 **Reranking (recommended).** A cross-encoder reranker is the largest retrieval improvement measured (see
 `benchmarks/RESULTS.md`). Start the stack with `--profile rerank` (CPU) or `--profile rerank-gpu` (NVIDIA GPU; pick the
-Text Embeddings Inference image tag for your GPU generation). Isis waits for the reranker to answer, adds it as an
+Text Embeddings Inference image tag for your GPU generation). NotDory waits for the reranker to answer, adds it as an
 inference endpoint (a cross-encoder), and attaches it to new semantic scopes. On CPU a reranked search takes roughly 0.3 to 0.5 s; on a GPU, tens
 of milliseconds. If the reranker is unreachable, searches fall back to retrieval order.
 
@@ -112,15 +129,15 @@ http://127.0.0.1:8720/mcp
 Authenticate with your tenant credential **access key** — sent as the `x-access-key` header (or an
 `Authorization: Bearer <accessKey>` token). The access key is the public, transferable capability
 token; the **secret key is never sent** and never leaves your machine. The local-dev default key is
-`isisdefaultkey`; create a real one in the dashboard under **Credentials** and use a least-privilege key.
+`notdorydefaultkey`; create a real one in the dashboard under **Credentials** and use a least-privilege key.
 
 The quickest way is the ready-made installers in `scripts/` — one per harness, for `windows`, `macos`,
-and `linux`. Each takes the access key as its first argument (or reads `ISIS_ACCESS_KEY`), writes an
-`isis` entry into that client's config, backs up the existing file, and leaves everything else intact.
+and `linux`. Each takes the access key as its first argument (or reads `NOTDORY_ACCESS_KEY`), writes a
+`notdory` entry into that client's config, backs up the existing file, and leaves everything else intact.
 Run the one for your OS; the examples below use `linux` (swap in `macos/…` or `windows\…\*.bat`).
 
 > The `<accessKey>` below is your credential access key. It is optional — omit it to use the
-> local-dev default **`isisdefaultkey`**.
+> local-dev default **`notdorydefaultkey`**.
 
 | Harness | Install (Linux/macOS) | Windows | Client config it writes |
 |---|---|---|---|
@@ -131,22 +148,22 @@ Run the one for your OS; the examples below use `linux` (swap in `macos/…` or 
 | **Mux** | `sh scripts/linux/install-mux.sh <accessKey>` | `scripts\windows\install-mux.bat <accessKey>` | `~/.mux/mcp-servers.json` |
 
 Then **restart the client** to load the server. Prefer to wire it yourself? For Claude Code (replace
-`<accessKey>`, or use the local-dev default `isisdefaultkey`):
+`<accessKey>`, or use the local-dev default `notdorydefaultkey`):
 
 ```bash
-claude mcp add --transport http isis http://127.0.0.1:8720/mcp --header "x-access-key: <accessKey>"
+claude mcp add --transport http notdory http://127.0.0.1:8720/mcp --header "x-access-key: <accessKey>"
 ```
 
-Each installer honors `ISIS_MCP_URL` (endpoint) and `ISIS_ACCESS_KEY`, plus a per-harness config
-override (`ISIS_CODEX_CONFIG`, `ISIS_CURSOR_CONFIG`, `ISIS_GEMINI_CONFIG`, `ISIS_MUX_CONFIG`). Matching
+Each installer honors `NOTDORY_MCP_URL` (endpoint) and `NOTDORY_ACCESS_KEY`, plus a per-harness config
+override (`NOTDORY_CODEX_CONFIG`, `NOTDORY_CURSOR_CONFIG`, `NOTDORY_GEMINI_CONFIG`, `NOTDORY_MUX_CONFIG`). Matching
 `remove-*` scripts undo the change.
 
-**First call:** tools appear namespaced under the server key, e.g. `isis.session_start` (Mux) or
-`mcp__isis__session_start` (Claude Code). Isis sends its operating procedure in the MCP `initialize` result, which
+**First call:** tools appear namespaced under the server key, e.g. `notdory.session_start` (Mux) or
+`mcp__notdory__session_start` (Claude Code). NotDory sends its operating procedure in the MCP `initialize` result, which
 harnesses place in the model's system prompt: call **`session_start`** with the project name, search memory before
 answering or changing code, and save decisions and facts as you go. `session_start` returns the project's scope
 (created if new), its categories and instructions, and the most recent memories; no tool needs a `tenantId`. The
-`isis mcp install` installer also adds a Claude Code SessionStart hook that injects that context before the first
+`notdory mcp install` installer also adds a Claude Code SessionStart hook that injects that context before the first
 turn. What agents are told on connect (the instructions and every tool description) is editable in the dashboard
 (**Agent onboarding**) or through `PUT /v1.0/api/agent-protocol`. Full config and the tool contract are
 in [`docs/CONNECTING_AGENTS.md`](docs/CONNECTING_AGENTS.md) and [`docs/MCP_API.md`](docs/MCP_API.md).
@@ -154,33 +171,33 @@ in [`docs/CONNECTING_AGENTS.md`](docs/CONNECTING_AGENTS.md) and [`docs/MCP_API.m
 ## Architecture
 
 ```
-Agent harness ──MCP──▶ nginx ─▶ Isis.McpServer (Voltaic 2.1.13) ─proxy─┐
-Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀────────────┘
+Agent harness ──MCP──▶ nginx ─▶ NotDory.McpServer (Voltaic 2.1.13) ─proxy─┐
+Operator/UI  ──REST──▶ nginx ─▶ NotDory.Server (Watson 7.2) ◀────────────┘
                                      │                 │
-                        Isis metadata│                 │memory content + vectors
-                          (Postgres  │                 │(RecallDb.Sdk over HTTP)
-                           db: isis)  ▼                 ▼
+                     NotDory metadata│                 │memory content + vectors
+                       (Postgres     │                 │(RecallDb.Sdk over HTTP)
+                        db: notdory)  ▼                 ▼
                                 ┌───────────┐    ┌──────────────┐
                                 │ Postgres  │    │  RecallDB    │
                                 │ (shared)  │    │  db: recalldb│
                                 └───────────┘    └──────────────┘
-   Embedding endpoint ◀─ Isis computes vectors
+   Embedding endpoint ◀─ NotDory computes vectors
    (rerankers are inference endpoints: a cross-encoder or a chat model reorders search candidates)
    Inference endpoint ◀─ chat answers; optional query rewriting, splitting, expansion   (all health-checked)
 ```
 
 - **RecallDB** is the default system of record for memory content, embeddings, and retrieval, on a
   shared Postgres instance.
-- **Isis** owns a separate `isis` database on that same Postgres instance for what RecallDB has no
+- **NotDory** owns a separate `notdory` database on that same Postgres instance for what RecallDB has no
   schema for: category instructions, policies, seed packs, the memory link graph,
   slugs/titles/summaries, model-endpoint configs, tenancy/auth, and request history.
-- **Isis.McpServer** is a standalone process that authenticates the caller and proxies the Isis REST API.
+- **NotDory.McpServer** is a standalone process that authenticates the caller and proxies the NotDory REST API.
 
 ## How it works
 
 1. **Agents talk MCP, operators talk REST.** Agents call the MCP tools (`session_start`,
    `memory_upsert`, `memory_search`, `chat`, and scope, category, endpoint, and instruction management;
-   no `isis_` prefix, your client namespaces them); operators and the dashboard use the tenant-scoped
+   no `notdory_` prefix, your client namespaces them); operators and the dashboard use the tenant-scoped
    REST API.
 2. **Authentication.** Interactive users sign in with **email + password** and receive a session
    token (`Authorization: Bearer`); automation and MCP authenticate with a credential **access key**
@@ -189,7 +206,7 @@ Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀──
    send just the access key. Admin authority comes from user `IsAdmin` / `IsTenantAdmin` flags. See
    `docs/REST_API.md`.
 3. **Storage is chosen per scope.** A scope binds to RecallDB (semantic/hybrid), Verbex (lexical), or
-   Filesystem (flat files). RecallDB scopes require an embedding endpoint; Isis computes the vector and
+   Filesystem (flat files). RecallDB scopes require an embedding endpoint; NotDory computes the vector and
    passes it to RecallDB. A scope's embedding model and dimension are fixed at creation — changing them
    means a new scope and re-embedding.
 4. **The model gets guidance, not just rows.** Category instructions and cross-cutting policies are
@@ -198,16 +215,16 @@ Operator/UI  ──REST──▶ nginx ─▶ Isis.Server (Watson 7.2) ◀──
 
 ### Backing stores — what each provides
 
-Isis stores memory through a pluggable `IMemoryStore`, chosen **per scope**. Capabilities differ by
+NotDory stores memory through a pluggable `IMemoryStore`, chosen **per scope**. Capabilities differ by
 provider — pick the one that matches what you need:
 
 | Capability | **RecallDB** (default) | **Verbex** (not wired yet) | **Filesystem** |
 |---|:--:|:--:|:--:|
-| System of record for memory content | RecallDB (Postgres) | Isis database | Flat files at a target path |
+| System of record for memory content | RecallDB (Postgres) | NotDory database | Flat files at a target path |
 | Keyword / full-text search | ✅ (`ts_rank`) | ✅ (TF-IDF inverted index) | ⚠️ DB-native `LIKE` (or Verbex sidecar) |
 | **Semantic (vector) search** | ✅ | ❌ | ❌ |
 | **Hybrid search** (vector + lexical, weighted) | ✅ | ❌ | ❌ |
-| Requires an embedding model endpoint | ✅ (Isis computes vectors) | ❌ | ❌ |
+| Requires an embedding model endpoint | ✅ (NotDory computes vectors) | ❌ | ❌ |
 | Label / tag / date filtering | ✅ | ✅ (labels/tags) | ⚠️ metadata-limited |
 | Positional neighbor retrieval | ✅ (`IncludeNeighbors`) | ❌ | ❌ |
 | Runs without Docker | ❌ (needs Postgres + RecallDB) | ⚠️ in-proc mode, or server | ✅ |
@@ -238,9 +255,9 @@ with the cross-encoder, and beats the published BM25 and dense-model baselines o
 
 | Project | Purpose |
 |---|---|
-| `src/Isis.Core` | Models, enums, PrettyId, database providers (Sqlite/Mysql/Postgresql/SqlServer), memory stores, services |
-| `src/Isis.Server` | REST API (Watson 7.2) + dashboard host + OpenAPI |
-| `src/Isis.McpServer` | MCP server (Voltaic 2.1.13), agent-facing tools |
+| `src/NotDory.Core` | Models, enums, PrettyId, database providers (Sqlite/Mysql/Postgresql/SqlServer), memory stores, services |
+| `src/NotDory.Server` | REST API (Watson 7.2) + dashboard host + OpenAPI |
+| `src/NotDory.McpServer` | MCP server (Voltaic 2.1.13), agent-facing tools |
 | `dashboard` | React 19 / Vite 6 management dashboard |
 | `docker` | Compose stack, per-service Dockerfiles, factory/demo seed |
 | `docs` | REST API reference, MCP API, agent-connection guides, product plan |
@@ -250,13 +267,13 @@ with the cross-encoder, and beats the published BM25 and dense-model baselines o
 `benchmarks/` holds a reproducible benchmark suite covering retrieval accuracy (including BEIR SciFact and
 LongMemEval), chat-with-memory accuracy, agent-in-the-loop task success over MCP, and load. It runs against an
 isolated stack so it never touches a deployment. See [benchmarks/README.md](benchmarks/README.md) for how to run it
-and [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for the current baseline. With Isis connected, Claude Code
+and [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for the current baseline. With NotDory connected, Claude Code
 (haiku) completed 96% of memory-dependent tasks, against 17 to 21% without memory.
 
 ## Issues & discussion
 
-- **Bugs / feature requests:** open an issue at <https://github.com/jchristn/isis/issues>.
-- **Questions / ideas:** start a thread at <https://github.com/jchristn/isis/discussions>.
+- **Bugs / feature requests:** open an issue at <https://github.com/jchristn/notdory/issues>.
+- **Questions / ideas:** start a thread at <https://github.com/jchristn/notdory/discussions>.
 - Because this is alpha, please include the image tag / build you are on, your backing store, and
   clear reproduction steps.
 

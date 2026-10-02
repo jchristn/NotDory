@@ -9,7 +9,7 @@ import { EmptyState } from '../components/States';
 
 /**
  * Surfaces the RecallDB collections that back this tenant's scopes (the scope →
- * collection bindings Isis owns), with a read-only table and an empty state.
+ * collection bindings NotDory owns), with a read-only table and an empty state.
  */
 function CollectionsView() {
   const { t } = useTranslation();

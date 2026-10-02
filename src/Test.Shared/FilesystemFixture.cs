@@ -1,7 +1,7 @@
 namespace Test.Shared
 {
-    using Isis.Core.Models;
-    using Isis.Server.Services;
+    using NotDory.Core.Models;
+    using NotDory.Server.Services;
 
     /// <summary>
     /// A throwaway filesystem-backed scope, category, and memory service for tests that need a real store without

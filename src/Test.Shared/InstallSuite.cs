@@ -5,11 +5,11 @@ namespace Test.Shared
     using System.IO;
     using System.Text.Json;
     using System.Text.Json.Nodes;
-    using Isis.McpServer;
+    using NotDory.McpServer;
     using Touchstone.Core;
 
     /// <summary>
-    /// Automated suite for <see cref="McpInstaller"/>. Verifies that installing the "isis" MCP entry into an agent
+    /// Automated suite for <see cref="McpInstaller"/>. Verifies that installing the "notdory" MCP entry into an agent
     /// client configuration file writes the expected shape, preserves unrelated servers and unknown keys, backs up
     /// any existing file, honours the chosen auth header, is idempotent, and creates missing directories.
     /// </summary>
@@ -18,23 +18,23 @@ namespace Test.Shared
         #region Public-Methods
 
         /// <summary>
-        /// Get the Isis MCP install Touchstone test suite.
+        /// Get the NotDory MCP install Touchstone test suite.
         /// </summary>
         /// <returns>The suite descriptor.</returns>
         public static TestSuiteDescriptor Suite()
         {
             return new TestSuiteDescriptor(
                 "install",
-                "Isis MCP Install Suite",
+                "NotDory MCP Install Suite",
                 new List<TestCaseDescriptor>
                 {
-                    TestCase.Sync("install", "fresh-install", "Fresh install writes an http isis entry", FreshInstall),
+                    TestCase.Sync("install", "fresh-install", "Fresh install writes an http notdory entry", FreshInstall),
                     TestCase.Sync("install", "preserve-existing", "Install preserves other servers and unknown keys", PreserveExisting),
                     TestCase.Sync("install", "backup-created", "Install backs up an existing file", BackupCreated),
                     TestCase.Sync("install", "access-key-header", "Install honours the x-access-key header", AccessKeyHeader),
-                    TestCase.Sync("install", "idempotent", "Installing twice leaves a single isis entry", Idempotent),
+                    TestCase.Sync("install", "idempotent", "Installing twice leaves a single notdory entry", Idempotent),
                     TestCase.Sync("install", "session-hook", "The SessionStart hook is added once, calls session start as text for the project, and keeps other hooks and settings", SessionHook),
-                    TestCase.Sync("install", "idempotent-updates-url", "Re-installing updates the isis url", IdempotentUpdatesUrl),
+                    TestCase.Sync("install", "idempotent-updates-url", "Re-installing updates the notdory url", IdempotentUpdatesUrl),
                     TestCase.Sync("install", "empty-existing-file", "Install repairs an empty existing file", EmptyExistingFile),
                     TestCase.Sync("install", "missing-directory-created", "Install creates a missing target directory", MissingDirectoryCreated)
                 });
@@ -52,11 +52,11 @@ namespace Test.Shared
                 McpInstaller.Install(tmp, "http://127.0.0.1:8720/mcp", Creds());
 
                 using JsonDocument doc = Load(tmp);
-                JsonElement isis = doc.RootElement.GetProperty("mcpServers").GetProperty("isis");
-                Require(isis.GetProperty("type").GetString() == "http", "Expected type 'http'.");
-                Require(isis.GetProperty("url").GetString() == "http://127.0.0.1:8720/mcp", "Expected the url to match.");
-                JsonElement freshHeaders = isis.GetProperty("headers");
-                Require(freshHeaders.GetProperty("x-access-key").GetString() == "isisdefaultkey", "Expected the x-access-key header to be 'isisdefaultkey'.");
+                JsonElement notdory = doc.RootElement.GetProperty("mcpServers").GetProperty("notdory");
+                Require(notdory.GetProperty("type").GetString() == "http", "Expected type 'http'.");
+                Require(notdory.GetProperty("url").GetString() == "http://127.0.0.1:8720/mcp", "Expected the url to match.");
+                JsonElement freshHeaders = notdory.GetProperty("headers");
+                Require(freshHeaders.GetProperty("x-access-key").GetString() == "notdorydefaultkey", "Expected the x-access-key header to be 'notdorydefaultkey'.");
                 Require(!freshHeaders.TryGetProperty("x-secret-key", out _), "Expected no x-secret-key header (secret must never be written to a client config).");
                 Require(!freshHeaders.TryGetProperty("x-api-key", out _), "Expected no x-api-key header.");
             }
@@ -81,7 +81,7 @@ namespace Test.Shared
                 Require(other.GetProperty("command").GetString() == "foo", "Expected the 'other' server command to be preserved.");
                 Require(other.GetProperty("args")[0].GetString() == "bar", "Expected the 'other' server args to be preserved.");
                 Require(root.GetProperty("topKey").GetInt32() == 42, "Expected the unknown top-level key to be preserved.");
-                Require(root.GetProperty("mcpServers").TryGetProperty("isis", out _), "Expected the isis entry to be added.");
+                Require(root.GetProperty("mcpServers").TryGetProperty("notdory", out _), "Expected the notdory entry to be added.");
                 Require(File.Exists(tmp + ".bak"), "Expected a backup file to be written.");
             }
             finally
@@ -117,7 +117,7 @@ namespace Test.Shared
                 McpInstaller.Install(tmp, "http://127.0.0.1:8720/mcp", headers);
 
                 using JsonDocument doc = Load(tmp);
-                JsonElement written = doc.RootElement.GetProperty("mcpServers").GetProperty("isis").GetProperty("headers");
+                JsonElement written = doc.RootElement.GetProperty("mcpServers").GetProperty("notdory").GetProperty("headers");
                 Require(written.GetProperty("x-access-key").GetString() == "tok", "Expected the x-access-key header to be 'tok'.");
                 Require(!written.TryGetProperty("x-secret-key", out _), "Expected no x-secret-key header to be written.");
                 Require(!written.TryGetProperty("x-api-key", out _), "Expected no x-api-key header when installing an access key.");
@@ -138,14 +138,14 @@ namespace Test.Shared
 
                 using JsonDocument doc = Load(tmp);
                 JsonElement servers = doc.RootElement.GetProperty("mcpServers");
-                int isisCount = 0;
+                int notDoryCount = 0;
                 foreach (JsonProperty property in servers.EnumerateObject())
                 {
-                    if (property.Name == "isis") isisCount++;
+                    if (property.Name == "notdory") notDoryCount++;
                 }
 
-                Require(isisCount == 1, "Expected exactly one isis entry after two installs, got " + isisCount + ".");
-                Require(servers.GetProperty("isis").GetProperty("url").GetString() == "http://127.0.0.1:8720/mcp", "Expected the url to remain valid.");
+                Require(notDoryCount == 1, "Expected exactly one notdory entry after two installs, got " + notDoryCount + ".");
+                Require(servers.GetProperty("notdory").GetProperty("url").GetString() == "http://127.0.0.1:8720/mcp", "Expected the url to remain valid.");
             }
             finally
             {
@@ -162,8 +162,8 @@ namespace Test.Shared
                 McpInstaller.Install(tmp, "http://127.0.0.1:9999/mcp", Creds());
 
                 using JsonDocument doc = Load(tmp);
-                JsonElement isis = doc.RootElement.GetProperty("mcpServers").GetProperty("isis");
-                Require(isis.GetProperty("url").GetString() == "http://127.0.0.1:9999/mcp", "Expected the latest url to win.");
+                JsonElement notdory = doc.RootElement.GetProperty("mcpServers").GetProperty("notdory");
+                Require(notdory.GetProperty("url").GetString() == "http://127.0.0.1:9999/mcp", "Expected the latest url to win.");
             }
             finally
             {
@@ -180,8 +180,8 @@ namespace Test.Shared
                 McpInstaller.Install(tmp, "http://127.0.0.1:8720/mcp", Creds());
 
                 using JsonDocument doc = Load(tmp);
-                JsonElement isis = doc.RootElement.GetProperty("mcpServers").GetProperty("isis");
-                Require(isis.GetProperty("url").GetString() == "http://127.0.0.1:8720/mcp", "Expected a valid isis entry after repairing an empty file.");
+                JsonElement notdory = doc.RootElement.GetProperty("mcpServers").GetProperty("notdory");
+                Require(notdory.GetProperty("url").GetString() == "http://127.0.0.1:8720/mcp", "Expected a valid notdory entry after repairing an empty file.");
             }
             finally
             {
@@ -191,7 +191,7 @@ namespace Test.Shared
 
         private static void MissingDirectoryCreated()
         {
-            string dir = Path.Combine(Path.GetTempPath(), "isis-install-" + Guid.NewGuid().ToString("N").Substring(0, 10));
+            string dir = Path.Combine(Path.GetTempPath(), "notdory-install-" + Guid.NewGuid().ToString("N").Substring(0, 10));
             string tmp = Path.Combine(dir, ".mcp.json");
             try
             {
@@ -200,7 +200,7 @@ namespace Test.Shared
 
                 Require(File.Exists(tmp), "Expected the config file to be created in the new directory.");
                 using JsonDocument doc = Load(tmp);
-                Require(doc.RootElement.GetProperty("mcpServers").TryGetProperty("isis", out _), "Expected the isis entry to be present.");
+                Require(doc.RootElement.GetProperty("mcpServers").TryGetProperty("notdory", out _), "Expected the notdory entry to be present.");
             }
             finally
             {
@@ -214,12 +214,12 @@ namespace Test.Shared
 
         private static Dictionary<string, string> Creds()
         {
-            return new Dictionary<string, string> { ["x-access-key"] = "isisdefaultkey" };
+            return new Dictionary<string, string> { ["x-access-key"] = "notdorydefaultkey" };
         }
 
         private static string TempFile()
         {
-            return Path.Combine(Path.GetTempPath(), "isis-install-" + Guid.NewGuid().ToString("N") + ".json");
+            return Path.Combine(Path.GetTempPath(), "notdory-install-" + Guid.NewGuid().ToString("N") + ".json");
         }
 
         private static JsonDocument Load(string path)
@@ -240,7 +240,7 @@ namespace Test.Shared
 
         private static void SessionHook()
         {
-            string dir = Path.Combine(Path.GetTempPath(), "isis-hook-" + Guid.NewGuid().ToString("N"));
+            string dir = Path.Combine(Path.GetTempPath(), "notdory-hook-" + Guid.NewGuid().ToString("N"));
             string target = Path.Combine(dir, ".claude", "settings.json");
             try
             {
@@ -252,9 +252,9 @@ namespace Test.Shared
                 JsonObject root = (JsonObject)JsonNode.Parse(File.ReadAllText(target))!;
                 JsonArray start = (JsonArray)root["hooks"]!["SessionStart"]!;
                 if (root["model"]?.GetValue<string>() != "opus" || root["hooks"]!["Stop"] == null) throw new InvalidOperationException("Other settings and hooks should be kept.");
-                if (start.Count != 2) throw new InvalidOperationException("Expected the other hook plus one Isis hook, got " + start.Count + ".");
+                if (start.Count != 2) throw new InvalidOperationException("Expected the other hook plus one NotDory hook, got " + start.Count + ".");
                 string command = start[1]!["hooks"]![0]!["command"]!.GetValue<string>();
-                if (!command.Contains("key456", StringComparison.Ordinal) || command.Contains("key123", StringComparison.Ordinal)) throw new InvalidOperationException("Re-installing should replace the Isis hook: " + command);
+                if (!command.Contains("key456", StringComparison.Ordinal) || command.Contains("key123", StringComparison.Ordinal)) throw new InvalidOperationException("Re-installing should replace the NotDory hook: " + command);
                 if (!command.Contains("http://127.0.0.1:8700/v1.0/api/session", StringComparison.Ordinal) || !command.Contains("format=text", StringComparison.Ordinal) || !command.Contains("CLAUDE_PROJECT_DIR", StringComparison.Ordinal) || !command.EndsWith("|| true", StringComparison.Ordinal))
                     throw new InvalidOperationException("The hook should fetch session start as text for the project directory and never fail: " + command);
                 if (!File.Exists(target + ".bak")) throw new InvalidOperationException("The settings file should be backed up.");

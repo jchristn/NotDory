@@ -6,15 +6,15 @@ namespace Test.Shared
     using System.Linq;
     using System.Text.Json;
     using System.Threading.Tasks;
-    using Isis.Core.Database;
-    using Isis.Core.Enums;
-    using Isis.Core.Helpers;
-    using Isis.Core.Models;
-    using Isis.Core.Recall;
-    using Isis.Core.Stores;
-    using Isis.Core.Stores.RecallDb;
-    using Isis.Server.Models;
-    using Isis.Server.Services;
+    using NotDory.Core.Database;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Helpers;
+    using NotDory.Core.Models;
+    using NotDory.Core.Recall;
+    using NotDory.Core.Stores;
+    using NotDory.Core.Stores.RecallDb;
+    using NotDory.Server.Models;
+    using NotDory.Server.Services;
     using RecallDb.Sdk.Models;
     using TextChunker.Tokenization;
     using Touchstone.Core;
@@ -36,7 +36,7 @@ namespace Test.Shared
         {
             return new TestSuiteDescriptor(
                 "retrieval",
-                "Isis Retrieval Improvements Suite",
+                "NotDory Retrieval Improvements Suite",
                 new List<TestCaseDescriptor>
                 {
                     TestCase.Sync("retrieval", "fusion-top-in-both-scores-one", "Fusion: a document ranked first in both legs scores 1.0", FusionTopInBothScoresOne),
@@ -282,7 +282,7 @@ namespace Test.Shared
         private static async Task<FilesystemFixture> FilesystemFixtureAsync(TempSqlite t)
         {
             FilesystemFixture fixture = new FilesystemFixture();
-            fixture.Work = Path.Combine(Path.GetTempPath(), "isis-ret-" + Guid.NewGuid().ToString("N"));
+            fixture.Work = Path.Combine(Path.GetTempPath(), "notdory-ret-" + Guid.NewGuid().ToString("N"));
             Tenant tenant = await t.Db.Tenants.CreateAsync(new Tenant { Name = "Acme" }).ConfigureAwait(false);
             fixture.Scope = await t.Db.Scopes.CreateAsync(new Scope { TenantId = tenant.Id, Name = "proj", StoreProvider = StoreProviderEnum.Filesystem, TargetPath = fixture.Work }).ConfigureAwait(false);
             fixture.Category = await t.Db.Categories.CreateAsync(new Category { TenantId = tenant.Id, ScopeId = fixture.Scope.Id, Name = "notes" }).ConfigureAwait(false);

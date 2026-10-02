@@ -5,17 +5,17 @@ namespace Test.Shared
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
-    using Isis.Core.Enums;
-    using Isis.Core.Models;
-    using Isis.Core.Stores;
-    using Isis.Core.Stores.Filesystem;
-    using Isis.Core.Stores.RecallDb;
-    using Isis.Core.Stores.Verbex;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Models;
+    using NotDory.Core.Stores;
+    using NotDory.Core.Stores.Filesystem;
+    using NotDory.Core.Stores.RecallDb;
+    using NotDory.Core.Stores.Verbex;
     using RecallDb.Sdk;
     using Touchstone.Core;
 
     /// <summary>
-    /// Touchstone test suite exercising the Isis memory stores: the filesystem store (hierarchy and
+    /// Touchstone test suite exercising the NotDory memory stores: the filesystem store (hierarchy and
     /// single-file layouts), the store factory, provider capabilities, and the unconfigured RecallDB and
     /// Verbex stores. These tests use only the real store APIs and temporary directories; they touch no
     /// external services.
@@ -32,7 +32,7 @@ namespace Test.Shared
         {
             return new TestSuiteDescriptor(
                 "store",
-                "Isis Store Suite",
+                "NotDory Store Suite",
                 new List<TestCaseDescriptor>
                 {
                     // Filesystem: hierarchy layout.
@@ -49,7 +49,7 @@ namespace Test.Shared
                     TestCase.Async("store", "fs-hier-score-ordering", "Filesystem hierarchy orders hits by descending score", FsHierScoreOrderingAsync),
 
                     // Filesystem: single-file layout.
-                    TestCase.Async("store", "fs-single-one-file", "Filesystem single-file writes exactly one isis-memory.md", FsSingleOneFileAsync),
+                    TestCase.Async("store", "fs-single-one-file", "Filesystem single-file writes exactly one notdory-memory.md", FsSingleOneFileAsync),
                     TestCase.Async("store", "fs-single-both-searchable", "Filesystem single-file makes both memories searchable", FsSingleBothSearchableAsync),
                     TestCase.Async("store", "fs-single-update-no-dup", "Filesystem single-file re-upsert does not duplicate a memory", FsSingleUpdateNoDupAsync),
                     TestCase.Async("store", "fs-single-delete-one-keeps-other", "Filesystem single-file delete removes only the targeted block", FsSingleDeleteOneKeepsOtherAsync),
@@ -371,7 +371,7 @@ namespace Test.Shared
 
                 string[] files = Directory.GetFiles(work);
                 TestCase.Require(files.Length == 1, "Single-file layout should produce exactly one file, found " + files.Length + ".");
-                TestCase.Require(Path.GetFileName(files[0]) == "isis-memory.md", "The single file should be named isis-memory.md, got '" + Path.GetFileName(files[0]) + "'.");
+                TestCase.Require(Path.GetFileName(files[0]) == "notdory-memory.md", "The single file should be named notdory-memory.md, got '" + Path.GetFileName(files[0]) + "'.");
             }
             finally
             {
@@ -663,7 +663,7 @@ namespace Test.Shared
                 await store.EnsureScopeAsync(scope).ConfigureAwait(false);
 
                 // A foreign OKF document: bare (unquoted) scalars, a flow-style tag list, an unknown type,
-                // and no Isis provenance extras — the shape a non-Isis producer (e.g. an enrichment agent) emits.
+                // and no NotDory provenance extras — the shape a non-NotDory producer (e.g. an enrichment agent) emits.
                 string foreign =
                     "---\n" +
                     "type: BigQuery Table\n" +
@@ -969,7 +969,7 @@ namespace Test.Shared
 
         private static string WorkDir()
         {
-            return Path.Combine(Path.GetTempPath(), "isis-store-" + Guid.NewGuid().ToString("N"));
+            return Path.Combine(Path.GetTempPath(), "notdory-store-" + Guid.NewGuid().ToString("N"));
         }
 
         private static Scope HierScope(string dir)

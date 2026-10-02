@@ -10,11 +10,11 @@ namespace Test.Shared
     using System.Text.Json;
     using System.Text.Json.Nodes;
     using System.Threading.Tasks;
-    using Isis.Server.Routes;
+    using NotDory.Server.Routes;
     using Touchstone.Core;
 
     /// <summary>
-    /// End-to-end REST test suite for the Isis server. Each case boots a real in-process Isis REST server
+    /// End-to-end REST test suite for the NotDory server. Each case boots a real in-process NotDory REST server
     /// over a temporary SQLite database (via <see cref="ServerHarness"/>) and exercises one or more routes,
     /// asserting exact HTTP status codes and response shapes for both positive and negative paths.
     /// </summary>
@@ -30,7 +30,7 @@ namespace Test.Shared
         {
             return new TestSuiteDescriptor(
                 "rest",
-                "Isis REST Suite",
+                "NotDory REST Suite",
                 new List<TestCaseDescriptor>
                 {
                     // System / health / discovery.
@@ -1001,13 +1001,13 @@ namespace Test.Shared
             string sid = await CreateScopeAsync(access, h, "failures").ConfigureAwait(false);
             HttpResponseMessage failed = await PostAsync(access, MemoriesPath(h.TenantId, sid) + "/search", new { queryText = new string('x', 5000) }).ConfigureAwait(false);
             ExpectStatus(failed, HttpStatusCode.BadRequest, "an oversized query");
-            TestCase.Require(!(await failed.Content.ReadAsStringAsync().ConfigureAwait(false)).Contains("x-isis-exception", StringComparison.Ordinal), "The exception summary must not be returned to the caller.");
+            TestCase.Require(!(await failed.Content.ReadAsStringAsync().ConfigureAwait(false)).Contains("x-notdory-exception", StringComparison.Ordinal), "The exception summary must not be returned to the caller.");
 
             JsonNode history = JsonNode.Parse(await (await admin.GetAsync("/v1.0/api/requests?maxResults=100").ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
             List<JsonNode?> rows = history["objects"]!.AsArray().Where(r => (r?["path"]?.GetValue<string>() ?? string.Empty).EndsWith(sid + "/memories/search", StringComparison.Ordinal)).ToList();
             TestCase.Require(rows.Count == 1, "The failed request should be recorded exactly once, got " + rows.Count + ".");
             string headers = rows[0]?["responseHeaders"]?.GetValue<string>() ?? string.Empty;
-            TestCase.Require(rows[0]?["statusCode"]?.GetValue<int>() == 400 && headers.Contains("x-isis-exception", StringComparison.Ordinal) && headers.Contains("ArgumentOutOfRangeException", StringComparison.Ordinal), "The history row should carry the status and exception summary: " + headers);
+            TestCase.Require(rows[0]?["statusCode"]?.GetValue<int>() == 400 && headers.Contains("x-notdory-exception", StringComparison.Ordinal) && headers.Contains("ArgumentOutOfRangeException", StringComparison.Ordinal), "The history row should carry the status and exception summary: " + headers);
 
             using HttpClient badKey = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + h.Port) };
             badKey.DefaultRequestHeaders.Add("x-access-key", "not-a-real-key");
@@ -1042,7 +1042,7 @@ namespace Test.Shared
                 failureHeaders = row?["responseHeaders"]?.GetValue<string>() ?? string.Empty;
             }
 
-            TestCase.Require(failureHeaders.Contains("x-isis-exception", StringComparison.Ordinal) && failureHeaders.Contains("SqliteException", StringComparison.Ordinal), "A request that failed while authenticating should be recorded with its exception: " + failureHeaders);
+            TestCase.Require(failureHeaders.Contains("x-notdory-exception", StringComparison.Ordinal) && failureHeaders.Contains("SqliteException", StringComparison.Ordinal), "A request that failed while authenticating should be recorded with its exception: " + failureHeaders);
         }
 
         private static async Task AgentProtocolReadAsync()
@@ -1052,9 +1052,9 @@ namespace Test.Shared
             HttpResponseMessage r = await anonymous.GetAsync("/v1.0/api/agent-protocol").ConfigureAwait(false);
             ExpectStatus(r, HttpStatusCode.OK, "anonymous agent protocol read");
             JsonNode protocol = JsonNode.Parse(await r.Content.ReadAsStringAsync().ConfigureAwait(false))!;
-            TestCase.Require(protocol["serverInstructions"]?.GetValue<string>() == Isis.Core.Helpers.AgentProtocol.ServerInstructions && protocol["serverInstructionsOverridden"]?.GetValue<bool>() == false, "The default instructions should be reported as not overridden.");
+            TestCase.Require(protocol["serverInstructions"]?.GetValue<string>() == NotDory.Core.Helpers.AgentProtocol.ServerInstructions && protocol["serverInstructionsOverridden"]?.GetValue<bool>() == false, "The default instructions should be reported as not overridden.");
             JsonArray tools = protocol["tools"]!.AsArray();
-            TestCase.Require(tools.Count == Isis.Core.Helpers.AgentToolCatalog.Defaults.Count && tools[0]?["name"]?.GetValue<string>() == "session_start", "Every tool should be listed, session_start first.");
+            TestCase.Require(tools.Count == NotDory.Core.Helpers.AgentToolCatalog.Defaults.Count && tools[0]?["name"]?.GetValue<string>() == "session_start", "Every tool should be listed, session_start first.");
             TestCase.Require(tools.All(t => t?["description"]?.GetValue<string>() == t?["defaultDescription"]?.GetValue<string>() && t?["overridden"]?.GetValue<bool>() == false), "Every description should start at its default.");
         }
 
@@ -1063,7 +1063,7 @@ namespace Test.Shared
             using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
             using HttpClient access = h.AccessClient();
             using HttpClient admin = h.AdminClient();
-            object edit = new { serverInstructions = "Custom protocol: search Isis before every answer.", toolDescriptions = new Dictionary<string, string> { { "memory_search", "Custom search description." }, { "whoami", "" } } };
+            object edit = new { serverInstructions = "Custom protocol: search NotDory before every answer.", toolDescriptions = new Dictionary<string, string> { { "memory_search", "Custom search description." }, { "whoami", "" } } };
 
             HttpResponseMessage forbidden = await PutAsync(access, "/v1.0/api/agent-protocol", edit).ConfigureAwait(false);
             ExpectStatus(forbidden, HttpStatusCode.Forbidden, "a non-admin editing the agent protocol");
@@ -1073,15 +1073,15 @@ namespace Test.Shared
             HttpResponseMessage saved = await PutAsync(admin, "/v1.0/api/agent-protocol", edit).ConfigureAwait(false);
             ExpectStatus(saved, HttpStatusCode.OK, "an admin edit");
             JsonNode protocol = JsonNode.Parse(await saved.Content.ReadAsStringAsync().ConfigureAwait(false))!;
-            TestCase.Require(protocol["serverInstructionsOverridden"]?.GetValue<bool>() == true && protocol["serverInstructions"]?.GetValue<string>() == "Custom protocol: search Isis before every answer.", "The instructions edit should apply.");
+            TestCase.Require(protocol["serverInstructionsOverridden"]?.GetValue<bool>() == true && protocol["serverInstructions"]?.GetValue<string>() == "Custom protocol: search NotDory before every answer.", "The instructions edit should apply.");
             JsonNode search = protocol["tools"]!.AsArray().First(t => t?["name"]?.GetValue<string>() == "memory_search")!;
             JsonNode who = protocol["tools"]!.AsArray().First(t => t?["name"]?.GetValue<string>() == "whoami")!;
             TestCase.Require(search["description"]?.GetValue<string>() == "Custom search description." && search["overridden"]?.GetValue<bool>() == true && who["overridden"]?.GetValue<bool>() == false, "A description edit should apply; a blank one keeps the default.");
-            TestCase.Require(File.ReadAllText(Path.Combine(h.WorkDir, "isis.json")).Contains("Custom protocol: search Isis", StringComparison.Ordinal), "The edit should be saved to the settings file.");
+            TestCase.Require(File.ReadAllText(Path.Combine(h.WorkDir, "notdory.json")).Contains("Custom protocol: search NotDory", StringComparison.Ordinal), "The edit should be saved to the settings file.");
 
             await CreateScopeAsync(access, h, "edited").ConfigureAwait(false);
             JsonNode session = JsonNode.Parse(await (await PostAsync(access, "/v1.0/api/session", new { project = "edited" }).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
-            TestCase.Require((session["protocol"]?.GetValue<string>() ?? string.Empty).Contains("Custom protocol: search Isis", StringComparison.Ordinal), "Session start should use the edited instructions: " + session["protocol"]);
+            TestCase.Require((session["protocol"]?.GetValue<string>() ?? string.Empty).Contains("Custom protocol: search NotDory", StringComparison.Ordinal), "Session start should use the edited instructions: " + session["protocol"]);
 
             HttpResponseMessage reset = await PutAsync(admin, "/v1.0/api/agent-protocol", new { }).ConfigureAwait(false);
             JsonNode restored = JsonNode.Parse(await reset.Content.ReadAsStringAsync().ConfigureAwait(false))!;
@@ -1107,7 +1107,7 @@ namespace Test.Shared
             HttpResponseMessage text = await access.GetAsync("/v1.0/api/session?project=alpha-project&format=text&maxMemories=5").ConfigureAwait(false);
             ExpectStatus(text, HttpStatusCode.OK, "session start as text");
             string markdown = await text.Content.ReadAsStringAsync().ConfigureAwait(false);
-            TestCase.Require(markdown.StartsWith("# Isis memory", StringComparison.Ordinal) && markdown.Contains("db-choice", StringComparison.Ordinal) && markdown.Contains("memory_search", StringComparison.Ordinal), "The text form should render the protocol and recent memories: " + markdown);
+            TestCase.Require(markdown.StartsWith("# NotDory memory", StringComparison.Ordinal) && markdown.Contains("db-choice", StringComparison.Ordinal) && markdown.Contains("memory_search", StringComparison.Ordinal), "The text form should render the protocol and recent memories: " + markdown);
         }
 
         private static async Task SessionStartChoiceAsync()
@@ -1135,14 +1135,14 @@ namespace Test.Shared
         {
             using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
             using HttpClient access = h.AccessClient();
-            string only = await CreateScopeAsync(access, h, "Isis").ConfigureAwait(false);
+            string only = await CreateScopeAsync(access, h, "NotDory").ConfigureAwait(false);
 
             // Nothing names a project and the tenant has one scope: use it, even though the folder name matches nothing.
             JsonNode lone = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?directory=Downloads").ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
             TestCase.Require(lone["scope"]?["id"]?.GetValue<string>() == only, "A folder name alone should fall back to the tenant's only scope: " + lone.ToJsonString());
 
             // The clone lives in a folder named differently from the repository: the remote finds the scope.
-            JsonNode clone = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?directory=AgentMemory&remote=" + Uri.EscapeDataString("https://github.com/jchristn/isis.git")).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
+            JsonNode clone = JsonNode.Parse(await (await access.GetAsync("/v1.0/api/session?directory=AgentMemory&remote=" + Uri.EscapeDataString("https://github.com/jchristn/notdory.git")).ConfigureAwait(false)).Content.ReadAsStringAsync().ConfigureAwait(false))!;
             TestCase.Require(clone["scope"]?["id"]?.GetValue<string>() == only && clone["scope"]?["created"]?.GetValue<bool>() == false, "The remote's repository name should find the scope: " + clone.ToJsonString());
 
             await CreateScopeAsync(access, h, "other").ConfigureAwait(false);

@@ -14,7 +14,7 @@ namespace Test.Benchmark
     using Test.Benchmark.Stub;
 
     /// <summary>
-    /// Isis benchmark harness. See benchmarks/README.md for the full workflow.
+    /// NotDory benchmark harness. See benchmarks/README.md for the full workflow.
     /// </summary>
     public static class Program
     {
@@ -131,8 +131,8 @@ namespace Test.Benchmark
             List<RoundSelector> chatRounds = HistoryWriter.ParseRounds(arguments.Get("chat-rounds", string.Empty));
 
             string directory = Path.GetFullPath(arguments.Get("out", Path.Combine(BenchmarkContext.RepositoryRoot(), "benchmarks", "results")));
-            List<string> datasets = arguments.GetList("datasets", "isis-live,atlas,scifact,longmemeval-s");
-            string markdown = HistoryWriter.Render(directory, rounds, datasets, arguments.Get("mode", "Hybrid"), arguments.Get("metric", "ndcg@10"), LoadBaselines(arguments), chatRounds, arguments.Get("chat-dataset", "isis-live"));
+            List<string> datasets = arguments.GetList("datasets", "notdory-live,atlas,scifact,longmemeval-s");
+            string markdown = HistoryWriter.Render(directory, rounds, datasets, arguments.Get("mode", "Hybrid"), arguments.Get("metric", "ndcg@10"), LoadBaselines(arguments), chatRounds, arguments.Get("chat-dataset", "notdory-live"));
 
             string label = arguments.GetOptional("label") ?? "history";
             string path = Path.Combine(directory, DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-" + BenchmarkContext.Sanitize(label) + ".md");
@@ -209,7 +209,7 @@ namespace Test.Benchmark
 
         private static void PrintUsage()
         {
-            Console.WriteLine("Isis benchmark harness");
+            Console.WriteLine("NotDory benchmark harness");
             Console.WriteLine();
             Console.WriteLine("  prepare   --format beir|longmemeval --input <dir|file> --output <file.json> [--limit N --seed S --split test]");
             Console.WriteLine("  retrieval --dataset <file.json> [--modes Keyword,Semantic,Hybrid] [--k 10] [--concurrency 1] [--no-category]");
@@ -218,15 +218,15 @@ namespace Test.Benchmark
             Console.WriteLine("            [--recency-weight 0..1] [--min-score X]   (hybrid recency ablation; score threshold)");
             Console.WriteLine("  load      [--dataset <file.json>] [--corpus-size 1000] [--concurrency 1,4,16] [--duration 30] [--warmup 5]");
             Console.WriteLine("            [--scenario mixed|search|upsert] [--search-weight 0.9] [--long-fraction 0.2] [--mode Hybrid]");
-            Console.WriteLine("            [--stub --stub-latency-ms 5 --stub-port 18900]   (isolate Isis+RecallDB from the embedding model)");
+            Console.WriteLine("            [--stub --stub-latency-ms 5 --stub-port 18900]   (isolate NotDory+RecallDB from the embedding model)");
             Console.WriteLine("  chat      --dataset <file.json> [--k N (default: server default)] [--limit N] [--inference-url/-format/-model] [--judge-url/-format/-model | --judge-format none]");
-            Console.WriteLine("  agent     --tasks <tasks.json> [--model haiku] [--arms isis,none] [--mcp-url http://127.0.0.1:18720/mcp] [--limit N]");
+            Console.WriteLine("  agent     --tasks <tasks.json> [--model haiku] [--arms notdory,none] [--mcp-url http://127.0.0.1:18720/mcp] [--limit N]");
             Console.WriteLine("  stub      [--stub-port 18900] [--stub-latency-ms 5] [--dim 384]   (standalone stub embedding server)");
             Console.WriteLine("  compare   --baseline <a.json> --candidate <b.json> [--tolerance 0.01] [--latency-tolerance 0.2]");
-            Console.WriteLine("  history   --rounds R1=<label|timestamp-prefix>,R2=... [--chat-rounds R1=...] [--datasets isis-live,atlas,scifact,longmemeval-s]");
+            Console.WriteLine("  history   --rounds R1=<label|timestamp-prefix>,R2=... [--chat-rounds R1=...] [--datasets notdory-live,atlas,scifact,longmemeval-s]");
             Console.WriteLine("            [--mode Hybrid] [--metric ndcg@10] [--label history]   (per-type table per round, net change, published baselines)");
             Console.WriteLine();
-            Console.WriteLine("Common: --url http://127.0.0.1:18700 --access-key isisdefaultkey --metrics-url http://127.0.0.1:19464/metrics|none");
+            Console.WriteLine("Common: --url http://127.0.0.1:18700 --access-key notdorydefaultkey --metrics-url http://127.0.0.1:19464/metrics|none");
             Console.WriteLine("        --embedding-url http://127.0.0.1:11434 --embedding-format Ollama --embedding-model all-minilm --dim 384");
             Console.WriteLine("        [--max-input-tokens N] [--embedding-endpoint-id eep_...] [--out benchmarks/results]");
         }

@@ -68,7 +68,7 @@ function OperationsView() {
   const [search, setSearch] = useState('');
   const [activeResource, setActiveResource] = useState(() => {
     try {
-      const stored = localStorage.getItem('isis_operations_tab');
+      const stored = localStorage.getItem('notdory_operations_tab');
       return TABS.some((c) => c.resource === stored) ? stored : TABS[0].resource;
     } catch {
       return TABS[0].resource;
@@ -76,7 +76,7 @@ function OperationsView() {
   });
   const [rangeId, setRangeId] = useState(() => {
     try {
-      const stored = localStorage.getItem('isis_operations_range');
+      const stored = localStorage.getItem('notdory_operations_range');
       return RANGES.some((r) => r.id === stored) ? stored : 'day';
     } catch {
       return 'day';
@@ -86,14 +86,14 @@ function OperationsView() {
   // Remember the selected tab + chart timeframe across visits.
   useEffect(() => {
     try {
-      localStorage.setItem('isis_operations_tab', activeResource);
+      localStorage.setItem('notdory_operations_tab', activeResource);
     } catch {
       /* ignore storage failures */
     }
   }, [activeResource]);
   useEffect(() => {
     try {
-      localStorage.setItem('isis_operations_range', rangeId);
+      localStorage.setItem('notdory_operations_range', rangeId);
     } catch {
       /* ignore storage failures */
     }

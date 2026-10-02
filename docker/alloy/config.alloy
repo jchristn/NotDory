@@ -1,5 +1,5 @@
 // Grafana Alloy ships container stdout/stderr logs to Loki. This gives log coverage for every service in
-// the stack without touching any application logging code: each Isis service continues to log to stdout,
+// the stack without touching any application logging code: each NotDory service continues to log to stdout,
 // and Alloy discovers the container, tails its Docker log stream, and forwards it to Loki with a
 // container label so an operator can correlate a log line to a trace inside one Grafana window.
 

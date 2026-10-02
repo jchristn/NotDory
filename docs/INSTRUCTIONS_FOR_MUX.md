@@ -1,10 +1,10 @@
-> **This document is meant to be provided to Mux as system context and paired with an MCP config that points at Isis.** It gives Mux everything it needs to connect to and use the Isis agent-memory platform. Copy the contents below into your Mux system prompt or skill/context files.
+> **This document is meant to be provided to Mux as system context and paired with an MCP config that points at NotDory.** It gives Mux everything it needs to connect to and use the NotDory agent-memory platform. Copy the contents below into your Mux system prompt or skill/context files.
 
 ---
 
-## Connecting Mux to Isis over MCP
+## Connecting Mux to NotDory over MCP
 
-Mux talks to Isis through Isis's MCP server. Isis serves the modern **MCP Streamable HTTP + SSE** transport at `http://127.0.0.1:8720/mcp`. Mux can send only **one** auth header, so it authenticates with the credential **access key carried as a bearer token** (`Authorization: Bearer <accessKey>`, default access key `isisdefaultkey`). The access key identifies a tenant credential and scopes the connection to its tenant. The **secret key is never sent to Mux** and never leaves your machine — because the access key alone authenticates, it is a **capability token**: use a least-privilege credential and change the default before exposing Isis outside a trusted local environment.
+Mux talks to NotDory through NotDory's MCP server. NotDory serves the modern **MCP Streamable HTTP + SSE** transport at `http://127.0.0.1:8720/mcp`. Mux can send only **one** auth header, so it authenticates with the credential **access key carried as a bearer token** (`Authorization: Bearer <accessKey>`, default access key `notdorydefaultkey`). The access key identifies a tenant credential and scopes the connection to its tenant. The **secret key is never sent to Mux** and never leaves your machine — because the access key alone authenticates, it is a **capability token**: use a least-privilege credential and change the default before exposing NotDory outside a trusted local environment.
 
 ### Option A -- Interactive (`/mcp` in a Mux session)
 
@@ -23,57 +23,57 @@ mux
    (aliases: `/mcp-servers`, `/servers`; also on the `F1` menu under **Model**.)
 
 3. Choose **+ Add MCP server...** and fill in the guided form:
-   - **name**: `isis`
+   - **name**: `notdory`
    - **transport**: `http`
    - **url**: `http://127.0.0.1:8720`
    - **mcp path**: `/mcp` (the default -- leave as-is)
-   - **auth**: choose **bearer** and set the bearer token to your credential's **access key** (default `isisdefaultkey`). Do **not** add `x-access-key` / `x-secret-key` headers — Mux sends the access key as the bearer token and never sends the secret.
+   - **auth**: choose **bearer** and set the bearer token to your credential's **access key** (default `notdorydefaultkey`). Do **not** add `x-access-key` / `x-secret-key` headers — Mux sends the access key as the bearer token and never sends the secret.
 
-Each server row shows a live connectivity glyph -- `●` online (with its discovered tool count) or `○` offline. Once `isis` shows `●` with a nonzero tool count, you are connected. The server is saved to the Mux config directory's `mcp-servers.json`, so it loads automatically in future sessions.
+Each server row shows a live connectivity glyph -- `●` online (with its discovered tool count) or `○` offline. Once `notdory` shows `●` with a nonzero tool count, you are connected. The server is saved to the Mux config directory's `mcp-servers.json`, so it loads automatically in future sessions.
 
 ### Option B -- Config file (headless / scripted runs)
 
-Mux's headless MCP is off unless you pass `--mcp-config`. Mux persists servers in its `mcp-servers.json`; a server entry lives in the `servers` array with a `bearer` auth block. Create a Mux MCP config file, for example `isis.mcp.json`:
+Mux's headless MCP is off unless you pass `--mcp-config`. Mux persists servers in its `mcp-servers.json`; a server entry lives in the `servers` array with a `bearer` auth block. Create a Mux MCP config file, for example `notdory.mcp.json`:
 
 ```json
 {
   "servers": [
     {
-      "name": "isis",
+      "name": "notdory",
       "transport": "http",
       "url": "http://127.0.0.1:8720",
       "mcpPath": "/mcp",
-      "auth": { "type": "bearer", "bearerToken": "isisdefaultkey" }
+      "auth": { "type": "bearer", "bearerToken": "notdorydefaultkey" }
     }
   ]
 }
 ```
 
 `bearerToken` is your credential's **access key**. There is no `headers` object and no secret key — Mux
-cannot send a second header, so the access key alone authenticates. Run Mux with that config so the Isis
+cannot send a second header, so the access key alone authenticates. Run Mux with that config so the NotDory
 tools load:
 
 ```bash
-mux --mcp-config ./isis.mcp.json print --yolo "what do we remember about this project?"
+mux --mcp-config ./notdory.mcp.json print --yolo "what do we remember about this project?"
 ```
 
 Or pass the config inline:
 
 ```bash
-mux print --yolo --mcp-config '{"servers":[{"name":"isis","transport":"http","url":"http://127.0.0.1:8720","mcpPath":"/mcp","auth":{"type":"bearer","bearerToken":"isisdefaultkey"}}]}' "what do we remember about this project?"
+mux print --yolo --mcp-config '{"servers":[{"name":"notdory","transport":"http","url":"http://127.0.0.1:8720","mcpPath":"/mcp","auth":{"type":"bearer","bearerToken":"notdorydefaultkey"}}]}' "what do we remember about this project?"
 ```
 
 The access key is the only credential Mux sends; it is public and transferable, so treat it as a capability token and scope it least-privilege. The secret key is never sent to Mux.
 
 ### Notes
 
-Verify the connection with `mux probe --output-format json --require-tools` -- the `isis` server should appear with a nonzero tool count. Once connected, `tools/list` returns the 32 Isis tools (the MCP `ping` method is answered too, but it is not a tool). If the server shows `○` offline, confirm Isis is running and listening on `127.0.0.1:8720` (see Troubleshooting in `CONNECTING_AGENTS.md`).
+Verify the connection with `mux probe --output-format json --require-tools` -- the `notdory` server should appear with a nonzero tool count. Once connected, `tools/list` returns the 32 NotDory tools (the MCP `ping` method is answered too, but it is not a tool). If the server shows `○` offline, confirm NotDory is running and listening on `127.0.0.1:8720` (see Troubleshooting in `CONNECTING_AGENTS.md`).
 
 ---
 
-# Isis Memory Instructions
+# NotDory Memory Instructions
 
-You have access to the Isis agent-memory platform via MCP tools. Isis is **not** an orchestrator -- it is durable, shared **memory**. Use it to recall what you (or another agent) learned before, and to record durable facts so the next session does not start from zero. Isis is memory, not a filesystem: read before you write, and prefer summaries before full bodies to conserve tokens.
+You have access to the NotDory agent-memory platform via MCP tools. NotDory is **not** an orchestrator -- it is durable, shared **memory**. Use it to recall what you (or another agent) learned before, and to record durable facts so the next session does not start from zero. NotDory is memory, not a filesystem: read before you write, and prefer summaries before full bodies to conserve tokens.
 
 ## Concepts
 
@@ -101,7 +101,7 @@ Start every session with one call, before planning anything:
 
 ```
 session_start({ project: "<repository or project name>" })
-  -> your scope for the project (created if new), how to use Isis, the scope's categories
+  -> your scope for the project (created if new), how to use NotDory, the scope's categories
      and their instructions, the tenant's standing instructions, and the most recent memories
 ```
 
@@ -173,7 +173,7 @@ Match every write to a category and follow that category's `instructions`. When 
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `session_start` | `project`, `createIfMissing`, `maxMemories` | Start here, once per session: your scope for the project (created if new), how to use Isis, the categories and instructions, and the most recent memories. |
+| `session_start` | `project`, `createIfMissing`, `maxMemories` | Start here, once per session: your scope for the project (created if new), how to use NotDory, the categories and instructions, and the most recent memories. |
 | `whoami` | -- | Show your tenant and principal. Not needed to start: `session_start` returns the same. |
 | `instructions` | `scopeId` | Re-read the tenant's standing memory manual (or a scope's effective instructions); `session_start` already returns them. |
 | `scope_enumerate` | -- | List the memory scopes in a tenant. |

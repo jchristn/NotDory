@@ -1,0 +1,57 @@
+{
+  "nodeId": "notdory-1",
+  "rest": {
+    "hostname": "*",
+    "port": 8700,
+    "ssl": false
+  },
+  "database": {
+    "type": "Postgresql",
+    "filename": "data/notdory.db",
+    "hostname": "postgres",
+    "port": 5432,
+    "databaseName": "notdory",
+    "username": "notdory",
+    "password": "notdory",
+    "schema": "public",
+    "logQueries": false,
+    "requireEncryption": false
+  },
+  "recallDb": {
+    "endpoint": "http://recalldb-server:8600",
+    "adminApiKey": "recalldbadmin"
+  },
+  "verbex": {},
+  "auth": {
+    "issuer": "notdory",
+    "sessionLifetimeMinutes": 1440,
+    "seedAdminEmail": "admin@notdory.local",
+    "seedAdminPassword": "notdoryadmin",
+    "defaultAccessKey": "notdorydefaultkey",
+    "defaultSecretKey": "notdorydefaultsecret"
+  },
+  "logging": {
+    "consoleLogging": true,
+    "logQueries": false
+  },
+  "requestHistory": {
+    "enabled": true,
+    "captureHeaders": true,
+    "captureBodies": true,
+    "maxBodyBytes": 16384
+  },
+  "observability": {
+    "enabled": true,
+    "serviceName": "notdory-server",
+    "prometheusEnabled": true,
+    "prometheusHostname": "*",
+    "prometheusPort": 9464,
+    "prometheusPath": "/metrics",
+    "tracingEnabled": true,
+    "otlpEndpoint": "http://tempo:4317",
+    "otlpProtocol": "grpc",
+    "samplingRatio": 1,
+    "includeRuntimeMetrics": true,
+    "includeProcessMetrics": true
+  }
+}

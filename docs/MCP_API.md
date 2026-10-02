@@ -1,18 +1,18 @@
-# Isis MCP API
+# NotDory MCP API
 
-> **Naming.** The product is **Isis** — a proper noun, written `Isis` or `isis`. It is **not**
-> an acronym; never write it as the all-caps `ISIS`.
+> **Naming.** The product is **NotDory** — a proper noun, written `NotDory` or `notdory`. It is **not**
+> an acronym; never write it as the all-caps `NOTDORY`.
 >
-> **Tool names.** Tools are registered **without** an `isis_` prefix (`whoami`, `memory_upsert`,
+> **Tool names.** Tools are registered **without** a `notdory_` prefix (`whoami`, `memory_upsert`,
 > `scope_create`, …). Your MCP client namespaces them under the server key you configure it with
-> (conventionally `isis`), so you will see them as e.g. `isis.whoami` / `mcp__isis__whoami` — a
-> single, clean namespace, not a doubled `isis_isis_*`.
+> (conventionally `notdory`), so you will see them as e.g. `notdory.whoami` / `mcp__notdory__whoami` — a
+> single, clean namespace, not a doubled `notdory_notdory_*`.
 >
-> **Start with `session_start`.** One call returns your scope for the project, how to use Isis, the scope's
+> **Start with `session_start`.** One call returns your scope for the project, how to use NotDory, the scope's
 > categories and instructions, and the most recent memories. No tool requires a `tenantId`: it defaults to your
 > credential's tenant (pass one only to work in another tenant your credential can access).
 
-Isis exposes an HTTP MCP server for AI agents. The MCP endpoint is:
+NotDory exposes an HTTP MCP server for AI agents. The MCP endpoint is:
 
 ```text
 http://127.0.0.1:8720/mcp
@@ -20,12 +20,12 @@ http://127.0.0.1:8720/mcp
 
 The transport is **streamable HTTP + Server-Sent Events (SSE)**. The same server also
 exposes the classic JSON-RPC path `/rpc` and the SSE events path `/events`; MCP clients
-should use `/mcp`. The MCP host, port, and paths are configured in `isis.mcp.json`
+should use `/mcp`. The MCP host, port, and paths are configured in `notdory.mcp.json`
 (`Hostname`, `Port`, `RpcPath`, `EventsPath`, `McpPath`) and can be overridden with the
-`ISIS_MCP_HOSTNAME` and `ISIS_MCP_PORT` environment variables.
+`NOTDORY_MCP_HOSTNAME` and `NOTDORY_MCP_PORT` environment variables.
 
-The Isis MCP server is a thin, stateless front end: it authenticates the caller from the
-transport headers and **proxies each tool call to the Isis REST API** over loopback,
+The NotDory MCP server is a thin, stateless front end: it authenticates the caller from the
+transport headers and **proxies each tool call to the NotDory REST API** over loopback,
 forwarding the caller's credentials so the REST server performs the authoritative
 authentication and tenant scoping.
 
@@ -37,9 +37,9 @@ Present the access key one of two ways:
 
 | Auth material | How to send it | Default value | Notes |
 |---------------|----------------|---------------|-------|
-| Access key (bearer) | `Authorization: Bearer <accessKey>` | `isisdefaultkey` | Single-header clients (e.g. Mux) use this |
-| Access key (header) | `x-access-key: <accessKey>` | `isisdefaultkey` | Equivalent alternative to the bearer token |
-| Secret key (optional) | `x-secret-key: <secretKey>` | `isisdefaultsecret` | Validated **only if present**; never required |
+| Access key (bearer) | `Authorization: Bearer <accessKey>` | `notdorydefaultkey` | Single-header clients (e.g. Mux) use this |
+| Access key (header) | `x-access-key: <accessKey>` | `notdorydefaultkey` | Equivalent alternative to the bearer token |
+| Secret key (optional) | `x-secret-key: <secretKey>` | `notdorydefaultsecret` | Validated **only if present**; never required |
 
 The MCP server accepts either the `Authorization: Bearer <accessKey>` token or the
 `x-access-key` header, and honors an `x-secret-key` header only when one is supplied. A
@@ -49,14 +49,14 @@ access key is **public and transferable** — it authenticates on its own, so tr
 legacy/optional extra: the server still validates it when present, but no agent installer
 (Claude Code, Codex, Cursor, Gemini, Mux) sends one — the secret never leaves the client.
 
-The access key (and the secret key, when present) is forwarded verbatim to the Isis REST API,
+The access key (and the secret key, when present) is forwarded verbatim to the NotDory REST API,
 which enforces tenant isolation. Tenant identity is never trusted from a tool argument alone;
 the REST layer validates that the caller's credential is authorized for the `tenantId` it
 operates on. Administrative power, when a credential's user has it, comes from the user
 record's `IsAdmin` (system-wide) or `IsTenantAdmin` (tenant-wide) flags — there is no separate
 admin key.
 
-Change the default keys before exposing Isis outside a trusted local environment.
+Change the default keys before exposing NotDory outside a trusted local environment.
 
 ## Response Envelope
 
@@ -67,7 +67,7 @@ under `data`.
 |-------|------|-------------|
 | `tool` | string | The tool name, echoed back |
 | `success` | boolean | `true` when the proxied REST call returned a 2xx status |
-| `statusCode` | integer | The HTTP status code returned by the Isis REST API |
+| `statusCode` | integer | The HTTP status code returned by the NotDory REST API |
 | `data` | object, array, string, or null | The REST response body, parsed as JSON when possible |
 
 ```json
@@ -89,7 +89,7 @@ When the REST call fails, `success` is `false`, `statusCode` carries the upstrea
 
 ## On Connect
 
-Isis tells a connecting agent how to use it through two channels, both editable by a system administrator (dashboard
+NotDory tells a connecting agent how to use it through two channels, both editable by a system administrator (dashboard
 **Agent onboarding**, or `GET`/`PUT /v1.0/api/agent-protocol`):
 
 - **Server instructions**, in the `initialize` result. Agent harnesses place them in the model's system prompt, so they
@@ -99,13 +99,13 @@ Isis tells a connecting agent how to use it through two channels, both editable 
   session's scope id.
 - **Tool descriptions**, in `tools/list`. Each says when to use the tool. An administrator can override any of them.
 
-The MCP server re-reads both every `AgentProtocolRefreshSeconds` (default 30, in `isis.mcp.json`); a changed tool
+The MCP server re-reads both every `AgentProtocolRefreshSeconds` (default 30, in `notdory.mcp.json`); a changed tool
 description re-registers the tools in their original order and sends connected clients `notifications/tools/list_changed`.
 Tenant-specific guidance belongs in tenant or scope instructions, which `session_start` also returns.
 
 ## Tool Inventory
 
-Isis exposes **33** MCP tools at parity with the tenant-scoped REST surface. Each tool proxies the
+NotDory exposes **33** MCP tools at parity with the tenant-scoped REST surface. Each tool proxies the
 REST route shown, forwarding the caller's credential; the write/CRUD tools accept the same fields as
 the corresponding REST request body. `tools/list` returns only these tools; the MCP protocol `ping`
 method is answered with an empty result (`{}`) on the handshake-era revisions. Like every other request it needs the
@@ -155,7 +155,7 @@ server settings, session/token login, and the raw request-history / operation-ev
 
 ## Recommended Agent Workflow
 
-Isis is memory, not a filesystem. Read before you write, and prefer summaries before full
+NotDory is memory, not a filesystem. Read before you write, and prefer summaries before full
 bodies to conserve tokens.
 
 1. Call `session_start` with `project` set to the repository or project name. It returns your scope (created if
@@ -241,9 +241,9 @@ No arguments.
 
 #### Guidance
 
-- Callers authenticate with the credential access key (dev default `isisdefaultkey`),
+- Callers authenticate with the credential access key (dev default `notdorydefaultkey`),
   presented as `Authorization: Bearer <accessKey>` or in the `x-access-key` header; an optional
-  `x-secret-key` (dev default `isisdefaultsecret`) is validated only when present. The caller
+  `x-secret-key` (dev default `notdorydefaultsecret`) is validated only when present. The caller
   resolves to the tenant credential the access key maps to. If that credential's user is an
   admin (`IsAdmin` / `IsTenantAdmin`), the resolved principal reflects it.
 
@@ -660,7 +660,7 @@ Proxies `GET /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories/{memoryId}`.
     "slug": "filesystem-layout",
     "title": "Where things live in the repo",
     "summary": "src/ holds the server and MCP projects; docs/ holds plans.",
-    "body": "src/ holds Isis.Core, Isis.Server, and Isis.McpServer. docs/ holds the plan.",
+    "body": "src/ holds NotDory.Core, NotDory.Server, and NotDory.McpServer. docs/ holds the plan.",
     "categoryId": "cat_layout",
     "tags": ["layout"],
     "links": ["build-commands"]
@@ -704,7 +704,7 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories`.
   "slug": "filesystem-layout",
   "title": "Where things live in the repo",
   "summary": "src/ holds the server and MCP projects; docs/ holds plans.",
-  "body": "src/ holds Isis.Core, Isis.Server, and Isis.McpServer. docs/ holds the plan.",
+  "body": "src/ holds NotDory.Core, NotDory.Server, and NotDory.McpServer. docs/ holds the plan.",
   "type": "Project"
 }
 ```
@@ -797,7 +797,7 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes/{scopeId}/memories/search`.
         "storeKey": "mem_7",
         "slug": "run-tests",
         "title": "Build and run the test suite",
-        "snippet": "Build: dotnet build src/Isis.sln -c Release. Test: dotnet run --project src/Test.Automated…",
+        "snippet": "Build: dotnet build src/NotDory.sln -c Release. Test: dotnet run --project src/Test.Automated…",
         "score": 0.83,
         "vectorScore": 0.61,
         "textScore": 0.09,
@@ -901,9 +901,9 @@ upstream `statusCode`:
 ## Related Documents
 
 - [CONNECTING_AGENTS.md](CONNECTING_AGENTS.md) — connect Claude Code, Cursor, and generic
-  MCP clients to Isis, including the `isis mcp install` helper.
+  MCP clients to NotDory, including the `notdory mcp install` helper.
 - [REST_API.md](REST_API.md): the REST API each tool proxies, including request limits and error codes.
 - [../SEARCH_PIPELINE.md](../SEARCH_PIPELINE.md): how search and chat retrieval work, stage by stage.
-- [ISIS_PLAN.md](../archive/ISIS_PLAN.md): the original product plan (historical).
+- [NOTDORY_PLAN.md](../archive/NOTDORY_PLAN.md): the original product plan (historical).
 </content>
 </invoke>

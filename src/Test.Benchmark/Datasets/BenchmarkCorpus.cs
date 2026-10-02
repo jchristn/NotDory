@@ -3,7 +3,7 @@ namespace Test.Benchmark.Datasets
     using System.Collections.Generic;
 
     /// <summary>
-    /// A set of documents searched together (one Isis scope) plus the queries asked of it.
+    /// A set of documents searched together (one NotDory scope) plus the queries asked of it.
     /// </summary>
     public class BenchmarkCorpus
     {

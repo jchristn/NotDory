@@ -2,7 +2,7 @@
 setlocal
 
 REM ==========================================================================
-REM reset.bat - Reset the Isis docker environment to factory defaults.
+REM reset.bat - Reset the NotDory docker environment to factory defaults.
 REM
 REM Destroys all runtime docker data (Postgres, RecallDB, Prometheus, Tempo,
 REM Loki, Alloy, Grafana volumes) and clears local logs, leaving the stack
@@ -20,10 +20,10 @@ set "DOCKER_DIR=%SCRIPT_DIR%..\"
 
 echo.
 echo ==========================================================
-echo   Isis - Reset to Factory Defaults
+echo   NotDory - Reset to Factory Defaults
 echo ==========================================================
 echo.
-echo WARNING: This is DESTRUCTIVE. All docker volumes (Postgres with the isis
+echo WARNING: This is DESTRUCTIVE. All docker volumes (Postgres with the notdory
 echo and recalldb databases, RecallDB, and the observability stack) and the
 echo local logs directory will be deleted.
 if defined NO_OLLAMA echo   (--no-ollama) The Ollama model volume will be PRESERVED.
@@ -41,7 +41,7 @@ if defined NO_OLLAMA (
     echo [1/2] Stopping containers ^(preserving the Ollama model volume^)...
     docker compose -f compose.yaml -f factory\compose.factory.yaml down 2>nul
     docker compose down 2>nul
-    for /f "usebackq delims=" %%v in (`docker volume ls --format "{{.Name}}" ^| findstr /i isis ^| findstr /v /i ollama`) do docker volume rm %%v >nul 2>&1
+    for /f "usebackq delims=" %%v in (`docker volume ls --format "{{.Name}}" ^| findstr /i notdory ^| findstr /v /i ollama`) do docker volume rm %%v >nul 2>&1
 ) else (
     echo [1/2] Stopping containers and removing volumes...
     docker compose -f compose.yaml -f factory\compose.factory.yaml down -v 2>nul

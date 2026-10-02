@@ -18,9 +18,9 @@ namespace Test.Benchmark.Agent
 
     /// <summary>
     /// Agent-in-the-loop benchmark: runs Claude Code headless (claude -p) on memory-dependent tasks in two arms,
-    /// with the Isis MCP server connected ("isis") and without any memory ("none"), and grades the final answers.
+    /// with the NotDory MCP server connected ("notdory") and without any memory ("none"), and grades the final answers.
     /// Each run happens in a fresh empty directory with every built-in tool disabled, so the agent can only know the
-    /// answer through Isis. It cannot read the repository or its own auto-memory.
+    /// answer through NotDory. It cannot read the repository or its own auto-memory.
     /// </summary>
     public class AgentRunner
     {
@@ -63,7 +63,7 @@ namespace Test.Benchmark.Agent
 
             string model = args.Get("model", "haiku");
             string mcpUrl = args.Get("mcp-url", "http://127.0.0.1:18720/mcp");
-            List<string> arms = args.GetList("arms", "isis,none");
+            List<string> arms = args.GetList("arms", "notdory,none");
             int limit = args.GetInt("limit", 0);
             double budget = args.GetDouble("max-budget-usd", 0.50);
             string claude = args.Get("claude-path", RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "claude.cmd" : "claude");
@@ -81,7 +81,7 @@ namespace Test.Benchmark.Agent
             Console.WriteLine("[agent] memory scope " + scopeId + " (" + dataset.Corpora[0].Documents.Count + " memories)");
 
             List<AgentTask> tasks = limit > 0 ? suite.Tasks.Take(limit).ToList() : suite.Tasks;
-            string root = Path.Combine(Path.GetTempPath(), "isis-agent-bench-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            string root = Path.Combine(Path.GetTempPath(), "notdory-agent-bench-" + Guid.NewGuid().ToString("N").Substring(0, 8));
             Directory.CreateDirectory(root);
             try
             {
@@ -90,11 +90,11 @@ namespace Test.Benchmark.Agent
                 {
                     ["mcpServers"] = new JsonObject
                     {
-                        ["isis"] = new JsonObject
+                        ["notdory"] = new JsonObject
                         {
                             ["type"] = "http",
                             ["url"] = mcpUrl,
-                            ["headers"] = new JsonObject { ["x-access-key"] = args.Get("access-key", "isisdefaultkey") }
+                            ["headers"] = new JsonObject { ["x-access-key"] = args.Get("access-key", "notdorydefaultkey") }
                         }
                     }
                 };
@@ -102,9 +102,9 @@ namespace Test.Benchmark.Agent
                 string emptyConfig = Path.Combine(root, "mcp-empty.json");
                 File.WriteAllText(emptyConfig, "{\"mcpServers\":{}}");
 
-                string isisPrompt = Path.Combine(root, "system-isis.txt");
-                File.WriteAllText(isisPrompt,
-                    "You are helping a developer on a software project. The project's durable memory lives in the Isis MCP server (tools named mcp__isis__*). "
+                string notDoryPrompt = Path.Combine(root, "system-notdory.txt");
+                File.WriteAllText(notDoryPrompt,
+                    "You are helping a developer on a software project. The project's durable memory lives in the NotDory MCP server (tools named mcp__notdory__*). "
                     + "Its memories are in tenantId '" + _Context.Client.TenantId + "', scopeId '" + scopeId + "'. "
                     + "Before answering a question about the project, search that memory (memory_search, then memory_read for detail) and answer from what you find. "
                     + "Answer concisely. If memory does not contain the answer, say so.");
@@ -119,8 +119,8 @@ namespace Test.Benchmark.Agent
                     {
                         string workdir = Path.Combine(root, task.Id + "-" + arm);
                         Directory.CreateDirectory(workdir);
-                        bool withIsis = string.Equals(arm, "isis", StringComparison.OrdinalIgnoreCase);
-                        AgentItem item = await RunOneAsync(claude, model, budget, task, arm, workdir, withIsis ? mcpConfig : emptyConfig, withIsis ? isisPrompt : nonePrompt, withIsis, token).ConfigureAwait(false);
+                        bool withNotDory = string.Equals(arm, "notdory", StringComparison.OrdinalIgnoreCase);
+                        AgentItem item = await RunOneAsync(claude, model, budget, task, arm, workdir, withNotDory ? mcpConfig : emptyConfig, withNotDory ? notDoryPrompt : nonePrompt, withNotDory, token).ConfigureAwait(false);
                         report.Items.Add(item);
                         Console.WriteLine("  [" + index + "/" + tasks.Count + "] " + task.Id + " " + arm.PadRight(5) + (item.Success ? " PASS" : " fail") + "  turns " + item.Turns + "  $" + item.CostUsd.ToString("F4")
                             + (item.Error != null ? "  error: " + item.Error : string.Empty));
@@ -165,7 +165,7 @@ namespace Test.Benchmark.Agent
 
         #region Private-Methods
 
-        private static async Task<AgentItem> RunOneAsync(string claude, string model, double budget, AgentTask task, string arm, string workdir, string mcpConfig, string systemPromptFile, bool withIsis, CancellationToken token)
+        private static async Task<AgentItem> RunOneAsync(string claude, string model, double budget, AgentTask task, string arm, string workdir, string mcpConfig, string systemPromptFile, bool withNotDory, CancellationToken token)
         {
             AgentItem item = new AgentItem { TaskId = task.Id, Type = task.Type, Arm = arm };
             ProcessStartInfo info = new ProcessStartInfo(claude)
@@ -192,10 +192,10 @@ namespace Test.Benchmark.Agent
             info.ArgumentList.Add(mcpConfig);
             info.ArgumentList.Add("--tools");
             info.ArgumentList.Add(string.Empty);
-            if (withIsis)
+            if (withNotDory)
             {
                 info.ArgumentList.Add("--allowedTools");
-                info.ArgumentList.Add("mcp__isis");
+                info.ArgumentList.Add("mcp__notdory");
             }
 
             info.ArgumentList.Add("--append-system-prompt-file");

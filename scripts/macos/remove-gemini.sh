@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
-# Disconnect the Gemini CLI from Isis by removing the 'isis' entry from ~/.gemini/settings.json.
+# Disconnect the Gemini CLI from NotDory by removing the 'notdory' entry from ~/.gemini/settings.json.
 set -e
 
-CONFIG="${ISIS_GEMINI_CONFIG:-$HOME/.gemini/settings.json}"
+CONFIG="${NOTDORY_GEMINI_CONFIG:-$HOME/.gemini/settings.json}"
 command -v python3 >/dev/null 2>&1 || { echo "python3 is required." >&2; exit 1; }
 
 python3 - "$CONFIG" <<'PY'
@@ -14,11 +14,11 @@ try:
 except Exception:
     print("Nothing to remove at " + path)
     raise SystemExit(0)
-if isinstance(cfg, dict) and isinstance(cfg.get("mcpServers"), dict) and "isis" in cfg["mcpServers"]:
-    cfg["mcpServers"].pop("isis", None)
+if isinstance(cfg, dict) and isinstance(cfg.get("mcpServers"), dict) and "notdory" in cfg["mcpServers"]:
+    cfg["mcpServers"].pop("notdory", None)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
-    print("Removed 'isis' from " + path)
+    print("Removed 'notdory' from " + path)
 else:
-    print("No 'isis' entry found in " + path)
+    print("No 'notdory' entry found in " + path)
 PY

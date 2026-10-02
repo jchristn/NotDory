@@ -7,7 +7,7 @@ namespace Test.Shared
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
-    using Isis.Core.Database;
+    using NotDory.Core.Database;
 
     /// <summary>
     /// Helpers for spinning up ephemeral database containers for live provider tests.

@@ -1,0 +1,539 @@
+namespace NotDory.Server.Services
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Text;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Models;
+    using NotDory.Core.Observability;
+    using NotDory.Core.Recall;
+    using NotDory.Core.Stores;
+
+    /// <summary>
+    /// The chat-with-memory surface. Retrieves the most relevant memories from a scope and asks the
+    /// configured inference endpoint to answer the user's question grounded in them, returning the answer
+    /// with citations.
+    /// </summary>
+    public class MemoryChatService
+    {
+        #region Public-Members
+
+        /// <summary>
+        /// Memories retrieved for a question when the caller does not ask for a specific number. Default 8, minimum 1,
+        /// maximum 100. Deeper retrieval helps questions whose answer spans several memories, at the cost of a longer
+        /// prompt.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when set outside [1, 100].</exception>
+        public int DefaultTopK
+        {
+            get
+            {
+                return _DefaultTopK;
+            }
+            set
+            {
+                if (value < 1 || value > 100) throw new ArgumentOutOfRangeException(nameof(DefaultTopK), "DefaultTopK must be between 1 and 100.");
+                _DefaultTopK = value;
+            }
+        }
+
+        /// <summary>
+        /// How many linked memories are added to the grounding context by following links (and <c>[[slug]]</c>
+        /// references) from the retrieved memories. Default 2, minimum 0, maximum 10.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown when set outside [0, 10].</exception>
+        public int LinkExpansion
+        {
+            get
+            {
+                return _LinkExpansion;
+            }
+            set
+            {
+                if (value < 0 || value > 10) throw new ArgumentOutOfRangeException(nameof(LinkExpansion), "LinkExpansion must be between 0 and 10.");
+                _LinkExpansion = value;
+            }
+        }
+
+        /// <summary>
+        /// The query preparer: decides per scope which model rewrites, splits, and expands queries and whether those
+        /// steps run, and applies them before retrieval.
+        /// </summary>
+        public QueryPreparer Preparer
+        {
+            get
+            {
+                return _Preparer;
+            }
+        }
+
+        /// <summary>
+        /// The rewriter used for follow-up questions; its settings bound how much conversation is used.
+        /// </summary>
+        public ConversationRewriter Rewriter
+        {
+            get
+            {
+                return _Preparer.Rewriter;
+            }
+        }
+
+        #endregion
+
+        #region Private-Members
+
+        private int _DefaultTopK = 8;
+        private int _LinkExpansion = 2;
+        private readonly QueryPreparer _Preparer;
+
+        private readonly MemoryService _MemoryService;
+        private readonly InferenceService _InferenceService;
+
+        #endregion
+
+        #region Constructors-and-Factories
+
+        /// <summary>
+        /// Instantiate the chat service.
+        /// </summary>
+        /// <param name="memoryService">The memory service used for retrieval.</param>
+        /// <param name="inferenceService">The inference service used for answer synthesis.</param>
+        /// <param name="preparer">The query preparer, shared with search. Null creates one that resolves only the chat
+        /// model it is given.</param>
+        /// <exception cref="ArgumentNullException">Thrown when a required argument is null.</exception>
+        public MemoryChatService(MemoryService memoryService, InferenceService inferenceService, QueryPreparer? preparer = null)
+        {
+            _MemoryService = memoryService ?? throw new ArgumentNullException(nameof(memoryService));
+            _InferenceService = inferenceService ?? throw new ArgumentNullException(nameof(inferenceService));
+            _Preparer = preparer ?? new QueryPreparer(memoryService, inferenceService);
+        }
+
+        #endregion
+
+        #region Public-Methods
+
+        /// <summary>
+        /// Answer a natural-language question about a scope's memory.
+        /// </summary>
+        /// <param name="scope">The scope to draw memory from.</param>
+        /// <param name="inferenceEndpoint">The inference endpoint used to synthesize the answer.</param>
+        /// <param name="question">The user's question.</param>
+        /// <param name="topK">The maximum number of memories to retrieve.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <param name="history">Earlier messages in the conversation, oldest first, or null.</param>
+        /// <returns>The grounded answer with citations.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when a required argument is null.</exception>
+        public async Task<ChatAnswer> AskAsync(Scope scope, ModelEndpoint inferenceEndpoint, string question, int topK, CancellationToken token = default, List<ChatTurn>? history = null)
+        {
+            if (scope == null) throw new ArgumentNullException(nameof(scope));
+            if (inferenceEndpoint == null) throw new ArgumentNullException(nameof(inferenceEndpoint));
+            if (string.IsNullOrWhiteSpace(question)) throw new ArgumentException("A question is required.", nameof(question));
+
+            long telemetryStart = Stopwatch.GetTimestamp();
+            string telemetryOutcome = "success";
+            using Activity? activity = NotDoryTelemetry.ActivitySource.StartActivity("chat ask", ActivityKind.Internal);
+            activity?.SetTag(NotDoryTelemetry.TagScope, scope.Id);
+            activity?.SetTag(NotDoryTelemetry.TagStreaming, false);
+
+            try
+            {
+                ContextResult ctx = await BuildContextAsync(scope, inferenceEndpoint, question, history, topK, token).ConfigureAwait(false);
+                NotDoryTelemetry.ChatContextMemories.Record(ctx.Count, new TagList { { NotDoryTelemetry.TagStreaming, false } });
+
+                ChatAnswer answer = new ChatAnswer();
+                answer.RetrievalMode = ctx.Mode;
+                answer.Notice = ctx.Notice;
+                answer.StandaloneQuestion = ctx.StandaloneQuestion;
+                answer.Citations.AddRange(ctx.Citations);
+
+                string userPrompt = BuildUserPrompt(question, ctx.ContextText, FormatHistory(history), ctx.StandaloneQuestion);
+                answer.Answer = await _InferenceService.CompleteAsync(inferenceEndpoint, _SystemPrompt, userPrompt, token).ConfigureAwait(false);
+                return answer;
+            }
+            catch (Exception e)
+            {
+                telemetryOutcome = "error";
+                NotDoryTelemetry.RecordException(activity, e);
+                throw;
+            }
+            finally
+            {
+                double seconds = Stopwatch.GetElapsedTime(telemetryStart).TotalSeconds;
+                TagList tags = new TagList { { NotDoryTelemetry.TagStreaming, false }, { NotDoryTelemetry.TagOutcome, telemetryOutcome } };
+                NotDoryTelemetry.ChatAskDuration.Record(seconds, tags);
+                NotDoryTelemetry.ChatAsks.Add(1, tags);
+            }
+        }
+
+        /// <summary>
+        /// Answer a question about a scope's memory as a live stream, emitting a retrieval event, incremental
+        /// thinking and answer deltas, and a final completion with citations and per-turn statistics. The
+        /// <paramref name="emit"/> callback is invoked for each event (the caller frames it onto the wire).
+        /// </summary>
+        /// <param name="scope">The scope to draw memory from.</param>
+        /// <param name="inferenceEndpoint">The inference endpoint used to synthesize the answer.</param>
+        /// <param name="question">The user's question.</param>
+        /// <param name="topK">The maximum number of memories to retrieve.</param>
+        /// <param name="emit">Callback invoked with each event object.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <param name="history">Earlier messages in the conversation, oldest first, or null.</param>
+        /// <exception cref="ArgumentNullException">Thrown when a required argument is null.</exception>
+        public async Task AskStreamingAsync(Scope scope, ModelEndpoint inferenceEndpoint, string question, int topK, Func<object, CancellationToken, Task> emit, CancellationToken token = default, List<ChatTurn>? history = null)
+        {
+            if (scope == null) throw new ArgumentNullException(nameof(scope));
+            if (inferenceEndpoint == null) throw new ArgumentNullException(nameof(inferenceEndpoint));
+            if (string.IsNullOrWhiteSpace(question)) throw new ArgumentException("A question is required.", nameof(question));
+            if (emit == null) throw new ArgumentNullException(nameof(emit));
+
+            long telemetryStart = Stopwatch.GetTimestamp();
+            string telemetryOutcome = "success";
+            using Activity? chatActivity = NotDoryTelemetry.ActivitySource.StartActivity("chat ask", ActivityKind.Internal);
+            chatActivity?.SetTag(NotDoryTelemetry.TagScope, scope.Id);
+            chatActivity?.SetTag(NotDoryTelemetry.TagStreaming, true);
+
+            try
+            {
+            ContextResult ctx = await BuildContextAsync(scope, inferenceEndpoint, question, history, topK, token).ConfigureAwait(false);
+            NotDoryTelemetry.ChatContextMemories.Record(ctx.Count, new TagList { { NotDoryTelemetry.TagStreaming, true } });
+
+            List<ChatCitation> citations = ctx.Citations;
+            string? notice = ctx.Notice;
+
+            await emit(new { type = "retrieval", mode = ctx.ModeLabel, hits = ctx.HitPayloads, notice = notice, standaloneQuestion = ctx.StandaloneQuestion }, token).ConfigureAwait(false);
+
+            string systemPrompt = _SystemPrompt;
+            string userPrompt = BuildUserPrompt(question, ctx.ContextText, FormatHistory(history), ctx.StandaloneQuestion);
+
+            StringBuilder answerBuilder = new StringBuilder();
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            double ttftMs = 0.0;
+            bool firstAnswer = true;
+            int promptTokens = 0;
+            int completionTokens = 0;
+            double? providerTtft = null;
+            double? providerGeneration = null;
+            double? providerTps = null;
+            bool inThink = false;
+            string tail = string.Empty;
+
+            async Task EmitSegmentAsync(bool thinking, string text)
+            {
+                if (string.IsNullOrEmpty(text)) return;
+                if (thinking)
+                {
+                    await emit(new { type = "thinking", text = text }, token).ConfigureAwait(false);
+                }
+                else
+                {
+                    if (firstAnswer)
+                    {
+                        ttftMs = stopwatch.Elapsed.TotalMilliseconds;
+                        firstAnswer = false;
+                    }
+
+                    answerBuilder.Append(text);
+                    await emit(new { type = "delta", text = text }, token).ConfigureAwait(false);
+                }
+            }
+
+            async Task ProcessContentAsync(string incoming)
+            {
+                string buffer = tail + incoming;
+                tail = string.Empty;
+                int pos = 0;
+                while (pos < buffer.Length)
+                {
+                    string marker = inThink ? "</think>" : "<think>";
+                    int idx = buffer.IndexOf(marker, pos, StringComparison.OrdinalIgnoreCase);
+                    if (idx < 0)
+                    {
+                        int safe = SafeEmitBoundary(buffer, marker);
+                        if (safe < pos) safe = pos;
+                        await EmitSegmentAsync(inThink, buffer.Substring(pos, safe - pos)).ConfigureAwait(false);
+                        tail = buffer.Substring(safe);
+                        return;
+                    }
+
+                    await EmitSegmentAsync(inThink, buffer.Substring(pos, idx - pos)).ConfigureAwait(false);
+                    inThink = !inThink;
+                    pos = idx + marker.Length;
+                }
+            }
+
+            await foreach (InferenceChunk chunk in _InferenceService.CompleteStreamingAsync(inferenceEndpoint, systemPrompt, userPrompt, token).ConfigureAwait(false))
+            {
+                if (!string.IsNullOrEmpty(chunk.Reasoning)) await EmitSegmentAsync(true, chunk.Reasoning!).ConfigureAwait(false);
+                if (!string.IsNullOrEmpty(chunk.Content)) await ProcessContentAsync(chunk.Content!).ConfigureAwait(false);
+                if (chunk.PromptTokens.HasValue) promptTokens = chunk.PromptTokens.Value;
+                if (chunk.CompletionTokens.HasValue) completionTokens = chunk.CompletionTokens.Value;
+                if (chunk.TimeToFirstTokenMs.HasValue) providerTtft = chunk.TimeToFirstTokenMs.Value;
+                if (chunk.GenerationMs.HasValue) providerGeneration = chunk.GenerationMs.Value;
+                if (chunk.TokensPerSecond.HasValue) providerTps = chunk.TokensPerSecond.Value;
+            }
+
+            if (!string.IsNullOrEmpty(tail)) await EmitSegmentAsync(inThink, tail).ConfigureAwait(false);
+
+            stopwatch.Stop();
+            double totalMs = stopwatch.Elapsed.TotalMilliseconds;
+            double measuredGeneration = Math.Max(0.0, totalMs - ttftMs);
+            double measuredTps = completionTokens > 0 && measuredGeneration > 0.0 ? completionTokens / (measuredGeneration / 1000.0) : 0.0;
+
+            // Prefer the endpoint's own timing/throughput (reported by PolyPrompt) and fall back to the
+            // wall-clock measurements when the endpoint does not report them.
+            double timeToFirstTokenMs = providerTtft.HasValue && providerTtft.Value > 0.0 ? providerTtft.Value : ttftMs;
+            double generationMs = providerGeneration.HasValue && providerGeneration.Value > 0.0 ? providerGeneration.Value : measuredGeneration;
+            double tokensPerSecond = providerTps.HasValue && providerTps.Value > 0.0 ? providerTps.Value : measuredTps;
+
+            await emit(new
+            {
+                type = "complete",
+                answer = answerBuilder.ToString(),
+                citations = citations,
+                retrievalMode = ctx.ModeLabel,
+                notice = notice,
+                standaloneQuestion = ctx.StandaloneQuestion,
+                model = inferenceEndpoint.Model,
+                promptTokens = promptTokens,
+                completionTokens = completionTokens,
+                totalTokens = promptTokens + completionTokens,
+                timeToFirstTokenMs = timeToFirstTokenMs,
+                generationMs = generationMs,
+                tokensPerSecond = tokensPerSecond
+            }, token).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                telemetryOutcome = "error";
+                NotDoryTelemetry.RecordException(chatActivity, e);
+                throw;
+            }
+            finally
+            {
+                double seconds = Stopwatch.GetElapsedTime(telemetryStart).TotalSeconds;
+                TagList tags = new TagList { { NotDoryTelemetry.TagStreaming, true }, { NotDoryTelemetry.TagOutcome, telemetryOutcome } };
+                NotDoryTelemetry.ChatAskDuration.Record(seconds, tags);
+                NotDoryTelemetry.ChatAsks.Add(1, tags);
+            }
+        }
+
+        #endregion
+
+        #region Private-Methods
+
+        private const int _ContextCharsPerMemory = 4000;
+
+        private const string _SystemPrompt =
+            "You are a memory assistant for a specific memory scope. Answer the user's question using only facts stated in the provided memories. " +
+            "Do not add facts from general knowledge, and do not guess or fill gaps. " +
+            "Cite the memory behind every claim by its slug in square brackets, for example [auth-model]. " +
+            "If the memories do not state the answer, say plainly that it is not in memory, and mention what related information they do contain, if any. " +
+            "If the user asks what memories exist, or asks for an overview or summary, summarize the provided memories; do not claim you have none when memories are listed below.";
+
+        private static string BuildUserPrompt(string question, string contextText, string conversation, string? standaloneQuestion)
+        {
+            StringBuilder sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(conversation)) sb.Append("Conversation so far:\n").Append(conversation).Append('\n');
+            sb.Append("Question: ").Append(question);
+            if (!string.IsNullOrEmpty(standaloneQuestion)) sb.Append("\n(In context, this asks: ").Append(standaloneQuestion).Append(')');
+            sb.Append("\n\nMemories:\n").Append(string.IsNullOrEmpty(contextText) ? "(none)" : contextText);
+            return sb.ToString();
+        }
+
+        private string FormatHistory(List<ChatTurn>? history)
+        {
+            return ConversationRewriter.FormatConversation(history, _Preparer.Rewriter.MaxTurns, _Preparer.Rewriter.MaxTurnChars);
+        }
+
+        /// <summary>
+        /// Build the grounding context for a question. The strategy depends on the scope's store:
+        /// <list type="bullet">
+        /// <item>Keyword-only stores (filesystem, Verbex) have no semantic relevance ranking — lexical
+        /// scoring is a poor way to answer questions and fails outright on broad/meta questions. For those,
+        /// skip searching entirely and hand the model the scope's whole memory map, organized top-down by
+        /// category, so it can analyze it and decide what is relevant.</item>
+        /// <item>Semantic stores (RecallDB) use relevance search, which scales to large corpora; if it
+        /// matches nothing, fall back to the same top-down overview.</item>
+        /// </list>
+        /// </summary>
+        private async Task<ContextResult> BuildContextAsync(Scope scope, ModelEndpoint inferenceEndpoint, string question, List<ChatTurn>? history, int topK, CancellationToken token)
+        {
+            StoreCapabilities capabilities = _MemoryService.GetCapabilities(scope);
+            if (!capabilities.SupportsSemantic)
+            {
+                return await BuildOverviewContextAsync(scope,
+                    "This scope is backed by a keyword/file store; the model is given all of its memories, organized by category, to analyze directly rather than by relevance search.",
+                    token).ConfigureAwait(false);
+            }
+
+            int k = topK < 1 ? _DefaultTopK : topK;
+            // Ground on the whole best-matching chunk, not a short preview snippet: a chunk is bounded by the embedding
+            // token budget (roughly a thousand characters for small encoders), so this is the entire memory for a
+            // typical memory and the relevant region of a long one. A 240-character snippet hid any answer that was
+            // not in a memory's opening sentence.
+            MemorySearchQuery query = new MemorySearchQuery { QueryText = question, Mode = SearchModeEnum.Hybrid, TopK = k, TokenBudget = _ContextCharsPerMemory, LinkExpansion = _LinkExpansion };
+
+            // Query steps follow the scope's settings (then the server defaults): rewrite a follow-up, split a multi-part
+            // question, and expand the question, on the scope's query model (then its chat model).
+            bool rewrite = _Preparer.ShouldRewrite(scope) && history != null && history.Count > 0;
+            bool decompose = _Preparer.ShouldDecompose(scope, null);
+            bool expand = _Preparer.ShouldExpand(scope, null, !string.IsNullOrEmpty(scope.RerankEndpointId));
+            string? standalone = null;
+            if (rewrite || decompose || expand)
+            {
+                ModelEndpoint? queryEndpoint = await _Preparer.ResolveQueryEndpointAsync(scope, null, inferenceEndpoint, token).ConfigureAwait(false);
+                QueryPreparation preparation = await _Preparer.PrepareAsync(query, queryEndpoint, history, rewrite, decompose, expand, token).ConfigureAwait(false);
+                standalone = preparation.StandaloneQuestion;
+            }
+
+            MemorySearchResult retrieval = await _MemoryService.SearchAsync(scope, query, token).ConfigureAwait(false);
+
+            if (retrieval.Hits.Count == 0)
+            {
+                // A reranker that rejected every candidate has judged that nothing answers the question: ground on no
+                // memories so the model says so, rather than on an overview it would try to answer from.
+                if (retrieval.Reranked)
+                {
+                    return new ContextResult
+                    {
+                        Mode = retrieval.EffectiveMode,
+                        ModeLabel = retrieval.EffectiveMode.ToString(),
+                        ContextText = "(none)",
+                        Notice = "No memory passed the relevance threshold.",
+                        StandaloneQuestion = standalone
+                    };
+                }
+
+                ContextResult overview = await BuildOverviewContextAsync(scope, "No memory directly matched the question; listing the scope's memories.", token).ConfigureAwait(false);
+                overview.StandaloneQuestion = standalone;
+                return overview;
+            }
+
+            ContextResult ctx = new ContextResult { Mode = retrieval.EffectiveMode, ModeLabel = retrieval.EffectiveMode.ToString(), Notice = retrieval.Notice, StandaloneQuestion = standalone };
+            StringBuilder sb = new StringBuilder();
+            foreach (MemorySearchHit hit in retrieval.Hits)
+            {
+                string? note = null;
+                if (!string.IsNullOrEmpty(hit.SupersededBy)) note = "(outdated: superseded by [" + hit.SupersededBy + "])";
+                else if (!string.IsNullOrEmpty(hit.LinkedFrom)) note = "(linked from [" + hit.LinkedFrom + "])";
+                AppendContextItem(sb, ctx, hit.Slug, hit.Title, hit.Snippet, hit.Score, note);
+            }
+
+            ctx.ContextText = sb.Length > 0 ? sb.ToString() : "(none)";
+            ctx.Count = ctx.Citations.Count;
+            return ctx;
+        }
+
+        /// <summary>
+        /// Build a top-down "memory map" context: every memory in the scope, grouped under its category
+        /// (with the category name and description as headers), so the model can analyze the whole set and
+        /// pick what is relevant. Used for keyword-only stores and as the zero-hit fallback for semantic ones.
+        /// </summary>
+        private async Task<ContextResult> BuildOverviewContextAsync(Scope scope, string notice, CancellationToken token)
+        {
+            const int memoryCap = 200;
+            List<Memory> memories = await _MemoryService.EnumerateAsync(scope, null, memoryCap, token).ConfigureAwait(false);
+
+            ContextResult ctx = new ContextResult { Mode = SearchModeEnum.Keyword, ModeLabel = "Overview" };
+            if (memories.Count == 0)
+            {
+                ctx.ContextText = "(none)";
+                ctx.Notice = "This scope has no memories yet.";
+                return ctx;
+            }
+
+            List<Category> categories = await _MemoryService.EnumerateCategoriesAsync(scope, 1000, token).ConfigureAwait(false);
+            Dictionary<string, Category> categoryById = new Dictionary<string, Category>();
+            foreach (Category category in categories) categoryById[category.Id] = category;
+
+            Dictionary<string, List<Memory>> byCategory = new Dictionary<string, List<Memory>>();
+            List<string> categoryOrder = new List<string>();
+            foreach (Memory memory in memories)
+            {
+                if (!byCategory.TryGetValue(memory.CategoryId, out List<Memory>? list))
+                {
+                    list = new List<Memory>();
+                    byCategory[memory.CategoryId] = list;
+                    categoryOrder.Add(memory.CategoryId);
+                }
+
+                list.Add(memory);
+            }
+
+            StringBuilder sb = new StringBuilder();
+            foreach (string categoryId in categoryOrder)
+            {
+                categoryById.TryGetValue(categoryId, out Category? category);
+                string header = category != null && !string.IsNullOrEmpty(category.Name) ? category.Name : categoryId;
+                sb.Append("## ").Append(header);
+                if (category != null && !string.IsNullOrEmpty(category.Description)) sb.Append(" — ").Append(category.Description);
+                sb.Append('\n');
+
+                foreach (Memory memory in byCategory[categoryId])
+                {
+                    string body = !string.IsNullOrEmpty(memory.Summary) ? memory.Summary! : Truncate(memory.Body, 600);
+                    AppendContextItem(sb, ctx, memory.Slug, memory.Title, body, null);
+                }
+
+                sb.Append('\n');
+            }
+
+            ctx.ContextText = sb.ToString();
+            ctx.Notice = memories.Count >= memoryCap ? notice + " (showing the first " + memoryCap + ")" : notice;
+            ctx.Count = ctx.Citations.Count;
+            return ctx;
+        }
+
+        private static void AppendContextItem(StringBuilder sb, ContextResult ctx, string? slug, string? title, string? snippet, double? score, string? note = null)
+        {
+            sb.Append("- [").Append(slug ?? "memory").Append("] ");
+            if (!string.IsNullOrEmpty(note)) sb.Append(note).Append(' ');
+            if (!string.IsNullOrEmpty(title)) sb.Append(title).Append(": ");
+            sb.Append(snippet).Append('\n');
+            ctx.Citations.Add(new ChatCitation { Slug = slug, Title = title, Score = score ?? 0.0 });
+            // The model gets the whole chunk; the UI's retrieval event keeps a short preview.
+            ctx.HitPayloads.Add(new { slug = slug, title = title, score = score ?? 0.0, snippet = Truncate(snippet ?? string.Empty, 240) });
+        }
+
+        private static string Truncate(string value, int max)
+        {
+            if (string.IsNullOrEmpty(value)) return string.Empty;
+            return value.Length <= max ? value : value.Substring(0, max) + "…";
+        }
+
+        /// <summary>
+        /// Return the index up to which the buffer can be emitted without splitting a marker that may continue
+        /// in the next chunk: if the buffer ends with a prefix of <paramref name="marker"/>, hold that prefix
+        /// back as a tail.
+        /// </summary>
+        private static int SafeEmitBoundary(string buffer, string marker)
+        {
+            int max = Math.Min(marker.Length - 1, buffer.Length);
+            for (int length = max; length > 0; length--)
+            {
+                if (string.Compare(buffer, buffer.Length - length, marker, 0, length, StringComparison.OrdinalIgnoreCase) == 0)
+                {
+                    return buffer.Length - length;
+                }
+            }
+
+            return buffer.Length;
+        }
+
+        private sealed class ContextResult
+        {
+            public string ContextText { get; set; } = "(none)";
+            public List<ChatCitation> Citations { get; } = new List<ChatCitation>();
+            public List<object> HitPayloads { get; } = new List<object>();
+            public SearchModeEnum Mode { get; set; } = SearchModeEnum.Keyword;
+            public string ModeLabel { get; set; } = string.Empty;
+            public string? Notice { get; set; } = null;
+            public string? StandaloneQuestion { get; set; } = null;
+            public int Count { get; set; } = 0;
+        }
+
+        #endregion
+    }
+}

@@ -30,7 +30,7 @@ function Thinking({ text }) {
 }
 
 /**
- * Collapsible retrieval trace — Isis's analog of a tool call. Lists the memories that grounded the
+ * Collapsible retrieval trace — NotDory's analog of a tool call. Lists the memories that grounded the
  * answer; each row expands to reveal its snippet.
  */
 function RetrievalTrace({ retrieval }) {

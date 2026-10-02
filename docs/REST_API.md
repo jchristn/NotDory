@@ -1,4 +1,4 @@
-# Isis REST API
+# NotDory REST API
 
 Base URL (local dev): `http://127.0.0.1:8700`
 Management API prefix: `/v1.0/api`
@@ -10,7 +10,7 @@ All request and response bodies are JSON. Enums serialize as strings; property n
 
 ## Authentication
 
-Isis has exactly **two** authentication mechanisms. There is no admin API key.
+NotDory has exactly **two** authentication mechanisms. There is no admin API key.
 
 ### 1. Email / password → session token (interactive users, dashboard)
 
@@ -22,7 +22,7 @@ Login is a three-step flow so a user only needs their email, a tenant choice, an
 POST /v1.0/api/tenants-for-email
 Content-Type: application/json
 
-{ "email": "admin@isis.local" }
+{ "email": "admin@notdory.local" }
 ```
 
 ```json
@@ -37,7 +37,7 @@ Email is unique only *within* a tenant, so an address may belong to more than on
 POST /v1.0/api/token
 Content-Type: application/json
 
-{ "email": "admin@isis.local", "password": "isisadmin", "tenantId": "ten_default" }
+{ "email": "admin@notdory.local", "password": "notdoryadmin", "tenantId": "ten_default" }
 ```
 
 ```json
@@ -45,7 +45,7 @@ Content-Type: application/json
   "token": "…opaque…",
   "tenantId": "ten_default",
   "userId": "usr_admin",
-  "email": "admin@isis.local",
+  "email": "admin@notdory.local",
   "isAdmin": true,
   "isTenantAdmin": true,
   "expiresUtc": "2026-08-27T12:00:00Z"
@@ -77,7 +77,7 @@ Tokens are revocable server-side and stop working immediately when the session, 
 Send the access key on every request:
 
 ```
-x-access-key: isisdefaultkey
+x-access-key: notdorydefaultkey
 ```
 
 The **access key alone authenticates** — it is the public, transferable material, so treat it as a capability token and scope it least-privilege. The secret key is **not required** on the wire and never has to leave the client; MCP agents (Mux, Claude, Codex, Cursor, Gemini) all connect with the access key only. If a request *does* include an `x-secret-key` header it is validated against the credential (a wrong secret is rejected), so a stricter caller may still send it — but no installer does. A credential resolves to its owning user's tenant and inherits the owner's `IsAdmin` / `IsTenantAdmin` flags. The raw secret key is shown only once, at creation.
@@ -89,7 +89,7 @@ Administrative authority comes solely from the user record:
 - `IsAdmin` — system-wide; may manage any tenant and bypasses tenant checks.
 - `IsTenantAdmin` — full control within the user's own tenant only.
 
-A fresh deployment seeds a default admin user (`admin@isis.local` / `isisadmin`, tenant `ten_default`) with `IsAdmin = true`, and a default credential (`isisdefaultkey` / `isisdefaultsecret`). Override every value via environment before any shared deployment (`ISIS_AUTH_SEED_ADMIN_EMAIL`, `ISIS_AUTH_SEED_ADMIN_PASSWORD`, `ISIS_AUTH_DEFAULT_ACCESS_KEY`, `ISIS_AUTH_DEFAULT_SECRET_KEY`).
+A fresh deployment seeds a default admin user (`admin@notdory.local` / `notdoryadmin`, tenant `ten_default`) with `IsAdmin = true`, and a default credential (`notdorydefaultkey` / `notdorydefaultsecret`). Override every value via environment before any shared deployment (`NOTDORY_AUTH_SEED_ADMIN_EMAIL`, `NOTDORY_AUTH_SEED_ADMIN_PASSWORD`, `NOTDORY_AUTH_DEFAULT_ACCESS_KEY`, `NOTDORY_AUTH_DEFAULT_SECRET_KEY`).
 
 ---
 
@@ -253,7 +253,7 @@ Instructions are either **tenant-global** (managed at `…/instructions`) or **s
 of `Append` (add a new instruction), `Replace` (override a same-named global's content in place), or
 `Hide` (suppress a same-named global). `GET …/scopes/{scopeId}/effective-instructions` returns the
 merged, source-annotated result an agent working in that scope should see. Over MCP, the
-`isis_instructions` tool takes an optional `scopeId` and returns that scope's effective set.
+`notdory_instructions` tool takes an optional `scopeId` and returns that scope's effective set.
 
 A model endpoint is addressed by a full **`baseUrl`** (e.g. `http://host:11434` or
 `http://conductor.example.com:8900/v1.0/api/all-minilm-latest`) onto which the API-format path is
@@ -265,7 +265,7 @@ embedding endpoint may set `maxInputTokens` to override the token budget used wh
 memories (0 = resolve the budget automatically from the API format and model name).
 
 An inference endpoint's **`reasoning`** (`Default`, `Off`, `Low`, `Medium`, or `High`) sets how much a reasoning model
-thinks on every call Isis makes to it: chat answers, query steps, and reranking. `Default` sends no reasoning setting,
+thinks on every call NotDory makes to it: chat answers, query steps, and reranking. `Default` sends no reasoning setting,
 so the model decides. Thinking costs seconds per call, so a reranker or query model usually wants `Off` or `Low`.
 Models honor different settings: on Ollama, gpt-oss takes a level (`Low` cut a rating call from 233 to 86 tokens) but
 ignores `Off`, while qwen3 turns off with `Off` (14 tokens instead of 304) and treats every level as on. To think for
@@ -283,7 +283,7 @@ which job (answering chat, query steps, reranking). The endpoint's `apiFormat` d
 
 | `apiFormat` | Chat and query steps | Reranking |
 | --- | --- | --- |
-| `Ollama`, `OpenAI`, `VLlm`, `Gemini` | yes | yes, by prompt: Isis sends the query and the numbered candidates in one chat call, asks for a 0 to 10 rating of each, and divides by 10 |
+| `Ollama`, `OpenAI`, `VLlm`, `Gemini` | yes | yes, by prompt: NotDory sends the query and the numbered candidates in one chat call, asks for a 0 to 10 rating of each, and divides by 10 |
 | `Tei` | no | yes: a cross-encoder behind Hugging Face Text Embeddings Inference (`POST {baseUrl}/rerank` with `query` and `texts`; health path `/health`) |
 | `Cohere` | no | yes: Cohere's rerank API (`POST {baseUrl}/v2/rerank` with `model`, `query`, and `documents`, answering `results[].relevance_score`), also served by vLLM for cross-encoders |
 
@@ -410,7 +410,7 @@ run gets a notice. The reranker, when one runs, always scores against `queryText
 
 On RecallDB, a hybrid search runs as one call when the RecallDB server reports the `search.hybrid.rrf` and
 `search.collapse` capabilities: RecallDB fuses both legs with the same weights, constant, and recency signal and
-returns one hit per memory. Older servers, or a failed call, use two calls fused in Isis; both paths give the same
+returns one hit per memory. Older servers, or a failed call, use two calls fused in NotDory; both paths give the same
 results. `retrieval.serverSideHybrid` (default true) turns the single call off.
 
 Each hit has `storeKey`, `slug`, `title`, `snippet`, and `score`, plus the evidence behind the score: `vectorScore`
@@ -503,7 +503,7 @@ all tenants; a tenant principal sees only its own tenant's requests.
 
 Every request is recorded, including ones that fail: a request rejected during authentication (401), and one that
 failed with an exception, whether in a route or while authenticating (for example a database error during the credential
-lookup). A failed request's `responseHeaders` carry an internal `x-isis-exception` entry with the exception type and
+lookup). A failed request's `responseHeaders` carry an internal `x-notdory-exception` entry with the exception type and
 message (and inner exceptions), so a failure can be diagnosed from the history alone; it is never sent to the caller.
 ### Server settings (system administrator only)
 

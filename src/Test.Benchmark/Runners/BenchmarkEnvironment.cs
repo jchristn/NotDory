@@ -17,7 +17,7 @@ namespace Test.Benchmark.Runners
         public DateTime StartedUtc { get; set; } = DateTime.UtcNow;
 
         /// <summary>
-        /// Isis REST base URL.
+        /// NotDory REST base URL.
         /// </summary>
         public string ServerUrl { get; set; } = string.Empty;
 
@@ -53,7 +53,7 @@ namespace Test.Benchmark.Runners
         /// <summary>
         /// Capture the current environment.
         /// </summary>
-        /// <param name="serverUrl">Isis REST base URL.</param>
+        /// <param name="serverUrl">NotDory REST base URL.</param>
         /// <param name="embedding">Embedding endpoint description.</param>
         /// <returns>The environment.</returns>
         public static BenchmarkEnvironment Capture(string serverUrl, string embedding)

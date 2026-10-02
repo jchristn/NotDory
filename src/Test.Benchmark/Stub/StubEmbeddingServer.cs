@@ -12,8 +12,8 @@ namespace Test.Benchmark.Stub
     using Microsoft.Extensions.Logging;
 
     /// <summary>
-    /// A deterministic embedding server with a fixed, configurable latency. Load tests point Isis at it so they
-    /// measure Isis and RecallDB rather than the embedding model (whose throughput would otherwise dominate).
+    /// A deterministic embedding server with a fixed, configurable latency. Load tests point NotDory at it so they
+    /// measure NotDory and RecallDB rather than the embedding model (whose throughput would otherwise dominate).
     /// Vectors come from feature hashing over lower-cased word tokens, so texts that share words still get similar
     /// vectors and search results stay meaningful. Speaks the Ollama (/api/embeddings, /api/embed) and OpenAI
     /// (/v1/embeddings) formats.

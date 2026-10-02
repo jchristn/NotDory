@@ -5,14 +5,14 @@ namespace Test.Shared
     using System.Data;
     using System.IO;
     using System.Threading.Tasks;
-    using Isis.Core.Database;
-    using Isis.Core.Enums;
-    using Isis.Core.Models;
+    using NotDory.Core.Database;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Models;
     using Microsoft.Data.Sqlite;
     using Touchstone.Core;
 
     /// <summary>
-    /// Touchstone test suite that exercises the Isis database driver contract end to end against an
+    /// Touchstone test suite that exercises the NotDory database driver contract end to end against an
     /// in-process SQLite database. Every case is self-contained: it provisions a fresh, initialized
     /// SQLite driver via <see cref="TempSqlite"/> and asserts positive and negative behaviors.
     /// </summary>
@@ -28,7 +28,7 @@ namespace Test.Shared
         {
             return new Touchstone.Core.TestSuiteDescriptor(
                 "database",
-                "Isis Database Suite",
+                "NotDory Database Suite",
                 new System.Collections.Generic.List<Touchstone.Core.TestCaseDescriptor>
                 {
                     // Tenants
@@ -932,7 +932,7 @@ namespace Test.Shared
             // Stand up a driver on a fresh file, hand-create the OLD model_endpoints schema with a few rows,
             // then run InitializeAsync — which detects the legacy shape, migrates it to baseUrl + typed auth,
             // recreates the table in the new shape, and re-inserts the rows.
-            string file = Path.Combine(Path.GetTempPath(), "isis-mig-" + Guid.NewGuid().ToString("N") + ".db");
+            string file = Path.Combine(Path.GetTempPath(), "notdory-mig-" + Guid.NewGuid().ToString("N") + ".db");
             DatabaseDriverBase db = DatabaseDriverFactory.Create(new DatabaseSettings { Type = DatabaseTypeEnum.Sqlite, Filename = file });
             try
             {
@@ -1024,7 +1024,7 @@ namespace Test.Shared
 
         private static async Task MigrationIdempotentAsync()
         {
-            string file = Path.Combine(Path.GetTempPath(), "isis-mid-" + Guid.NewGuid().ToString("N") + ".db");
+            string file = Path.Combine(Path.GetTempPath(), "notdory-mid-" + Guid.NewGuid().ToString("N") + ".db");
             DatabaseDriverBase db = DatabaseDriverFactory.Create(new DatabaseSettings { Type = DatabaseTypeEnum.Sqlite, Filename = file });
             try
             {
@@ -1054,7 +1054,7 @@ namespace Test.Shared
 
         private static async Task InstructionLegacyMigrationAsync()
         {
-            string file = Path.Combine(Path.GetTempPath(), "isis-imig-" + Guid.NewGuid().ToString("N") + ".db");
+            string file = Path.Combine(Path.GetTempPath(), "notdory-imig-" + Guid.NewGuid().ToString("N") + ".db");
             DatabaseDriverBase db = DatabaseDriverFactory.Create(new DatabaseSettings { Type = DatabaseTypeEnum.Sqlite, Filename = file });
             try
             {

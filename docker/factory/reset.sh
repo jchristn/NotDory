@@ -1,5 +1,5 @@
 #!/bin/sh
-# reset.sh - Reset the Isis docker environment to factory defaults.
+# reset.sh - Reset the NotDory docker environment to factory defaults.
 #
 # Destroys all runtime docker data (Postgres, RecallDB, Prometheus, Tempo, Loki, Alloy, Grafana volumes)
 # and clears local logs, leaving the stack ready for a fresh seeded "docker compose ... up".
@@ -21,10 +21,10 @@ DOCKER_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 echo
 echo "=========================================================="
-echo "  Isis - Reset to Factory Defaults"
+echo "  NotDory - Reset to Factory Defaults"
 echo "=========================================================="
 echo
-echo "WARNING: This is DESTRUCTIVE. All docker volumes (Postgres with the isis"
+echo "WARNING: This is DESTRUCTIVE. All docker volumes (Postgres with the notdory"
 echo "and recalldb databases, RecallDB, and the observability stack) and the"
 echo "local logs directory will be deleted."
 if [ "${NO_OLLAMA}" = "1" ]; then
@@ -47,8 +47,8 @@ if [ "${NO_OLLAMA}" = "1" ]; then
   echo "[1/2] Stopping containers (preserving the Ollama model volume)..."
   docker compose -f compose.yaml -f factory/compose.factory.yaml down 2>/dev/null || true
   docker compose down 2>/dev/null || true
-  # Remove every Isis volume except the Ollama model cache.
-  for v in $(docker volume ls --format '{{.Name}}' | grep -i isis | grep -vi ollama); do
+  # Remove every NotDory volume except the Ollama model cache.
+  for v in $(docker volume ls --format '{{.Name}}' | grep -i notdory | grep -vi ollama); do
     docker volume rm "$v" >/dev/null 2>&1 || true
   done
 else

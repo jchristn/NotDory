@@ -5,7 +5,7 @@ namespace Test.Benchmark.Runners
     using Test.Benchmark.Datasets;
 
     /// <summary>
-    /// A corpus ingested into an Isis scope.
+    /// A corpus ingested into a NotDory scope.
     /// </summary>
     public class ProvisionedScope
     {

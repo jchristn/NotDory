@@ -8,7 +8,7 @@ if "%~1"=="" (
 )
 
 set TAG=%~1
-set IMAGE=jchristn77/isis-mcp
+set IMAGE=jchristn77/notdory-mcp
 
 pushd "%~dp0"
 

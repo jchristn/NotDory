@@ -1,6 +1,6 @@
-# Isis Dashboard
+# NotDory Dashboard
 
-React 19 / Vite 6 management dashboard for the **Isis** agent-memory platform.
+React 19 / Vite 6 management dashboard for the **NotDory** agent-memory platform.
 
 ## Stack
 
@@ -23,7 +23,7 @@ The token is stored in `localStorage` and sent on every request as
 `Authorization: Bearer <token>`. Logging out calls `DELETE /v1.0/api/token` to revoke the
 session.
 
-Local dev defaults: email `admin@isis.local`, password `isisadmin`, tenant `ten_default`,
+Local dev defaults: email `admin@notdory.local`, password `notdoryadmin`, tenant `ten_default`,
 server `http://127.0.0.1:8700`.
 
 ## Scripts

@@ -1,21 +1,21 @@
 #!/bin/sh
-# Isis factory/demo seeder. Runs once from the isis-factory-seed container (curlimages/curl).
+# NotDory factory/demo seeder. Runs once from the notdory-factory-seed container (curlimages/curl).
 # Best-effort: every call is guarded so a route that is not yet implemented is skipped, never fatal.
 #
-# The base stack already seeds the default administrator + tenant on first boot (Isis DefaultSeeder).
+# The base stack already seeds the default administrator + tenant on first boot (NotDory DefaultSeeder).
 # This script layers illustrative memory content on top by creating a demo tenant and printing guidance
 # for applying the full demo seed pack (demo-seedpack.json) from the dashboard.
 #
 # Env (from compose.factory.yaml):
-#   ISIS_REST_BASE   e.g. http://isis-server:8700
-#   ISIS_ADMIN_KEY   platform admin key, sent as x-api-key
+#   NOTDORY_REST_BASE   e.g. http://notdory-server:8700
+#   NOTDORY_ADMIN_KEY   platform admin key, sent as x-api-key
 
 set -u
 
-BASE="${ISIS_REST_BASE:-http://isis-server:8700}"
-ADMIN="${ISIS_ADMIN_KEY:-isisadmin}"
+BASE="${NOTDORY_REST_BASE:-http://notdory-server:8700}"
+ADMIN="${NOTDORY_ADMIN_KEY:-notdoryadmin}"
 
-echo "[seed] Isis factory seeder starting against ${BASE}"
+echo "[seed] NotDory factory seeder starting against ${BASE}"
 
 # 1) Confirm the server is reachable (compose already gated us on the healthcheck, this is belt-and-suspenders).
 if curl -fsS "${BASE}/v1.0/api/health" >/dev/null 2>&1; then
@@ -31,9 +31,9 @@ fi
 #    applied interactively via the dashboard's "Apply seed pack".
 #
 # Tenant creation is system-administrator only; authenticate with the default credential ACCESS KEY
-# seeded on first boot (override with ISIS_AUTH_DEFAULT_ACCESS_KEY). The access key authenticates on its
+# seeded on first boot (override with NOTDORY_AUTH_DEFAULT_ACCESS_KEY). The access key authenticates on its
 # own; the secret key is never sent.
-ACCESS_KEY="${ISIS_AUTH_DEFAULT_ACCESS_KEY:-isisdefaultkey}"
+ACCESS_KEY="${NOTDORY_AUTH_DEFAULT_ACCESS_KEY:-notdorydefaultkey}"
 
 # extract "<key>":"<value>" from a flat-ish JSON blob (first match wins).
 json_field() {

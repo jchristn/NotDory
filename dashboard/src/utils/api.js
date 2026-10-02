@@ -1,7 +1,7 @@
 /**
- * Isis API Client
+ * NotDory API Client
  *
- * A single hand-rolled fetch-based client over the Isis REST API. There is no
+ * A single hand-rolled fetch-based client over the NotDory REST API. There is no
  * axios dependency and no second HTTP abstraction anywhere in the dashboard.
  *
  * Auth model: the dashboard logs in with email + password and receives a
@@ -33,7 +33,7 @@ export class ApiError extends Error {
 }
 
 /**
- * Normalize an Isis enumeration payload into a predictable table shape.
+ * Normalize a NotDory enumeration payload into a predictable table shape.
  * Falls back gracefully if the server returns a bare array.
  */
 export function normalizePaged(payload) {

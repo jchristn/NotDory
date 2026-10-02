@@ -4,10 +4,10 @@ namespace Test.Shared
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using Isis.Core.Enums;
-    using Isis.Core.Models;
-    using Isis.Core.Recall;
-    using Isis.Core.Stores;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Models;
+    using NotDory.Core.Recall;
+    using NotDory.Core.Stores;
     using TextChunker.Tokenization;
     using Touchstone.Core;
 
@@ -28,7 +28,7 @@ namespace Test.Shared
         {
             return new TestSuiteDescriptor(
                 "chunker",
-                "Isis Chunker Suite",
+                "NotDory Chunker Suite",
                 new List<TestCaseDescriptor>
                 {
                     TestCase.Async("chunker", "small-single", "A small body under budget yields a single whole-body chunk", SmallSingleAsync),

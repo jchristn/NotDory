@@ -9,7 +9,7 @@ namespace Test.Benchmark.Runners
     using System.Threading.Tasks;
 
     /// <summary>
-    /// LLM-as-judge for chat answers, called directly against a model endpoint (never through Isis, so the judge is
+    /// LLM-as-judge for chat answers, called directly against a model endpoint (never through NotDory, so the judge is
     /// independent of the system under test). Uses LongMemEval-style yes/no grading against a gold answer.
     /// </summary>
     public class JudgeClient

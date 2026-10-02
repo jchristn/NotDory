@@ -12,13 +12,13 @@ namespace Test.Benchmark.Runners
     using Test.Benchmark.Metrics;
 
     /// <summary>
-    /// Ingests benchmark corpora into Isis scopes. Scope names are deterministic (dataset, corpus, embedding
+    /// Ingests benchmark corpora into NotDory scopes. Scope names are deterministic (dataset, corpus, embedding
     /// configuration, optional suffix), so a later run reuses an already-ingested scope instead of re-embedding it
     /// unless --reingest is passed.
     /// </summary>
     /// <remarks>
     /// A corpus whose documents carry dates is written strictly one document at a time in date order, so each
-    /// memory's write time (which Isis uses as its recency signal) follows the order the facts were recorded.
+    /// memory's write time (which NotDory uses as its recency signal) follows the order the facts were recorded.
     /// Throughput then comes from provisioning several corpora at once (LongMemEval has one corpus per question). A
     /// single undated corpus uses document-level parallelism instead.
     /// </remarks>

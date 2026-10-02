@@ -1,6 +1,6 @@
-# Isis MCP server image (Isis.McpServer, Voltaic 0.6.1 streamable HTTP).
+# NotDory MCP server image (NotDory.McpServer, Voltaic 0.6.1 streamable HTTP).
 # Build context is the repository ROOT (so the whole src/ tree is available for project references).
-#   docker build -f docker/mcp/Dockerfile -t jchristn77/isis-mcp:v0.1.0 .
+#   docker build -f docker/mcp/Dockerfile -t jchristn77/notdory-mcp:v0.1.0 .
 # Or via the root helper: build-mcp.bat v0.1.0
 
 # ---- build stage -------------------------------------------------------------
@@ -8,7 +8,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY src/ ./src/
-RUN dotnet publish src/Isis.McpServer/Isis.McpServer.csproj -c Release -o /app
+RUN dotnet publish src/NotDory.McpServer/NotDory.McpServer.csproj -c Release -o /app
 
 # ---- runtime stage -----------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
@@ -22,7 +22,7 @@ RUN apt-get update \
 COPY --from=build /app ./
 
 # The MCP server takes all of its docker configuration from environment variables
-# (ISIS_MCP_HOSTNAME, ISIS_MCP_PORT, ISIS_MCP_REST_HOSTNAME, ISIS_MCP_REST_PORT); it writes a
-# default isis.mcp.json into the working directory on first load, which is fine (it is writable).
+# (NOTDORY_MCP_HOSTNAME, NOTDORY_MCP_PORT, NOTDORY_MCP_REST_HOSTNAME, NOTDORY_MCP_REST_PORT); it writes a
+# default notdory.mcp.json into the working directory on first load, which is fine (it is writable).
 EXPOSE 8720
-ENTRYPOINT ["dotnet", "Isis.McpServer.dll"]
+ENTRYPOINT ["dotnet", "NotDory.McpServer.dll"]

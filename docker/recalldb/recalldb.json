@@ -8,8 +8,8 @@
     "Hostname": "postgres",
     "Port": 5432,
     "DatabaseName": "recalldb",
-    "Username": "isis",
-    "Password": "isis",
+    "Username": "notdory",
+    "Password": "notdory",
     "Schema": "public",
     "RequireEncryption": false,
     "LogQueries": false

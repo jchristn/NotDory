@@ -3,11 +3,11 @@ namespace Test.Shared
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
-    using Isis.Core.Database;
-    using Isis.Core.Models;
-    using Isis.Core.Security;
-    using Isis.Server.Services;
-    using Isis.Server.Settings;
+    using NotDory.Core.Database;
+    using NotDory.Core.Models;
+    using NotDory.Core.Security;
+    using NotDory.Server.Services;
+    using NotDory.Server.Settings;
     using Touchstone.Core;
 
     /// <summary>
@@ -25,7 +25,7 @@ namespace Test.Shared
         {
             return new TestSuiteDescriptor(
                 "auth",
-                "Isis Auth Suite",
+                "NotDory Auth Suite",
                 new List<TestCaseDescriptor>
                 {
                     TestCase.Sync("auth", "authz-manage-tenants", "Authorization: manage tenants", ManageTenants),
@@ -91,7 +91,7 @@ namespace Test.Shared
 
             User? user = await temp.Db.Users.ReadAsync(DefaultSeeder.DefaultTenantId, DefaultSeeder.DefaultUserId).ConfigureAwait(false);
             TestCase.Require(user != null && user.IsAdmin, "Default admin user should be seeded as a system admin.");
-            TestCase.Require(PasswordHasher.Verify("isisadmin", user!.PasswordSha256), "Default admin user should have the seeded password hash.");
+            TestCase.Require(PasswordHasher.Verify("notdoryadmin", user!.PasswordSha256), "Default admin user should have the seeded password hash.");
 
             Credential? credential = await temp.Db.Credentials.ReadAsync(DefaultSeeder.DefaultTenantId, DefaultSeeder.DefaultCredentialId).ConfigureAwait(false);
             TestCase.Require(credential != null && !string.IsNullOrEmpty(credential!.SecretKey), "Default credential should be seeded with a secret key.");
@@ -139,14 +139,14 @@ namespace Test.Shared
         private static async Task EnumerateByEmailAsync()
         {
             using TempSqlite temp = await TempSqlite.CreateAsync().ConfigureAwait(false);
-            AuthSettings auth = new AuthSettings { SeedAdminEmail = "admin@isis.local", SeedAdminPassword = "pw" };
+            AuthSettings auth = new AuthSettings { SeedAdminEmail = "admin@notdory.local", SeedAdminPassword = "pw" };
             await DefaultSeeder.SeedAsync(temp.Db, auth, _ => { }).ConfigureAwait(false);
 
-            System.Collections.Generic.List<User> found = await temp.Db.Users.EnumerateByEmailAsync("admin@isis.local").ConfigureAwait(false);
+            System.Collections.Generic.List<User> found = await temp.Db.Users.EnumerateByEmailAsync("admin@notdory.local").ConfigureAwait(false);
             TestCase.Require(found.Count == 1, "Exactly one user should match the seeded admin email.");
             TestCase.Require(found[0].TenantId == DefaultSeeder.DefaultTenantId, "The matched user should belong to the default tenant.");
 
-            System.Collections.Generic.List<User> none = await temp.Db.Users.EnumerateByEmailAsync("nobody@isis.local").ConfigureAwait(false);
+            System.Collections.Generic.List<User> none = await temp.Db.Users.EnumerateByEmailAsync("nobody@notdory.local").ConfigureAwait(false);
             TestCase.Require(none.Count == 0, "An unknown email should match no users.");
         }
 

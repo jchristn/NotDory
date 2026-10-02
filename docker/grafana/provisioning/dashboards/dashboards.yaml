@@ -1,14 +1,14 @@
 apiVersion: 1
 
-# Load all Isis dashboards directly into a single top-level "Isis" folder (no subfolders).
+# Load all NotDory dashboards directly into a single top-level "NotDory" folder (no subfolders).
 # foldersFromFilesStructure is off, so every dashboard under the mounted path lands in the `folder` below.
 providers:
-  - name: 'Isis'
+  - name: 'NotDory'
     orgId: 1
-    folder: 'Isis'
+    folder: 'NotDory'
     type: file
     disableDeletion: false
     editable: true
     options:
-      path: /var/lib/grafana/dashboards/isis
+      path: /var/lib/grafana/dashboards/notdory
       foldersFromFilesStructure: false

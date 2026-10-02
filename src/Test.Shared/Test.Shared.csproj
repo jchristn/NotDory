@@ -11,9 +11,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Isis.Core\Isis.Core.csproj" />
-    <ProjectReference Include="..\Isis.Server\Isis.Server.csproj" />
-    <ProjectReference Include="..\Isis.McpServer\Isis.McpServer.csproj" />
+    <ProjectReference Include="..\NotDory.Core\NotDory.Core.csproj" />
+    <ProjectReference Include="..\NotDory.Server\NotDory.Server.csproj" />
+    <ProjectReference Include="..\NotDory.McpServer\NotDory.McpServer.csproj" />
   </ItemGroup>
 
 </Project>

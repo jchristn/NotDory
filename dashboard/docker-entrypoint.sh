@@ -7,7 +7,7 @@ set -eu
 config_path=/usr/share/nginx/html/config.js
 
 {
-  printf 'window.__ISIS_CONFIG__ = {'
+  printf 'window.__NOTDORY_CONFIG__ = {'
   first=1
   emit() {
     key=$1
@@ -20,9 +20,9 @@ config_path=/usr/share/nginx/html/config.js
       first=0
     fi
   }
-  emit serverUrl   "${ISIS_SERVER_URL:-}"
-  emit adminEmail  "${ISIS_ADMIN_EMAIL:-}"
-  emit tenantId    "${ISIS_TENANT_ID:-}"
+  emit serverUrl   "${NOTDORY_SERVER_URL:-}"
+  emit adminEmail  "${NOTDORY_ADMIN_EMAIL:-}"
+  emit tenantId    "${NOTDORY_TENANT_ID:-}"
   printf '};\n'
 } > "$config_path"
 

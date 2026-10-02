@@ -8,7 +8,7 @@ namespace Test.Benchmark.Runners
     using System.Threading.Tasks;
 
     /// <summary>
-    /// Settings and connections shared by every benchmark command: the Isis client, the embedding endpoint the
+    /// Settings and connections shared by every benchmark command: the NotDory client, the embedding endpoint the
     /// benchmark scopes use, the metrics URL, and where results are written.
     /// </summary>
     public class BenchmarkContext : IDisposable
@@ -21,9 +21,9 @@ namespace Test.Benchmark.Runners
         public BenchmarkArguments Arguments { get; }
 
         /// <summary>
-        /// The Isis client.
+        /// The NotDory client.
         /// </summary>
-        public IsisClient Client { get; }
+        public NotDoryClient Client { get; }
 
         /// <summary>
         /// A plain HTTP client for metrics scrapes and direct model calls.
@@ -77,7 +77,7 @@ namespace Test.Benchmark.Runners
         {
             Arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
             string url = arguments.Get("url", "http://127.0.0.1:18700");
-            Client = new IsisClient(url, arguments.Get("access-key", "isisdefaultkey"));
+            Client = new NotDoryClient(url, arguments.Get("access-key", "notdorydefaultkey"));
 
             string metrics = arguments.Get("metrics-url", "http://127.0.0.1:19464/metrics");
             MetricsUrl = string.Equals(metrics, "none", StringComparison.OrdinalIgnoreCase) ? null : metrics;
@@ -90,7 +90,7 @@ namespace Test.Benchmark.Runners
         #region Public-Methods
 
         /// <summary>
-        /// Connect to Isis and create or update the benchmark embedding endpoint.
+        /// Connect to NotDory and create or update the benchmark embedding endpoint.
         /// </summary>
         /// <param name="token">Cancellation token.</param>
         /// <param name="overrides">Optional arguments to read the embedding options from instead of the command line.</param>

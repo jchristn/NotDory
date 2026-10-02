@@ -1577,7 +1577,7 @@ table.data-table {
   white-space: pre-wrap;
 }
 
-/* Retrieval trace: Isis's analog of a tool call — the memories that grounded the answer. */
+/* Retrieval trace: NotDory's analog of a tool call — the memories that grounded the answer. */
 .chat-tool-trace {
   margin-bottom: 0.6rem;
   font-size: var(--font-size-sm);

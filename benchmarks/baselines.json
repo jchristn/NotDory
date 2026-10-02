@@ -33,12 +33,12 @@
       "note": "No comparable published baseline: LongMemEval reports retrieval only for LongMemEval_M, with NDCG@5 and a 1.5B Stella V5 retriever (Wu et al., 2024), and its headline results are question-answering accuracy.",
       "baselines": []
     },
-    "isis-live": {
-      "note": "Written for Isis; no published baseline. Use the history command to compare rounds.",
+    "notdory-live": {
+      "note": "Written for NotDory; no published baseline. Use the history command to compare rounds.",
       "baselines": []
     },
     "atlas": {
-      "note": "Written for Isis; no published baseline. Use the history command to compare rounds.",
+      "note": "Written for NotDory; no published baseline. Use the history command to compare rounds.",
       "baselines": []
     }
   }

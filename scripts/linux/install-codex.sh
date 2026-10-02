@@ -1,13 +1,13 @@
 #!/usr/bin/env sh
-# Connect Codex to the Isis MCP server by adding an 'isis' entry to ~/.codex/config.json.
+# Connect Codex to the NotDory MCP server by adding an 'notdory' entry to ~/.codex/config.json.
 # Authenticates with the credential ACCESS KEY only (x-access-key header); the secret key is never sent.
-# Usage: install-codex.sh [ACCESS_KEY]  (arg #1 overrides ISIS_ACCESS_KEY)
-# Override with ISIS_MCP_URL / ISIS_ACCESS_KEY / ISIS_CODEX_CONFIG.
+# Usage: install-codex.sh [ACCESS_KEY]  (arg #1 overrides NOTDORY_ACCESS_KEY)
+# Override with NOTDORY_MCP_URL / NOTDORY_ACCESS_KEY / NOTDORY_CODEX_CONFIG.
 set -e
 
-URL="${ISIS_MCP_URL:-http://127.0.0.1:8720/mcp}"
-AK="${1:-${ISIS_ACCESS_KEY:-isisdefaultkey}}"
-CONFIG="${ISIS_CODEX_CONFIG:-$HOME/.codex/config.json}"
+URL="${NOTDORY_MCP_URL:-http://127.0.0.1:8720/mcp}"
+AK="${1:-${NOTDORY_ACCESS_KEY:-notdorydefaultkey}}"
+CONFIG="${NOTDORY_CODEX_CONFIG:-$HOME/.codex/config.json}"
 
 command -v python3 >/dev/null 2>&1 || { echo "python3 is required." >&2; exit 1; }
 
@@ -28,9 +28,9 @@ servers = cfg.get("mcpServers")
 if not isinstance(servers, dict):
     servers = {}
     cfg["mcpServers"] = servers
-servers["isis"] = {"type": "http", "url": url, "headers": {"x-access-key": ak}}
+servers["notdory"] = {"type": "http", "url": url, "headers": {"x-access-key": ak}}
 with open(path, "w", encoding="utf-8") as f:
     json.dump(cfg, f, indent=2)
-print("Added 'isis' to " + path)
+print("Added 'notdory' to " + path)
 PY
 echo "Restart Codex to pick up the change."

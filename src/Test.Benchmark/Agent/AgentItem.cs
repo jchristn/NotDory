@@ -18,7 +18,7 @@ namespace Test.Benchmark.Agent
         public string Type { get; set; } = string.Empty;
 
         /// <summary>
-        /// Arm (isis or none).
+        /// Arm (notdory or none).
         /// </summary>
         public string Arm { get; set; } = string.Empty;
 

@@ -1,8 +1,8 @@
-# Isis benchmark results
+# NotDory benchmark results
 
-This page records what the benchmark suite in this directory measured, round by round, and what changed in Isis
-between rounds. The short version: with Isis connected, Claude Code completed 96% of memory-dependent tasks against
-17% without it; chat answers grounded on Isis memories are right 98% of the time on the isis-live questions and it
+This page records what the benchmark suite in this directory measured, round by round, and what changed in NotDory
+between rounds. The short version: with NotDory connected, Claude Code completed 96% of memory-dependent tasks against
+17% without it; chat answers grounded on NotDory memories are right 98% of the time on the notdory-live questions and it
 now declines every unanswerable one; and hybrid retrieval reaches nDCG@10 of 0.81 to 0.91 on the three memory-style
 datasets, or 0.89 to 0.93 with a cross-encoder reranker attached. The weak spots are paraphrase without a reranker,
 questions that need several memories at once, and a relevance score that can say "nothing relevant".
@@ -13,7 +13,7 @@ Every number here comes from the harness described in [README.md](README.md). Ra
 ## Setup
 
 All rounds ran on one laptop: an AMD Ryzen AI 9 HX PRO 370 (12 cores) with a Radeon 890M integrated GPU, on Windows
-11. The stack was isolated: pgvector 0.5.1 on PostgreSQL 15.4, RecallDB 0.2.1, and Isis built from the working tree.
+11. The stack was isolated: pgvector 0.5.1 on PostgreSQL 15.4, RecallDB 0.2.1, and NotDory built from the working tree.
 Embeddings came from a local Ollama `all-minilm` (384 dimensions). Chat answers came from `gemma3:4b`, which also
 served as the judge. A 4B judge is noisy, so read chat accuracy as plus or minus a few points. The agent benchmark
 used Claude Code 2.1.281 with `haiku`.
@@ -25,10 +25,10 @@ Latency and throughput depend on the machine. Compare them within this page, not
 | Round | What changed |
 |---|---|
 | 0 | First baseline, run against the code as it was when the harness was written |
-| 1 | Nine Isis defects fixed (see [Defects found](#defects-found-by-the-benchmarks)); chat grounds on whole chunks instead of 240-character snippets; Voltaic 1.1.0 so Claude Code can see Isis tools; RecallDB patched upstream so keyword search matches any term instead of requiring every term |
+| 1 | Nine NotDory defects fixed (see [Defects found](#defects-found-by-the-benchmarks)); chat grounds on whole chunks instead of 240-character snippets; Voltaic 1.1.0 so Claude Code can see NotDory tools; RecallDB patched upstream so keyword search matches any term instead of requiring every term |
 | 2 | The retrieval improvements in [RETRIEVAL_IMPROVEMENTS.md](../archive/RETRIEVAL_IMPROVEMENTS.md): fused and normalized hybrid scores, a recency signal, chunk headers, deeper chat retrieval, a stricter chat prompt, and update-not-duplicate guidance, plus four ingest robustness fixes found while measuring |
 | 3 | Explicit supersession, optional cross-encoder reranking with a relevance cutoff, link expansion (on in chat), result diversity, similar-memory flags on upsert, and a lookup cache. Reranking, diversity, and the cutoff are off unless configured, so the plain "Round 3" column is the default configuration and "+ rerank" is a scope with a reranker attached |
-| 4 | TextChunker 0.3.1 (span-based chunking, token counts that match the embedding runtime); Isis's chunking workarounds removed and its token margin cut from 4% to 1%; every dataset re-ingested |
+| 4 | TextChunker 0.3.1 (span-based chunking, token counts that match the embedding runtime); NotDory's chunking workarounds removed and its token margin cut from 4% to 1%; every dataset re-ingested |
 | 5 | Chunks default to 75% of the model budget (capped at 256 tokens); retries on 429/502/503 with 503 reported for an endpoint still at capacity; 10 rerank candidates by default; embedding task prefixes; prompted chat-model reranking. Every model call (all-minilm, nomic-embed-text, gemma3:4b) ran on one GPU host instead of the laptop |
 | 6 | Hybrid fusion's RRF constant 60 → 20 after a sweep; embedding model profiles (nomic-embed-text chunks capped at 128 tokens); the cross-encoder seeded and attached to new scopes by the reference stack, with a circuit breaker; multi-query search and query decomposition (measured, off in chat by default); gpt-oss-20b measured as a prompted reranker |
 | 7 | Chat accepts the conversation's earlier messages and rewrites a follow-up into a standalone query before retrieval, searching both; a follow-up question dataset |
@@ -43,7 +43,7 @@ one agents and chat use.
 
 | Dataset | Mode | Round 0 | Round 1 | Round 2 | Round 3 | Round 4 | Round 5 | Round 6 | + rerank | + gpt-oss-20b rerank |
 |---|---|---|---|---|---|---|---|---|---|---|
-| isis-live: 24 real memories, 110 questions | Keyword | 0.073 | 0.817 | 0.814 | 0.814 | 0.807 | 0.812 | | | |
+| notdory-live: 24 real memories, 110 questions | Keyword | 0.073 | 0.817 | 0.814 | 0.814 | 0.807 | 0.812 | | | |
 | | Semantic | 0.844 | 0.844 | 0.843 | 0.843 | 0.848 | 0.826 | | | |
 | | **Hybrid** | 0.848 | 0.859 | 0.877 | 0.877 | 0.883 | 0.879 | 0.878 | 0.925 | **0.974** |
 | Atlas: 170 synthetic memories, 260 questions | Keyword | 0.137 | 0.767 | 0.773 | 0.783 | 0.772 | 0.767 | | | |
@@ -119,7 +119,7 @@ It cannot help when an unrelated memory outranks both versions, which is where t
 
 The optional features that stay off by default, measured on Hybrid:
 
-| Hybrid nDCG@10 | isis-live | Atlas | SciFact | LongMemEval |
+| Hybrid nDCG@10 | notdory-live | Atlas | SciFact | LongMemEval |
 |---|---|---|---|---|
 | Round 3 default | 0.877 | 0.809 | 0.678 | 0.907 |
 | `diversity: 0.3` | 0.877 | 0.798 | 0.670 | **0.918** |
@@ -137,10 +137,10 @@ memories); the flags are prompts for the writer, not decisions.
 
 ### Round 4: TextChunker 0.3.1, and an accidental benefit removed
 
-Round 4 moved to TextChunker 0.3.1 and re-ingested everything. isis-live and SciFact rose slightly; Atlas fell from
+Round 4 moved to TextChunker 0.3.1 and re-ingested everything. notdory-live and SciFact rose slightly; Atlas fell from
 0.809 to 0.802 (detail 0.933 → 0.880, category 0.982 → 0.945, multi 0.810 → 0.783) and LongMemEval from 0.907 to
 0.895. The cause was not a defect in the new chunker. TextChunker 0.2.2 undercounted tokens, so in round 3 Ollama
-rejected a chunk from 53 of Atlas's 80 long memories, and Isis's fallback re-chunked those memories at 75% of the
+rejected a chunk from 53 of Atlas's 80 long memories, and NotDory's fallback re-chunked those memories at 75% of the
 budget. Round 3 had been storing smaller chunks by accident. 0.3.1 counts correctly, every chunk fit the first time,
 and chunks grew from about 190 to about 240 tokens, which diluted details. Re-ingesting Atlas with 190-token chunks
 on purpose scored 0.827; 128-token chunks overshot (0.799). That became round 5's default.
@@ -164,7 +164,7 @@ Three candidates were measured and not adopted:
 
 | Hybrid nDCG@10 | Default (all-minilm) | nomic-embed-text | + ms-marco rerank | + bge-reranker-base | + gemma3:4b as reranker |
 |---|---|---|---|---|---|
-| isis-live | 0.879 | 0.868 | **0.925** | 0.877 | 0.760 |
+| notdory-live | 0.879 | 0.868 | **0.925** | 0.877 | 0.760 |
 | Atlas | 0.831 | 0.813 | **0.880** | 0.859 | 0.631 |
 | SciFact | 0.682 | 0.683 | **0.715** | 0.685 | 0.568 |
 | LongMemEval | 0.912 | 0.866 | **0.931** | 0.920 | 0.764 |
@@ -177,7 +177,7 @@ Three candidates were measured and not adopted:
 - **gemma3:4b prompted as a reranker** lowers every dataset: its 0 to 10 ratings are coarse and miss paraphrases a
   cross-encoder handles, at about 1.4 s per search.
 
-Ten rerank candidates matched twenty (isis-live 0.925 vs 0.924, SciFact 0.715 both, LongMemEval 0.931 vs 0.922, Atlas
+Ten rerank candidates matched twenty (notdory-live 0.925 vs 0.924, SciFact 0.715 both, LongMemEval 0.931 vs 0.922, Atlas
 0.880 vs 0.887) at about 40% less latency (p50 330 to 430 ms instead of 520 to 670 ms on CPU), so 10 is the default.
 
 ### Round 6: fusion, model profiles, and what adding queries costs
@@ -196,7 +196,7 @@ round's main shipped change for these numbers is the fusion constant.
 Both models did best at a text weight of 0.5 with an RRF constant of 20, so 20 became the generic default and no
 model needed its own fusion weights. nomic-embed-text then got its own chunk size from a sweep:
 
-| nomic-embed-text chunk cap | isis-live | Atlas | SciFact | LongMemEval | Mean |
+| nomic-embed-text chunk cap | notdory-live | Atlas | SciFact | LongMemEval | Mean |
 |---|---|---|---|---|---|
 | **128** | **0.881** | 0.803 | **0.704** | **0.917** | **0.826** |
 | 256 (the generic cap) | 0.868 | **0.813** | 0.683 | 0.866 | 0.808 |
@@ -207,7 +207,7 @@ At 128 tokens nomic ties all-minilm on average (0.826 vs 0.827) at twice the vec
 default and nomic's profile carries the 128-token cap.
 
 **gpt-oss-20b as a prompted reranker** is the best ranking measured (table above), and its score is the first signal
-that separates answerable from unanswerable questions well: AUROC 0.991 on isis-live and 0.960 on Atlas, against 0.57
+that separates answerable from unanswerable questions well: AUROC 0.991 on notdory-live and 0.960 on Atlas, against 0.57
 to 0.79 for every earlier score. It costs 6.6 to 10.2 s per search (p50), so it suits an opt-in high-precision mode or
 a check before answering, not the default.
 
@@ -216,30 +216,30 @@ weight with the original) lowered every dataset and chat accuracy:
 
 | | Without | With decomposition |
 |---|---|---|
-| isis-live Hybrid nDCG@10 | 0.879 | 0.844 (multi 0.834 → 0.744) |
+| notdory-live Hybrid nDCG@10 | 0.879 | 0.844 (multi 0.834 → 0.744) |
 | Atlas | 0.831 | 0.764 |
 | SciFact | 0.682 | 0.666 |
 | LongMemEval | 0.912 | 0.901 |
-| Chat answer accuracy (isis-live) | 0.944 | 0.900 |
+| Chat answer accuracy (notdory-live) | 0.944 | 0.900 |
 | Chat latency p50 | 2.2 s | 3.0 s |
 
 The parts displaced memories the original question already ranked well. Chat decomposition is off by default; the
 search options (`additionalQueries`, `decompose`) remain for callers that supply good sub-queries, and any later
 multi-query work will weight the original query above the rest.
 
-Chat on isis-live with round 6's defaults answered 94.4% of answerable questions correctly, declined all 20
+Chat on notdory-live with round 6's defaults answered 94.4% of answerable questions correctly, declined all 20
 unanswerable ones, and had the evidence in the prompt for 99.1%, the same as round 5 within the judge's noise.
 
 ### Round 7: follow-up questions in chat
 
 Chat used to see only the latest message, so a follow-up such as "can I use it today?" was searched as written. Round
 7 lets the caller send the earlier messages; the chat model rewrites the follow-up into a standalone query, retrieval
-searches both forms, and the answer prompt shows the conversation. The new `isis-live-followups` dataset asks 32
-follow-ups over the isis-live memories, each after one earlier exchange: 26 that refer back ("does it compute the
+searches both forms, and the answer prompt shows the conversation. The new `notdory-live-followups` dataset asks 32
+follow-ups over the notdory-live memories, each after one earlier exchange: 26 that refer back ("does it compute the
 embeddings itself?") and 6 that shift topic ("what about the dashboard?"). Both arms send the history to the answer
 model; only the rewrite differs. gemma3:4b, one question at a time.
 
-| isis-live-followups | Rewrite off, 8 memories | Rewrite on, 8 memories | Rewrite off, 3 memories | Rewrite on, 3 memories |
+| notdory-live-followups | Rewrite off, 8 memories | Rewrite on, 8 memories | Rewrite off, 3 memories | Rewrite on, 3 memories |
 |---|---|---|---|---|
 | Evidence reached the prompt | 0.969 | **1.000** | 0.953 | **1.000** |
 | Answer accuracy | 0.938 | 0.938 | 0.969 | **1.000** |
@@ -254,10 +254,10 @@ the 3-memory runs are the more telling ones; a larger corpus would show a larger
 rather than questions ("which four?" became "four provider-neutral DAL drivers"), which still searches well because
 the original question is searched too.
 
-A full round-7 run on RecallDb.Sdk 0.2.2 (isis-live and Atlas re-ingested through the new SDK, SciFact and
+A full round-7 run on RecallDb.Sdk 0.2.2 (notdory-live and Atlas re-ingested through the new SDK, SciFact and
 LongMemEval on their stored scopes) reproduced round 6 on every dataset and question type: Hybrid nDCG@10 0.878,
 0.835, 0.683, and 0.911, with no ingest failures or search errors. Round 7 changed nothing that single-question
-retrieval uses, so that is the expected result. Chat on isis-live matched round 6 as well (accuracy 0.944, every
+retrieval uses, so that is the expected result. Chat on notdory-live matched round 6 as well (accuracy 0.944, every
 unanswerable question declined, evidence in the prompt for 99.1%). On the follow-up set, the rewrite-on
 configuration scored 0.906 on this run against 0.938 on the earlier one, with evidence in the prompt for every question
 both times; the difference is one question, within the 4B judge's noise.
@@ -270,7 +270,7 @@ disappointing, and the reason was the multi-query fusion constant. At the conven
 first and tenth hits differ by only 0.002 in fused score, while the top hit of a 0.3-weight extra query adds 0.005, so
 an extra query could reorder the whole top ten whatever its weight. Weights only work with a smaller constant:
 
-| Hybrid nDCG@10 | isis-live | Atlas | SciFact | LongMemEval | Mean |
+| Hybrid nDCG@10 | notdory-live | Atlas | SciFact | LongMemEval | Mean |
 |---|---|---|---|---|---|
 | Baseline (no extra queries) | 0.878 | 0.835 | 0.683 | 0.911 | 0.827 |
 | Decomposition, weight 1.0, k = 60 (round 6) | 0.844 | 0.764 | 0.666 | 0.901 | 0.794 |
@@ -291,14 +291,14 @@ at k = 5 those drafts can no longer outrank the original query's hits (Atlas con
 smaller dip than the 0.864 at k = 60). The multi-query fusion constant is now `retrieval.queryFusionRrfK`, default 5.
 
 Expansion without a reranker now roughly matches the cross-encoder on SciFact (0.716 vs 0.712) and LongMemEval (0.937
-vs 0.939), but not on the memory-style datasets (isis-live 0.879 vs 0.925, Atlas 0.842 vs 0.883), and it costs a model
+vs 0.939), but not on the memory-style datasets (notdory-live 0.879 vs 0.925, Atlas 0.842 vs 0.883), and it costs a model
 call per search (about 2 s on the GPU host) against 0.3 to 0.4 s for the CPU cross-encoder. Combined with the
 cross-encoder at k = 60 it added nothing. Both expansion and decomposition therefore stay opt-in (`expand`,
 `decompose` on search; `retrieval.chatQueryExpansion` and `retrieval.chatQueryDecomposition` in chat, both off).
 Expansion is the better choice for a scope with an inference endpoint but no reranker.
 
 The full round-8 run on the final defaults reproduced round 7 for single-question retrieval (0.878, 0.835, 0.683,
-0.911; with the cross-encoder 0.925, 0.883, 0.712, 0.939), as expected since that path is unchanged. Chat on isis-live
+0.911; with the cross-encoder 0.925, 0.883, 0.712, 0.939), as expected since that path is unchanged. Chat on notdory-live
 answered 0.989 of answerable questions correctly and declined 19 of 20 unanswerable ones (0.944 and 20 of 20 in round
 7, within the 4B judge's noise). The follow-up set, whose rewrite is fused with the question at the new constant,
 scored 0.969 against 0.906 in round 7, with evidence in the prompt for every question both times.
@@ -309,13 +309,13 @@ Round 9 made the model for each job and the optional query steps scope settings,
 searches that are not reranked (`queryExpansion: Auto`), and moved hybrid search to RecallDB's single call.
 
 **Single-call hybrid** returned the same rankings as the two-call path on every dataset, with and without the
-cross-encoder (isis-live 0.878, Atlas 0.835, SciFact 0.683, LongMemEval 0.911; reranked 0.925, 0.883, 0.712, 0.939).
-Latency is similar on this setup, where Isis and RecallDB share a host and the query embedding call dominates (p50
+cross-encoder (notdory-live 0.878, Atlas 0.835, SciFact 0.683, LongMemEval 0.911; reranked 0.925, 0.883, 0.712, 0.939).
+Latency is similar on this setup, where NotDory and RecallDB share a host and the query embedding call dominates (p50
 107 to 135 ms single call, 94 to 166 ms two calls).
 
 **Expansion by default** did not reproduce round 8 on the agent-memory datasets:
 
-| Hybrid nDCG@10 | isis-live | Atlas | SciFact | LongMemEval |
+| Hybrid nDCG@10 | notdory-live | Atlas | SciFact | LongMemEval |
 |---|---|---|---|---|
 | No expansion | 0.878 | 0.835 | 0.683 | 0.911 |
 | Expansion, round 8 run | 0.879 | 0.842 | 0.716 | 0.937 |
@@ -323,22 +323,22 @@ Latency is similar on this setup, where Isis and RecallDB share a host and the q
 | Mean of the two runs | 0.876 | 0.835 | 0.720 | 0.932 |
 
 gemma3:4b drafts a different answer and keyword list on each run, so a single run moves by about 0.01. Across both
-runs, expansion reliably helps the public datasets (SciFact +0.037, LongMemEval +0.021) and is neutral on isis-live and
-Atlas, the agent-memory datasets. In Keyword and Semantic modes it helped keyword search consistently (isis-live 0.812
+runs, expansion reliably helps the public datasets (SciFact +0.037, LongMemEval +0.021) and is neutral on notdory-live and
+Atlas, the agent-memory datasets. In Keyword and Semantic modes it helped keyword search consistently (notdory-live 0.812
 to 0.836, Atlas 0.767 to 0.780, SciFact 0.594 to 0.614) and left semantic search unchanged. In chat, which already
 places the evidence in the prompt for 99 to 100% of questions, expansion changed nothing measurable except latency:
-p50 2.1 s to 4.1 s on isis-live (accuracy 0.956, every unanswerable question declined) and the follow-up set (accuracy
+p50 2.1 s to 4.1 s on notdory-live (accuracy 0.956, every unanswerable question declined) and the follow-up set (accuracy
 0.938 against 0.969, one question, within the judge's noise).
 
 ### Round 10: a Docker deployment, and chat models as rerankers
 
-Round 10 ran the benchmark against the published Docker images (Isis and RecallDB sharing one Postgres, on a separate
+Round 10 ran the benchmark against the published Docker images (NotDory and RecallDB sharing one Postgres, on a separate
 host), with embeddings, query steps, and reranking on the same GPU host as before.
 
 **The deployment reproduces the local results.** Hybrid nDCG@10 without expansion was 0.875, 0.836, 0.684, and 0.911
 (local 0.878, 0.835, 0.683, 0.911). With the default expansion, the mean of two runs was 0.878, 0.832, 0.721, and 0.934
-(local 0.876, 0.835, 0.720, 0.932), again helping SciFact and LongMemEval and neutral on isis-live and Atlas. Chat
-accuracy was 0.944 on isis-live (every unanswerable question declined) and 0.969 on the follow-up set, within one
+(local 0.876, 0.835, 0.720, 0.932), again helping SciFact and LongMemEval and neutral on notdory-live and Atlas. Chat
+accuracy was 0.944 on notdory-live (every unanswerable question declined) and 0.969 on the follow-up set, within one
 question of local. Search p50 was 130 to 320 ms without expansion and 2.0 to 3.1 s with it.
 
 **Chat models as rerankers.** Round 6 found gpt-oss-20b the best reranker; round 10 repeated it on the deployment
@@ -346,7 +346,7 @@ through the merged endpoint model (any inference endpoint can rerank, a chat mod
 one prompt) and measured which model sizes work. Hybrid nDCG@10, reranking the top 10, expansion off (the default when
 a scope reranks):
 
-| Reranker | isis-live | Atlas | SciFact | LongMemEval | Search p50 |
+| Reranker | notdory-live | Atlas | SciFact | LongMemEval | Search p50 |
 |---|---|---|---|---|---|
 | None | 0.878 | 0.835 | 0.683 | 0.911 | 0.1 to 0.3 s |
 | ms-marco-MiniLM-L-6-v2 cross-encoder (round 9) | 0.925 | 0.883 | 0.712 | 0.939 | 0.6 to 0.9 s (CPU) |
@@ -361,7 +361,7 @@ a scope reranks):
 
 gpt-oss:20b reproduces round 6 within about 0.01 (its ratings vary a little run to run) and stays the best reranker
 measured on every dataset, ahead of the cross-encoder by 0.03 to 0.05 and of no reranking by 0.04 to 0.10; on
-isis-live it helped 25 queries and hurt 2. Rating by prompt needs a capable model: gemma3:12b
+notdory-live it helped 25 queries and hurt 2. Rating by prompt needs a capable model: gemma3:12b
 matches the cross-encoder, and models of 7B and below rate too coarsely to help (gemma3:4b rated its top candidate 9 or
 10 for 75 of 110 queries and hurt 41 of them). Thinking models pay for their reasoning in latency; qwen3:8b thought
 long enough on ten passages that its calls timed out, and after the first failure the reranker cool-down returned
@@ -369,9 +369,9 @@ retrieval order. Chat-model reranking costs seconds per search, which suits reca
 is already about 4 s) more than interactive search; a GPU cross-encoder stays the low-latency option.
 
 **Turning thinking down.** Each endpoint's `reasoning` setting (through PolyPrompt 2.7.1) sets how much a reasoning
-model thinks on Isis's calls. Hybrid nDCG@10, reranking the top 10, on the local stack against the same GPU host:
+model thinks on NotDory's calls. Hybrid nDCG@10, reranking the top 10, on the local stack against the same GPU host:
 
-| Reranker and reasoning | isis-live | Atlas | SciFact | LongMemEval | Search p50 |
+| Reranker and reasoning | notdory-live | Atlas | SciFact | LongMemEval | Search p50 |
 |---|---|---|---|---|---|
 | gpt-oss:20b, model default (above) | 0.977 | 0.921 | 0.738 | 0.948 | 6 to 11 s |
 | **gpt-oss:20b, Low** | **0.962** | **0.917** | **0.717** | **0.947** | **1.8 to 2.3 s** |
@@ -402,47 +402,47 @@ The recency weight was chosen by sweeping it on all four datasets, reusing the s
 | Atlas overall | 0.806 | 0.805 | 0.803 | 0.804 | 0.803 |
 | Atlas, superseded facts only | 0.703 | 0.722 | 0.722 | **0.777** | 0.814 |
 | LongMemEval | 0.906 | 0.909 | 0.909 | 0.909 | 0.911 |
-| isis-live (undated) | 0.872 | 0.880 | 0.876 | 0.873 | 0.856 |
+| notdory-live (undated) | 0.872 | 0.880 | 0.876 | 0.873 | 0.856 |
 | SciFact (bulk import) | 0.693 | 0.685 | 0.682 | 0.680 | 0.658 |
 
 Superseded facts keep improving as the weight rises. Undated and bulk-imported corpora start to pay for it above
-0.1. At 0.1, Isis gets most of the superseded-fact gain for about one point of nDCG on the bulk import.
+0.1. At 0.1, NotDory gets most of the superseded-fact gain for about one point of nDCG on the bulk import.
 
 ### Can a score say "nothing relevant"?
 
 Each dataset includes questions the memories cannot answer. The harness measures how well the top hit's score
 separates answerable from unanswerable questions, as AUROC: 0.5 is a coin flip, 1.0 is a perfect threshold.
 
-| AUROC, Hybrid mode | isis-live | Atlas | LongMemEval |
+| AUROC, Hybrid mode | notdory-live | Atlas | LongMemEval |
 |---|---|---|---|
 | Fused hybrid score | 0.64 | 0.67 | 0.57 |
 | Raw vector similarity (`vectorScore`) | 0.67 | 0.64 | 0.78 |
 | Reranker score (round 3, ms-marco-MiniLM-L-6-v2) | 0.63 | 0.66 | 0.73 |
 
 Neither is reliable enough to act as an abstention gate. The fused score is a rank-fusion score, so every query's
-best hit lands near 1.0 whether or not it is relevant. The raw vector similarity, which Isis now returns on every
+best hit lands near 1.0 whether or not it is relevant. The raw vector similarity, which NotDory now returns on every
 hit, is the better signal, and it is usable as a soft filter on LongMemEval.
 
 Round 3 added a reranker with 0..1 scores, and it did not change this picture. The small MS MARCO cross-encoder ranks
-well but scores many conversational, correctly answerable questions near zero. On isis-live, a cutoff that empties the
+well but scores many conversational, correctly answerable questions near zero. On notdory-live, a cutoff that empties the
 results for 30% of unanswerable questions also empties them for 16% of answerable ones; on Atlas, every cutoff
 removes answerable and unanswerable questions at about the same rate. The cutoff (`minRerankScore`) is implemented
 and tested, but it has no default. A larger or better-calibrated reranker is what this would need.
 
 ### Latency
 
-Hybrid search p50 in round 2 was 42 ms on isis-live and Atlas, 38 ms on LongMemEval, and 95 ms on SciFact. SciFact is
+Hybrid search p50 in round 2 was 42 ms on notdory-live and Atlas, 38 ms on LongMemEval, and 95 ms on SciFact. SciFact is
 slower because any-term text matching over 11,000 chunk documents ranks thousands of matches per query; the full-text
 index is used, and the cost is the ranking itself. Round 2 did not change the search path's cost.
 
-In round 3 without a reranker, Hybrid p50 was 33 ms on isis-live, 37 ms on Atlas, 52 ms on LongMemEval, and 89 ms on
+In round 3 without a reranker, Hybrid p50 was 33 ms on notdory-live, 37 ms on Atlas, 52 ms on LongMemEval, and 89 ms on
 SciFact. The supersession lookup adds one indexed query per search, and the lookup cache removes several. The
 reranker is the expensive part: on TEI's CPU image, scoring 20 candidates put p50 at 610 to 870 ms. A GPU-backed
 reranker, fewer candidates (`rerankCandidates`), or shorter passages bring that down.
 
 ## Chat with memory
 
-The isis-live questions, asked through the Isis chat route and graded by an independent model call:
+The notdory-live questions, asked through the NotDory chat route and graded by an independent model call:
 
 | | Round 0 | Round 1 | Round 2 | Round 3 | Round 3 + rerank |
 |---|---|---|---|---|---|
@@ -490,24 +490,24 @@ again within the judge's noise. Its lower latency is the shorter reranked contex
 
 ## Agents over MCP
 
-Claude Code ran 24 tasks whose answers live in the isis-live memories, once with the Isis MCP server connected and once
+Claude Code ran 24 tasks whose answers live in the notdory-live memories, once with the NotDory MCP server connected and once
 with no memory. Each run used an empty directory with all built-in tools disabled, so project facts could only come
-from Isis.
+from NotDory.
 
 | Arm | Round 1 | Round 2 | Mean turns | Mean cost per task |
 |---|---|---|---|---|
-| With Isis | 96% (23/24) | **96%** (23/24) | 3.2 | $0.024 |
+| With NotDory | 96% (23/24) | **96%** (23/24) | 3.2 | $0.024 |
 | No memory | 21% (5/24) | 17% (4/24) | 1.0 | $0.015 |
 
 Before round 1 this benchmark could not run at all. Voltaic 0.6 and 0.7 left out a field the MCP 2026-07-28 revision
-requires, so Claude Code connected to Isis and saw zero tools. The no-memory arm's passes are general-knowledge and
-abstention tasks, which is the expected floor. The single Isis miss answered a "which REST route" question with the
+requires, so Claude Code connected to NotDory and saw zero tools. The no-memory arm's passes are general-knowledge and
+abstention tasks, which is the expected floor. The single NotDory miss answered a "which REST route" question with the
 equivalent MCP tool name.
 
 ## Load
 
 The load test ran in round 1, as a same-conditions A/B against the pre-fix build. Both builds used stub embeddings, so
-it measures Isis and RecallDB without the model. The corpus was 10,000 memories with a 90/10 search and upsert mix.
+it measures NotDory and RecallDB without the model. The corpus was 10,000 memories with a 90/10 search and upsert mix.
 
 | Concurrency | Throughput before → after | Search p50 before → after | Error rate before → after |
 |---|---|---|---|
@@ -533,13 +533,13 @@ test.
 | Round 0 | Exceptions a route didn't catch returned the web server's HTML error page | Clients received an unparseable 500 |
 | Round 0 | A new RecallDB HTTP client for every request, never disposed | Socket exhaustion during long ingests |
 | Round 0 | Chat grounded on 240-character snippets | Accuracy 0.68 |
-| Round 0 | Voltaic MCP responses lacked a field required by the 2026-07-28 revision | Claude Code saw no Isis tools |
-| Round 2 | Collection creation for scopes provisioned in parallel collided in RecallDB, and Isis never recovered | 183 of 2,891 LongMemEval ingests failed |
+| Round 0 | Voltaic MCP responses lacked a field required by the 2026-07-28 revision | Claude Code saw no NotDory tools |
+| Round 2 | Collection creation for scopes provisioned in parallel collided in RecallDB, and NotDory never recovered | 183 of 2,891 LongMemEval ingests failed |
 | Round 2 | A stray invalid Unicode code unit | The whole memory could not be stored |
 | Round 2 | The chunker could split an emoji in half | The whole memory could not be stored |
 | Round 2 | The chunker emitted runs of tiny duplicate tail chunks | 9% of stored chunks on chat sessions were redundant |
 
-Three of these have root causes in libraries Isis depends on, and are worked around in Isis for now:
+Three of these have root causes in libraries NotDory depends on, and are worked around in NotDory for now:
 
 - **RecallDB:** its per-collection index names use only the time component of the collection id, so collections
   created in the same instant collide.
@@ -549,8 +549,8 @@ Three of these have root causes in libraries Isis depends on, and are worked aro
 ## Environment notes
 
 Heavy ingest runs pushed the machine close to its limit of ephemeral ports. Most of the sockets in `TIME_WAIT`
-belonged to Ollama's connections to its own model runner and to the RecallDB and Isis servers closing HTTP
-connections after each response, not to leaked Isis clients. It cost one SciFact document in each of the last two
+belonged to Ollama's connections to its own model runner and to the RecallDB and NotDory servers closing HTTP
+connections after each response, not to leaked NotDory clients. It cost one SciFact document in each of the last two
 rounds. One LongMemEval upsert in the round-2 re-run exceeded the harness's 10-minute timeout during the same kind of
 load, and it did not recur on the final pass (0 of 2,891 failed).
 
@@ -561,7 +561,7 @@ early round 5, slowing ingest by up to 30 times, and the machine ran short of ep
 LongMemEval sessions). Round 5 then moved every model call to a GPU host. Its shared model router refused requests
 at capacity (429) well below the host's real throughput, so round 5 finally ran against the host's Ollama directly,
 bounded at 16 embedding requests in flight (the highest level measured clean). The harness now retries upserts that
-Isis answers with 503, and the benchmark runs from a renamed copy of the harness so that other sessions stopping
+NotDory answers with 503, and the benchmark runs from a renamed copy of the harness so that other sessions stopping
 their own benchmark processes by name do not stop it. Round 6 ran the same way, with reranking, chat, and
 decomposition calls one at a time.
 

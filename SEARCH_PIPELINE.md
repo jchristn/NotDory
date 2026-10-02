@@ -1,6 +1,6 @@
 # Search pipeline
 
-How Isis stores memories for retrieval and finds them again: every component on the write path and the read path, in
+How NotDory stores memories for retrieval and finds them again: every component on the write path and the read path, in
 the order a request meets them, with the reason each step exists, how it is implemented, and where it lives. Measured
 effects come from the benchmark suite ([benchmarks/RESULTS.md](benchmarks/RESULTS.md)); the ranked list of changes
 still to make is in [RETRIEVAL_IMPROVEMENTS.md](archive/RETRIEVAL_IMPROVEMENTS.md).
@@ -21,23 +21,23 @@ still to make is in [RETRIEVAL_IMPROVEMENTS.md](archive/RETRIEVAL_IMPROVEMENTS.m
 
 ## 1. Architecture at a glance
 
-Isis splits responsibility between its own relational database and a pluggable retrieval store:
+NotDory splits responsibility between its own relational database and a pluggable retrieval store:
 
 | Component | Owns | Code |
 |---|---|---|
-| Isis database (SQLite, PostgreSQL, MySQL, or SQL Server) | The memory index: slug, title, summary, full body, category, links, supersession, and the key into the store | `src/Isis.Core/Database` |
-| Retrieval store (`IMemoryStore`) | What search runs over: chunk text, vectors, and labels | `src/Isis.Core/Stores` |
-| RecallDB (the default store) | Chunk documents with embeddings in PostgreSQL and pgvector; vector and full-text search | `src/Isis.Core/Stores/RecallDb` |
-| Model endpoints | Embedding, rerank, and inference models, addressed by base URL with generic authentication | `src/Isis.Core/Recall` |
-| `MemoryService` | The write path and the search pipeline around the store | `src/Isis.Server/Services/MemoryService.cs` |
-| `MemoryChatService` | Chat: builds grounding context from search and asks the inference model | `src/Isis.Server/Services/MemoryChatService.cs` |
+| NotDory database (SQLite, PostgreSQL, MySQL, or SQL Server) | The memory index: slug, title, summary, full body, category, links, supersession, and the key into the store | `src/NotDory.Core/Database` |
+| Retrieval store (`IMemoryStore`) | What search runs over: chunk text, vectors, and labels | `src/NotDory.Core/Stores` |
+| RecallDB (the default store) | Chunk documents with embeddings in PostgreSQL and pgvector; vector and full-text search | `src/NotDory.Core/Stores/RecallDb` |
+| Model endpoints | Embedding, rerank, and inference models, addressed by base URL with generic authentication | `src/NotDory.Core/Recall` |
+| `MemoryService` | The write path and the search pipeline around the store | `src/NotDory.Server/Services/MemoryService.cs` |
+| `MemoryChatService` | Chat: builds grounding context from search and asks the inference model | `src/NotDory.Server/Services/MemoryChatService.cs` |
 
-RecallDB is bring-your-own-vector: it stores and searches vectors but never computes them. Isis computes every
+RecallDB is bring-your-own-vector: it stores and searches vectors but never computes them. NotDory computes every
 embedding through the scope's embedding endpoint and passes the vector in, so the embedding model is a per-scope choice
 and RecallDB stays model-agnostic.
 
 ```
-WRITE   upsert ─► index row (Isis DB) ─► chunk ─► header ─► embed (task prefix) ─► RecallDB documents
+WRITE   upsert ─► index row (NotDory DB) ─► chunk ─► header ─► embed (task prefix) ─► RecallDB documents
                                                                    └─► similar-memory check
 
 READ    query ─► prepare (category, reranker, candidate pool, fusion defaults)
@@ -62,7 +62,7 @@ The surfaces are thin over this pipeline: `POST /v1.0/api/tenants/{tid}/scopes/{
 the memory in place instead of adding a near-duplicate that would later compete with it in search.
 
 **Implementation.** `MemoryService.UpsertAsync` sanitizes the text (invalid surrogate pairs), takes a per-memory lock
-(two writers to the same slug serialize), writes the index row, then writes the store. The full body lives in the Isis
+(two writers to the same slug serialize), writes the index row, then writes the store. The full body lives in the NotDory
 database, so search results can be resolved back to whole memories (section 3.10).
 
 ### 2.2 Chunking
@@ -72,7 +72,7 @@ blurs its details. Chunking keeps every part of a memory searchable. Round 4 sho
 expected: chunks that fill the model window dilute details, and chunks sized for retrieval score better (Atlas 0.802 to
 0.831 when chunks dropped from about 240 to about 190 tokens).
 
-**Implementation.** `MemoryChunker` (`src/Isis.Core/Recall/MemoryChunker.cs`) uses TextChunker with local token
+**Implementation.** `MemoryChunker` (`src/NotDory.Core/Recall/MemoryChunker.cs`) uses TextChunker with local token
 counting, so no model call is needed to size a chunk.
 
 - The budget comes from the embedding endpoint: its `MaxInputTokens`, or, when 0, the model's known limit. A 1% margin
@@ -100,7 +100,7 @@ lexical questions with the cross-encoder).
 
 **Rationale.** One embedding call per chunk, reliably, against endpoints that throttle.
 
-**Implementation.** `EmbeddingService` (`src/Isis.Core/Recall/EmbeddingService.cs`).
+**Implementation.** `EmbeddingService` (`src/NotDory.Core/Recall/EmbeddingService.cs`).
 
 - **Task prefixes.** Models trained with instruction prefixes get them: nomic-embed-text `search_document: ` and
   `search_query: `, e5 `passage: ` and `query: `, and the BGE, mxbai, and snowflake-arctic-embed query prefixes. They
@@ -159,7 +159,7 @@ slow every search.
 
 **Implementation.** The rerank endpoint is the scope's `rerankEndpointId` unless the search sets `rerank: false`. New
 RecallDB scopes attach the tenant's first active cross-encoder (an inference endpoint with the `Tei` or `Cohere` format)
-automatically, never a chat model, and the reference stack seeds one when `ISIS_DEFAULT_RERANK_BASEURL` is set. After a rerank failure, searches skip that endpoint for 30 seconds
+automatically, never a chat model, and the reference stack seeds one when `NOTDORY_DEFAULT_RERANK_BASEURL` is set. After a rerank failure, searches skip that endpoint for 30 seconds
 (`RerankCooldown`) and return retrieval order with a notice. A chat model's unusable reply (no JSON, or the wrong number of
 scores) falls back for that query only and starts no cooldown: it is not an outage, and a search that skips the reranker
 takes about 60 ms, so one miscounted reply once left 240 of 300 SciFact queries unreranked.
@@ -210,7 +210,7 @@ while keywords (including exact identifiers from the question) match the full-te
 
 **Rationale.** Keyword and vector search fail differently: vectors miss exact identifiers and rare terms, full text
 misses paraphrase. Hybrid search runs both and fuses them. RecallDB's combined query treated the text query as a
-required filter, which dropped strong vector matches that shared no keyword with the question, so Isis runs the two
+required filter, which dropped strong vector matches that shared no keyword with the question, so NotDory runs the two
 legs separately.
 
 **Implementation.** `RecallDbMemoryStore.SearchAsync`, `HybridFusion.Fuse`.
@@ -234,7 +234,7 @@ legs separately.
 Semantic and Keyword modes run one leg and skip fusion.
 
 **Single call.** When the RecallDB server reports the `search.hybrid.rrf` and `search.collapse` capabilities (checked
-once per client), steps 1 to 5 run inside RecallDB in one request: Isis sends its text weight, RRF constant, candidate
+once per client), steps 1 to 5 run inside RecallDB in one request: NotDory sends its text weight, RRF constant, candidate
 pool, and recency weight, and RecallDB collapses chunks by the `parentKey` tag. The two paths return the same rankings
 (identical nDCG@10 on all four benchmark datasets); the single call saves a request and the client-side fusion. Older
 servers, a failed call, or `retrieval.serverSideHybrid: false` use the two-call path.
@@ -258,7 +258,7 @@ stage does nothing. The main query's result supplies the effective mode and noti
 **Rationale.** A cross-encoder reads the query and each candidate together, so it judges relevance far better than
 either retrieval leg, at a latency that only allows scoring a short candidate list.
 
-**Implementation.** `RerankService` (`src/Isis.Core/Recall/RerankService.cs`), through PolyPrompt like every other model
+**Implementation.** `RerankService` (`src/NotDory.Core/Recall/RerankService.cs`), through PolyPrompt like every other model
 call (`ModelClientFactory`).
 
 1. `minScore`, if set, drops candidates below the fused score.
@@ -269,9 +269,9 @@ call (`ModelClientFactory`).
    - **Chat models** (`Ollama`, `OpenAI`, `VLlm`, `Gemini`): one prompt at temperature 0 rates every candidate 0 to 10,
      divided by 10. Small models rank
      worse than no reranker (gemma3:4b lowered every dataset); large ones rank best of all (gpt-oss-20b, section 8),
-     at several seconds per search. On isis-live gemma3:12b matched the cross-encoder, phi4:14b and qwen3:14b beat it
+     at several seconds per search. On notdory-live gemma3:12b matched the cross-encoder, phi4:14b and qwen3:14b beat it
      at 13 and 21 s per search, and 7B models made results worse. Set the endpoint's `reasoning` to keep thinking
-     models fast: gpt-oss:20b at `Low` kept 0.962 on isis-live at 2 s, and qwen3 at `Off` matched or beat the
+     models fast: gpt-oss:20b at `Low` kept 0.962 on notdory-live at 2 s, and qwen3 at `Off` matched or beat the
      cross-encoder at 1.3 to 2.8 s (benchmarks/RESULTS.md, round 10).
 3. Hits are reordered by rerank score and carry `rerankScore`. `minRerankScore` (or the scope's `rerankMinScore`) then
    drops hits below it, so a question with no relevant memory can return nothing.
@@ -289,7 +289,7 @@ using word-set overlap as the similarity because it works for every store withou
 
 **Rationale.** Search runs over chunks in the store; callers need current, whole memories.
 
-**Implementation.** `SearchRefiner` (`src/Isis.Server/Services/SearchRefiner.cs`).
+**Implementation.** `SearchRefiner` (`src/NotDory.Server/Services/SearchRefiner.cs`).
 
 1. **Resolve.** Each hit maps back to its memory row by store key, since a slug is only unique per category.
 2. **Supersession** (`superseded`): `Demote` (default) moves a replaced memory to directly after its replacement,
@@ -298,17 +298,17 @@ using word-set overlap as the similarity because it works for every store withou
    Replacement chains are followed to the current memory, and hits carry `supersededBy`.
 3. **Link expansion** (`linkExpansion`, 0 to 10, default 0): memories linked from a result, through `links` or
    `[[slug]]` references in the body, are added directly after it with `linkedFrom`. Off for search because it lowered
-   isis-live nDCG (0.877 to 0.852), on in chat (2) where the extra context helps answers.
+   notdory-live nDCG (0.877 to 0.852), on in chat (2) where the extra context helps answers.
 4. The list is cut to `topK`.
 
 ### 3.11 Per-scope models and query steps
 
-**Rationale.** Which model does which job is a deployment choice, not something Isis should hard-code: a team may
+**Rationale.** Which model does which job is a deployment choice, not something NotDory should hard-code: a team may
 answer chat with a large model but rewrite queries with a small fast one, or rerank with a large chat model where
 precision matters more than latency. `QueryPreparer` puts that in the scope, in the same shape as an assistant's
 settings in AssistantHub.
 
-**Implementation.** `src/Isis.Server/Services/QueryPreparer.cs`, used by both search and chat.
+**Implementation.** `src/NotDory.Server/Services/QueryPreparer.cs`, used by both search and chat.
 
 | Job | Scope field | Resolution |
 |---|---|---|
@@ -393,7 +393,7 @@ not hold the answer.
 
 ## 7. Input validation
 
-Every value that reaches the pipeline is checked where it enters (`InputGuard` in `src/Isis.Core/Helpers`, applied in
+Every value that reaches the pipeline is checked where it enters (`InputGuard` in `src/NotDory.Core/Helpers`, applied in
 model and settings setters): numbers clamp to a valid range with NaN and infinity falling back to the default, text and
 lists over a limit are rejected with 400, null lists become empty, undefined enum values fall back, and request bodies
 over 16 MB are rejected with 413. The limits that matter for search and chat: `queryText` 4,000 characters, at most 8
@@ -402,27 +402,27 @@ additional queries and 8 sub-queries, `tokenBudget` 16 to 20,000, chat `question
 
 ## 8. What each stage is worth
 
-Hybrid nDCG@10 unless noted, from [benchmarks/RESULTS.md](benchmarks/RESULTS.md). isis-live is 24 real memories and
+Hybrid nDCG@10 unless noted, from [benchmarks/RESULTS.md](benchmarks/RESULTS.md). notdory-live is 24 real memories and
 110 questions; Atlas is 170 synthetic memories and 260 questions; SciFact and LongMemEval are public datasets.
 
 | Stage | Evidence |
 |---|---|
 | Keyword search matching any term (RecallDB fix) | SciFact Keyword 0.057 to 0.598; Hybrid improved on every dataset |
-| Hybrid over either leg alone | isis-live 0.878 vs 0.812 Keyword and 0.826 Semantic; SciFact 0.683 vs 0.594 and 0.658 |
-| Round 2 retrieval changes (fused, normalized scores; recency; chunk headers) | isis-live 0.859 to 0.878 |
+| Hybrid over either leg alone | notdory-live 0.878 vs 0.812 Keyword and 0.826 Semantic; SciFact 0.683 vs 0.594 and 0.658 |
+| Round 2 retrieval changes (fused, normalized scores; recency; chunk headers) | notdory-live 0.859 to 0.878 |
 | Retrieval-sized chunks (75% of budget, 256 cap) | Atlas 0.802 to 0.831, LongMemEval 0.895 to 0.912 |
 | RRF constant 20 instead of 60 | Mean over four datasets 0.826 to 0.827 (all-minilm), 0.808 to 0.815 (nomic) |
 | Supersession | Atlas superseded-fact questions 0.718 to 0.876 |
-| Cross-encoder reranker (10 candidates) | isis-live 0.878 to 0.925, Atlas 0.835 to 0.883, SciFact 0.683 to 0.712, LongMemEval 0.911 to 0.939; 0.3 to 0.4 s per search on CPU |
+| Cross-encoder reranker (10 candidates) | notdory-live 0.878 to 0.925, Atlas 0.835 to 0.883, SciFact 0.683 to 0.712, LongMemEval 0.911 to 0.939; 0.3 to 0.4 s per search on CPU |
 | gpt-oss-20b as reranker | 0.974, 0.915, 0.751, 0.959; answerable vs unanswerable AUROC 0.96 to 0.99; 7 to 10 s per search |
 | Whole-chunk chat grounding | Chat accuracy 0.68 to 0.96 |
 | Chat follow-up rewrite | Follow-up set, 3 memories retrieved: evidence in the prompt 0.953 to 1.000, accuracy 0.969 to 1.000 |
 | Decomposition | At full weight and k = 60 lowered every dataset (Atlas 0.831 to 0.764); at weight 0.5 and k = 5 neutral (mean 0.826 vs 0.827); off by default |
-| Expansion (weight 0.5, k = 5), mean of two runs | isis-live 0.878 to 0.876, Atlas 0.835 to 0.835, SciFact 0.683 to 0.720, LongMemEval 0.911 to 0.932; runs differ by about 0.01 because the drafts vary; about 2 s per search; chat latency 2.1 to 4.1 s with no change in evidence reaching the prompt |
+| Expansion (weight 0.5, k = 5), mean of two runs | notdory-live 0.878 to 0.876, Atlas 0.835 to 0.835, SciFact 0.683 to 0.720, LongMemEval 0.911 to 0.932; runs differ by about 0.01 because the drafts vary; about 2 s per search; chat latency 2.1 to 4.1 s with no change in evidence reaching the prompt |
 | Single-call hybrid (RecallDB) | Identical nDCG@10 to the two-call path on all four datasets; similar latency |
 | Multi-query fusion constant 5 instead of 60 | Expansion's Atlas result 0.816 to 0.842, decomposition's mean 0.804 to 0.826 |
 
-SciFact against published results: Isis Hybrid is +0.018 over BM25 and +0.038 over dense all-MiniLM-L6-v2; with the
+SciFact against published results: NotDory Hybrid is +0.018 over BM25 and +0.038 over dense all-MiniLM-L6-v2; with the
 cross-encoder it is +0.024 over BM25 with a cross-encoder.
 
 ---

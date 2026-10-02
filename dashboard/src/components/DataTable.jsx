@@ -36,7 +36,7 @@ function DataTable({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(() => {
     try {
-      const stored = parseInt(localStorage.getItem(`isis_pagesize_${tableId}`), 10);
+      const stored = parseInt(localStorage.getItem(`notdory_pagesize_${tableId}`), 10);
       return Number.isFinite(stored) && stored > 0 ? stored : initialPageSize;
     } catch {
       return initialPageSize;
@@ -45,7 +45,7 @@ function DataTable({
   const [showColumnMenu, setShowColumnMenu] = useState(false);
   const columnMenuRef = useRef(null);
 
-  const storageKey = `isis_cols_${tableId}`;
+  const storageKey = `notdory_cols_${tableId}`;
   const [hiddenColumns, setHiddenColumns] = useState(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
@@ -73,7 +73,7 @@ function DataTable({
     (size) => {
       setPageSize(size);
       try {
-        localStorage.setItem(`isis_pagesize_${tableId}`, String(size));
+        localStorage.setItem(`notdory_pagesize_${tableId}`, String(size));
       } catch {
         /* ignore storage failures */
       }

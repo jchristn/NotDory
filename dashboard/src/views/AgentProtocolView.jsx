@@ -6,7 +6,7 @@ import PageHeader from '../components/PageHeader';
 import StatusBadge from '../components/StatusBadge';
 import { LoadingState } from '../components/States';
 
-// Everything Isis sends a model when an agent connects: the MCP server instructions (placed in the model's system prompt
+// Everything NotDory sends a model when an agent connects: the MCP server instructions (placed in the model's system prompt
 // by agent harnesses, and repeated by session_start) and every tool description. A system administrator can edit each;
 // blank or default text falls back to the built-in version. The MCP server picks up a save within its refresh interval.
 function AgentProtocolView() {

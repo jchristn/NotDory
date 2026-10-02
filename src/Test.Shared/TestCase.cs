@@ -5,7 +5,7 @@ namespace Test.Shared
     using Touchstone.Core;
 
     /// <summary>
-    /// Factory helpers for constructing Touchstone test cases uniformly across the Isis test suites.
+    /// Factory helpers for constructing Touchstone test cases uniformly across the NotDory test suites.
     /// </summary>
     public static class TestCase
     {

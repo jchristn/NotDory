@@ -9,14 +9,14 @@ namespace Test.Shared
     using System.Threading.Tasks;
     using System.Threading;
     using System;
-    using Isis.Core.Database.Migrations;
-    using Isis.Core.Enums;
-    using Isis.Core.Helpers;
-    using Isis.Core.Models;
-    using Isis.Core.Recall;
-    using Isis.Core.Stores.RecallDb;
-    using Isis.Core.Stores;
-    using Isis.Server.Services;
+    using NotDory.Core.Database.Migrations;
+    using NotDory.Core.Enums;
+    using NotDory.Core.Helpers;
+    using NotDory.Core.Models;
+    using NotDory.Core.Recall;
+    using NotDory.Core.Stores.RecallDb;
+    using NotDory.Core.Stores;
+    using NotDory.Server.Services;
     using RecallDb.Sdk;
     using TextChunker.Tokenization;
     using Touchstone.Core;
@@ -39,7 +39,7 @@ namespace Test.Shared
         {
             return new TestSuiteDescriptor(
                 "refinement",
-                "Isis Retrieval Refinement Suite",
+                "NotDory Retrieval Refinement Suite",
                 new List<TestCaseDescriptor>
                 {
                     TestCase.Sync("refinement", "query-new-defaults", "MemorySearchQuery: new options default off, clamp, and survive Clone", QueryNewDefaults),
@@ -112,7 +112,7 @@ namespace Test.Shared
                     TestCase.Sync("refinement", "expander-subqueries", "QueryExpander.ToSubQueries: answer by vector, keywords as text, per search mode", ExpanderSubQueries),
                     TestCase.Async("refinement", "search-sub-query-weight", "Search: weighted sub-queries add results below the main query; weight 0 drops them", SearchSubQueryWeightAsync),
                     TestCase.Sync("refinement", "query-weight-settings", "Query weights: defaults (additional 1.0, expansion 0.5) and validation", QueryWeightSettings),
-                    TestCase.Async("refinement", "server-hybrid-single-call", "RecallDB store: a capable server gets one hybrid call with Isis's fusion settings and collapse", ServerHybridSingleCallAsync),
+                    TestCase.Async("refinement", "server-hybrid-single-call", "RecallDB store: a capable server gets one hybrid call with NotDory's fusion settings and collapse", ServerHybridSingleCallAsync),
                     TestCase.Async("refinement", "server-hybrid-fallbacks", "RecallDB store: no capability, the switch off, or a failed call use the two-call path", ServerHybridFallbacksAsync),
                     TestCase.Async("refinement", "filtered-ef-search", "RecallDB store: a category-filtered vector search widens the HNSW scan only when the server supports it", FilteredEfSearchAsync),
                     TestCase.Async("refinement", "upsert-conflict-retry", "RecallDB store: an upsert that meets a 409 clears the memory's documents and writes once more", UpsertConflictRetryAsync)
@@ -126,7 +126,7 @@ namespace Test.Shared
         private static async Task<FilesystemFixture> FixtureAsync(TempSqlite t, RerankService? rerank = null)
         {
             FilesystemFixture fixture = new FilesystemFixture();
-            fixture.Work = Path.Combine(Path.GetTempPath(), "isis-ref-" + Guid.NewGuid().ToString("N"));
+            fixture.Work = Path.Combine(Path.GetTempPath(), "notdory-ref-" + Guid.NewGuid().ToString("N"));
             Tenant tenant = await t.Db.Tenants.CreateAsync(new Tenant { Name = "Acme" }).ConfigureAwait(false);
             fixture.Scope = await t.Db.Scopes.CreateAsync(new Scope { TenantId = tenant.Id, Name = "proj", StoreProvider = StoreProviderEnum.Filesystem, TargetPath = fixture.Work }).ConfigureAwait(false);
             fixture.Category = await t.Db.Categories.CreateAsync(new Category { TenantId = tenant.Id, ScopeId = fixture.Scope.Id, Name = "notes" }).ConfigureAwait(false);
@@ -174,11 +174,11 @@ namespace Test.Shared
         private static async Task SessionStartInstructionsMigrationAsync()
         {
             using TempSqlite t = await TempSqlite.CreateAsync().ConfigureAwait(false);
-            await DefaultSeeder.SeedAsync(t.Db, new Isis.Server.Settings.AuthSettings(), _ => { }).ConfigureAwait(false);
+            await DefaultSeeder.SeedAsync(t.Db, new NotDory.Server.Settings.AuthSettings(), _ => { }).ConfigureAwait(false);
             List<Instruction> seeded = (await t.Db.Instructions.EnumerateAsync(DefaultSeeder.DefaultTenantId, null, new EnumerationQuery { MaxResults = 100 }).ConfigureAwait(false)).Objects;
             Instruction start = seeded.First(i => i.Name == "Start here");
             Instruction tools = seeded.First(i => i.Name == "Tools");
-            TestCase.Require(start.Content == Isis.Core.Helpers.DefaultInstructionText.StartHere && start.Content.Contains("session_start", StringComparison.Ordinal), "New tenants should be seeded with the session_start text.");
+            TestCase.Require(start.Content == NotDory.Core.Helpers.DefaultInstructionText.StartHere && start.Content.Contains("session_start", StringComparison.Ordinal), "New tenants should be seeded with the session_start text.");
 
             start.Content = Migration011SessionStartInstructions.OriginalStartHere[0].Replace("\n", "\r\n");
             await t.Db.Instructions.UpdateAsync(start).ConfigureAwait(false);
@@ -187,7 +187,7 @@ namespace Test.Shared
 
             await new Migration011SessionStartInstructions().ApplyAsync(t.Db, _ => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
             List<Instruction> after = (await t.Db.Instructions.EnumerateAsync(DefaultSeeder.DefaultTenantId, null, new EnumerationQuery { MaxResults = 100 }).ConfigureAwait(false)).Objects;
-            TestCase.Require(after.First(i => i.Name == "Start here").Content == Isis.Core.Helpers.DefaultInstructionText.StartHere, "An unedited original Start here (any line endings) should be replaced.");
+            TestCase.Require(after.First(i => i.Name == "Start here").Content == NotDory.Core.Helpers.DefaultInstructionText.StartHere, "An unedited original Start here (any line endings) should be replaced.");
             TestCase.Require(after.First(i => i.Name == "Tools").Content == "Our own tool notes.", "An edited instruction should be left alone.");
         }
 
@@ -1057,7 +1057,7 @@ namespace Test.Shared
 
         private static void ConversationRewriteSettings()
         {
-            Isis.Server.Settings.RetrievalSettings settings = new Isis.Server.Settings.RetrievalSettings();
+            NotDory.Server.Settings.RetrievalSettings settings = new NotDory.Server.Settings.RetrievalSettings();
             TestCase.Require(settings.ChatConversationRewrite && settings.ChatHistoryTurns == 6, "Chat conversation rewrite should default on with 6 turns.");
             TestCase.Throws<ArgumentOutOfRangeException>(() => settings.ChatHistoryTurns = 21, "ChatHistoryTurns above 20 should be rejected.");
         }
@@ -1131,7 +1131,7 @@ namespace Test.Shared
 
         private static void QueryWeightSettings()
         {
-            Isis.Server.Settings.RetrievalSettings settings = new Isis.Server.Settings.RetrievalSettings();
+            NotDory.Server.Settings.RetrievalSettings settings = new NotDory.Server.Settings.RetrievalSettings();
             TestCase.Require(settings.AdditionalQueryWeight == 1.0 && settings.ExpansionWeight == 0.5 && settings.QueryExpansion == QueryExpansionModeEnum.Auto, "Defaults should be additional 1.0, expansion 0.5, expansion Auto.");
             TestCase.Require(settings.QueryFusionRrfK == 5 && MemoryService.QueryFusionRrfK == 5, "The multi-query fusion constant should default to 5.");
             TestCase.Throws<ArgumentOutOfRangeException>(() => settings.QueryFusionRrfK = 0, "A query fusion constant below 1 should be rejected.");
@@ -1175,7 +1175,7 @@ namespace Test.Shared
             List<string> searches = handler.Requests.Where(r => r.StartsWith("POST", StringComparison.Ordinal) && r.Contains("/search", StringComparison.Ordinal)).ToList();
             TestCase.Require(searches.Count == 1, "A capable server should get exactly one search call, got " + searches.Count + ".");
             string sent = searches[0];
-            TestCase.Require(sent.Contains("\"RrfK\":20", StringComparison.OrdinalIgnoreCase) && sent.Contains("\"TextWeight\":0.4", StringComparison.OrdinalIgnoreCase) && sent.Contains("\"RecencyWeight\":0.1", StringComparison.OrdinalIgnoreCase), "The call should carry Isis's fusion settings: " + sent);
+            TestCase.Require(sent.Contains("\"RrfK\":20", StringComparison.OrdinalIgnoreCase) && sent.Contains("\"TextWeight\":0.4", StringComparison.OrdinalIgnoreCase) && sent.Contains("\"RecencyWeight\":0.1", StringComparison.OrdinalIgnoreCase), "The call should carry NotDory's fusion settings: " + sent);
             TestCase.Require(sent.Contains("parentKey", StringComparison.Ordinal) && sent.Contains("cat_x", StringComparison.Ordinal), "The call should collapse by parentKey and filter by category: " + sent);
             TestCase.Require(result.EffectiveMode == SearchModeEnum.Hybrid && result.Hits.Count == 2 && result.Hits[0].Slug == "alpha" && result.Hits[0].StoreKey == "mem_a" && result.Hits[0].Title == "Alpha", "Hits should map from the fused documents.");
             TestCase.Require(result.Hits[0].VectorRank == 1 && result.Hits[0].VectorScore == 0.9 && result.Hits[1].VectorScore == null && result.Hits[1].TextRank == 2, "A hit the vector leg did not rank should carry no vector score.");
@@ -1213,7 +1213,7 @@ namespace Test.Shared
                 RecallDbMemoryStore.ServerSideHybrid = true;
             }
 
-            TestCase.Require(new Isis.Server.Settings.RetrievalSettings().ServerSideHybrid, "Server-side hybrid should default on.");
+            TestCase.Require(new NotDory.Server.Settings.RetrievalSettings().ServerSideHybrid, "Server-side hybrid should default on.");
         }
 
         private static async Task FilteredEfSearchAsync()
@@ -1309,9 +1309,9 @@ namespace Test.Shared
             TestCase.Require(query.RrfK == 1, "RrfK should clamp to at least 1.");
             query.TextWeight = 3.0;
             TestCase.Require(query.TextWeight == 1.0, "TextWeight should clamp to 1.");
-            TestCase.Require(Isis.Core.Stores.RecallDb.HybridFusion.DefaultRrfK == 20, "The generic RRF constant should be 20.");
-            TestCase.Throws<ArgumentOutOfRangeException>(() => Isis.Core.Stores.RecallDb.HybridFusion.DefaultRrfK = 0, "A default RRF constant below 1 should be rejected.");
-            TestCase.Require(!new Isis.Server.Settings.RetrievalSettings().QueryDecomposition, "Query decomposition should default to off.");
+            TestCase.Require(NotDory.Core.Stores.RecallDb.HybridFusion.DefaultRrfK == 20, "The generic RRF constant should be 20.");
+            TestCase.Throws<ArgumentOutOfRangeException>(() => NotDory.Core.Stores.RecallDb.HybridFusion.DefaultRrfK = 0, "A default RRF constant below 1 should be rejected.");
+            TestCase.Require(!new NotDory.Server.Settings.RetrievalSettings().QueryDecomposition, "Query decomposition should default to off.");
         }
 
         private static async Task RerankCircuitBreakerAsync()
@@ -1366,15 +1366,15 @@ namespace Test.Shared
         private static async Task SeedRerankEndpointAsync()
         {
             using TempSqlite t = await TempSqlite.CreateAsync().ConfigureAwait(false);
-            await DefaultSeeder.SeedAsync(t.Db, new Isis.Server.Settings.AuthSettings(), _ => { }).ConfigureAwait(false);
+            await DefaultSeeder.SeedAsync(t.Db, new NotDory.Server.Settings.AuthSettings(), _ => { }).ConfigureAwait(false);
             using StubResponseHandler healthy = new StubResponseHandler("{}");
-            string? previous = Environment.GetEnvironmentVariable("ISIS_DEFAULT_RERANK_BASEURL");
+            string? previous = Environment.GetEnvironmentVariable("NOTDORY_DEFAULT_RERANK_BASEURL");
             try
             {
-                Environment.SetEnvironmentVariable("ISIS_DEFAULT_RERANK_BASEURL", null);
+                Environment.SetEnvironmentVariable("NOTDORY_DEFAULT_RERANK_BASEURL", null);
                 TestCase.Require(!await DefaultSeeder.SeedRerankEndpointAsync(t.Db, new HttpClient(healthy), TimeSpan.Zero).ConfigureAwait(false), "Nothing should be seeded without the setting.");
 
-                Environment.SetEnvironmentVariable("ISIS_DEFAULT_RERANK_BASEURL", "http://127.0.0.1:9/");
+                Environment.SetEnvironmentVariable("NOTDORY_DEFAULT_RERANK_BASEURL", "http://127.0.0.1:9/");
                 TestCase.Require(await DefaultSeeder.SeedRerankEndpointAsync(t.Db, new HttpClient(healthy), TimeSpan.Zero).ConfigureAwait(false), "A reachable reranker should be seeded.");
                 EnumerationResult<ModelEndpoint> seeded = await t.Db.ModelEndpoints.EnumerateAsync(DefaultSeeder.DefaultTenantId, EndpointKindEnum.Inference, new EnumerationQuery { MaxResults = 10 }).ConfigureAwait(false);
                 List<ModelEndpoint> crossEncoders = seeded.Objects.Where(e => e.ApiFormat == ApiFormatEnum.Tei).ToList();
@@ -1383,7 +1383,7 @@ namespace Test.Shared
             }
             finally
             {
-                Environment.SetEnvironmentVariable("ISIS_DEFAULT_RERANK_BASEURL", previous);
+                Environment.SetEnvironmentVariable("NOTDORY_DEFAULT_RERANK_BASEURL", previous);
             }
         }
 

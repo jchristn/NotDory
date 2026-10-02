@@ -86,7 +86,7 @@ function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <img src="/logo.png" alt="Isis" />
+          <img src="/logo.png" alt="NotDory" />
           <div>
             <div className="brand-name">{t('app.name')}</div>
             <div className="brand-tag">{t('app.tagline')}</div>

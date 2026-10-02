@@ -1,35 +1,35 @@
-> **This document is meant to be pasted into the Gemini CLI's system prompt or project instructions.** It gives Gemini everything it needs to connect to and use the Isis agent-memory platform. Copy the contents below into your Gemini configuration.
+> **This document is meant to be pasted into the Gemini CLI's system prompt or project instructions.** It gives Gemini everything it needs to connect to and use the NotDory agent-memory platform. Copy the contents below into your Gemini configuration.
 
 ---
 
-## Connecting Gemini to Isis over MCP
+## Connecting Gemini to NotDory over MCP
 
-Isis serves the modern **MCP Streamable HTTP + SSE** transport at `http://127.0.0.1:8720/mcp`. Every request authenticates with a single header: `x-access-key` (a credential access key, default `isisdefaultkey`). The access key alone identifies a tenant credential and scopes the connection to its tenant. The secret key is never sent by Gemini. Because the access key authenticates on its own, treat it as a **capability token** and prefer a least-privilege credential. Change the default before exposing Isis outside a trusted local environment.
+NotDory serves the modern **MCP Streamable HTTP + SSE** transport at `http://127.0.0.1:8720/mcp`. Every request authenticates with a single header: `x-access-key` (a credential access key, default `notdorydefaultkey`). The access key alone identifies a tenant credential and scopes the connection to its tenant. The secret key is never sent by Gemini. Because the access key authenticates on its own, treat it as a **capability token** and prefer a least-privilege credential. Change the default before exposing NotDory outside a trusted local environment.
 
 ### Config file -- `~/.gemini/settings.json`
 
-The Gemini CLI reads its MCP servers from `~/.gemini/settings.json` (global) or `.gemini/settings.json` (per project). Add an `isis` entry under `mcpServers`. The Gemini CLI addresses streamable-HTTP servers with the `httpUrl` field and carries auth in `headers`:
+The Gemini CLI reads its MCP servers from `~/.gemini/settings.json` (global) or `.gemini/settings.json` (per project). Add a `notdory` entry under `mcpServers`. The Gemini CLI addresses streamable-HTTP servers with the `httpUrl` field and carries auth in `headers`:
 
 ```json
 {
   "mcpServers": {
-    "isis": {
+    "notdory": {
       "httpUrl": "http://127.0.0.1:8720/mcp",
       "headers": {
-        "x-access-key": "isisdefaultkey"
+        "x-access-key": "notdorydefaultkey"
       }
     }
   }
 }
 ```
 
-Only the access-key header is required; the secret key is never sent. Restart the Gemini CLI after saving; run `/mcp` in a session to confirm the `isis` server is connected and the 32 Isis tools are listed.
+Only the access-key header is required; the secret key is never sent. Restart the Gemini CLI after saving; run `/mcp` in a session to confirm the `notdory` server is connected and the 32 NotDory tools are listed.
 
 ---
 
-# Isis Memory Instructions
+# NotDory Memory Instructions
 
-You have access to the Isis agent-memory platform via MCP tools. Isis is **not** an orchestrator -- it is durable, shared **memory**. Use it to recall what you (or another agent) learned before, and to record durable facts so the next session does not start from zero. Isis is memory, not a filesystem: read before you write, and prefer summaries before full bodies to conserve tokens.
+You have access to the NotDory agent-memory platform via MCP tools. NotDory is **not** an orchestrator -- it is durable, shared **memory**. Use it to recall what you (or another agent) learned before, and to record durable facts so the next session does not start from zero. NotDory is memory, not a filesystem: read before you write, and prefer summaries before full bodies to conserve tokens.
 
 ## Concepts
 
@@ -57,7 +57,7 @@ Start every session with one call, before planning anything:
 
 ```
 session_start({ project: "<repository or project name>" })
-  -> your scope for the project (created if new), how to use Isis, the scope's categories
+  -> your scope for the project (created if new), how to use NotDory, the scope's categories
      and their instructions, the tenant's standing instructions, and the most recent memories
 ```
 
@@ -129,7 +129,7 @@ Match every write to a category and follow that category's `instructions`. When 
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `session_start` | `project`, `createIfMissing`, `maxMemories` | Start here, once per session: your scope for the project (created if new), how to use Isis, the categories and instructions, and the most recent memories. |
+| `session_start` | `project`, `createIfMissing`, `maxMemories` | Start here, once per session: your scope for the project (created if new), how to use NotDory, the categories and instructions, and the most recent memories. |
 | `whoami` | -- | Show your tenant and principal. Not needed to start: `session_start` returns the same. |
 | `instructions` | `scopeId` | Re-read the tenant's standing memory manual (or a scope's effective instructions); `session_start` already returns them. |
 | `scope_enumerate` | -- | List the memory scopes in a tenant. |
