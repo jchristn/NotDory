@@ -115,7 +115,8 @@ CREATE TABLE IF NOT EXISTS scopes (
     queryendpointid TEXT,
     conversationrewrite INTEGER,
     queryexpansion TEXT,
-    querydecomposition INTEGER
+    querydecomposition INTEGER,
+    filesystemmirror INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS categories (

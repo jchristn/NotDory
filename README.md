@@ -50,8 +50,8 @@ for code ("what lives where", "what this function does", "I did X"), writing, em
   what to remember and recalls it on demand.
 - **Structured, not a blob.** Scopes, categories with instructions, tags, links, and policies give the
   model the *right* context proactively — not just nearest-neighbor chunks.
-- **Pluggable storage per scope.** Choose semantic search (RecallDB), lexical search (Verbex), or
-  git-trackable flat files (Filesystem) on a scope-by-scope basis.
+- **Pluggable storage per scope.** Choose semantic search (RecallDB), git-trackable flat files
+  (Filesystem), or both at once (RecallDB with a filesystem mirror) on a scope-by-scope basis.
 - **Multi-tenant and observable.** Tenants, users, and credentials with RBAC; metrics, traces, and
   logs wired into Grafana/Prometheus/Tempo/Loki out of the box.
 
@@ -72,8 +72,8 @@ for code ("what lives where", "what this function does", "I did X"), writing, em
 - **Agent-managed.** The agent curates its own memory over MCP — no manual data entry.
 - **Right context, proactively.** Category instructions and cross-cutting policies mean the model is
   told *how* to use a memory space, not just handed rows.
-- **Fits your workflow.** Keep memory semantic (RecallDB), lexical (Verbex), or as
-  PR-reviewable markdown that travels inside the repo (Filesystem).
+- **Fits your workflow.** Keep memory semantic (RecallDB), as PR-reviewable markdown that travels
+  inside the repo (Filesystem), or both: semantic search with a markdown copy in the repo.
 
 ## Use cases
 
@@ -205,8 +205,8 @@ Operator/UI  ──REST──▶ nginx ─▶ NotDory.Server (Watson 7.2) ◀─
    an `x-secret-key` is optional and validated only when present. Single-header MCP clients such as Mux
    send just the access key. Admin authority comes from user `IsAdmin` / `IsTenantAdmin` flags. See
    `docs/REST_API.md`.
-3. **Storage is chosen per scope.** A scope binds to RecallDB (semantic/hybrid), Verbex (lexical), or
-   Filesystem (flat files). RecallDB scopes require an embedding endpoint; NotDory computes the vector and
+3. **Storage is chosen per scope.** A scope binds to RecallDB (semantic/hybrid) or Filesystem (flat
+   files), and a RecallDB scope can also mirror every memory to the filesystem. RecallDB scopes require an embedding endpoint; NotDory computes the vector and
    passes it to RecallDB. A scope's embedding model and dimension are fixed at creation — changing them
    means a new scope and re-embedding.
 4. **The model gets guidance, not just rows.** Category instructions and cross-cutting policies are
@@ -218,22 +218,30 @@ Operator/UI  ──REST──▶ nginx ─▶ NotDory.Server (Watson 7.2) ◀─
 NotDory stores memory through a pluggable `IMemoryStore`, chosen **per scope**. Capabilities differ by
 provider — pick the one that matches what you need:
 
-| Capability | **RecallDB** (default) | **Verbex** (not wired yet) | **Filesystem** |
+| Capability | **RecallDB** (default) | **Filesystem** | **RecallDB + filesystem mirror** |
 |---|:--:|:--:|:--:|
-| System of record for memory content | RecallDB (Postgres) | NotDory database | Flat files at a target path |
-| Keyword / full-text search | ✅ (`ts_rank`) | ✅ (TF-IDF inverted index) | ⚠️ DB-native `LIKE` (or Verbex sidecar) |
-| **Semantic (vector) search** | ✅ | ❌ | ❌ |
-| **Hybrid search** (vector + lexical, weighted) | ✅ | ❌ | ❌ |
-| Requires an embedding model endpoint | ✅ (NotDory computes vectors) | ❌ | ❌ |
-| Label / tag / date filtering | ✅ | ✅ (labels/tags) | ⚠️ metadata-limited |
-| Positional neighbor retrieval | ✅ (`IncludeNeighbors`) | ❌ | ❌ |
-| Runs without Docker | ❌ (needs Postgres + RecallDB) | ⚠️ in-proc mode, or server | ✅ |
-| Git-trackable / PR-reviewable memory | ❌ | ❌ | ✅ (single file or hierarchy) |
-| Travels inside the target repository | ❌ | ❌ | ✅ |
+| System of record for memory content | RecallDB (Postgres) | Flat files at a target path | RecallDB (Postgres) |
+| Keyword / full-text search | ✅ (`ts_rank`) | ⚠️ term matching over the files | ✅ (`ts_rank`) |
+| **Semantic (vector) search** | ✅ | ❌ | ✅ |
+| **Hybrid search** (vector + lexical, weighted) | ✅ | ❌ | ✅ |
+| Requires an embedding model endpoint | ✅ (NotDory computes vectors) | ❌ | ✅ |
+| Label / tag / date filtering | ✅ | ⚠️ metadata-limited | ✅ |
+| Positional neighbor retrieval | ✅ (`IncludeNeighbors`) | ❌ | ✅ |
+| Runs without Docker | ❌ (needs Postgres + RecallDB) | ✅ | ❌ |
+| Git-trackable / PR-reviewable memory | ❌ | ✅ (single file, hierarchy, or OKF bundle) | ✅ (OKF bundle) |
+| Travels inside the target repository | ❌ | ✅ | ✅ (a copy; search uses RecallDB) |
 
-**Only RecallDB provides semantic and hybrid search.** Verbex and Filesystem are keyword/metadata
-only, and the Verbex provider is not wired yet (its searches raise `NotSupported`). **Filesystem** is the choice when you want memory to live *inside* a repository (single file or
-an organized markdown hierarchy) and be reviewed in a pull request.
+**Only RecallDB provides semantic and hybrid search.** **Filesystem** is keyword/metadata only, and is the choice
+when you want memory to live *inside* a repository (single file, an organized markdown hierarchy, or an Open Knowledge
+Format bundle) and be reviewed in a pull request.
+
+**To get both**, create a RecallDB scope with `filesystemMirror: true` and a `targetPath`. Every memory is written to
+RecallDB and, concurrently, to an Open Knowledge Format bundle at `targetPath` (one markdown file per memory with YAML
+frontmatter, plus a generated `index.md`). RecallDB stays the system of record and serves every search; the bundle is
+a git-trackable copy. A write fails if either side fails, so the copy never silently falls behind. Turning the mirror
+on for an existing scope, or changing its `targetPath`, copies the existing memories into the bundle. Deleting the
+scope leaves the files in place. `targetPath` is a directory on the NotDory server host: in Docker, bind-mount the
+repository into the `notdory-server` container and use the path inside the container.
 
 ## Retrieval
 

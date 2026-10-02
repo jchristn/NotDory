@@ -75,7 +75,7 @@ namespace NotDory.Server
         /// <param name="authorizationService">Authorization service.</param>
         /// <param name="memoryService">Memory service.</param>
         /// <param name="log">Optional log callback.</param>
-        /// <param name="storeOptions">Optional external store options (RecallDB/Verbex).</param>
+        /// <param name="storeOptions">Optional external store options (RecallDB).</param>
         /// <param name="settingsFile">Optional settings file path, enabling the server settings routes to persist changes.</param>
         /// <param name="lookupCache">Optional lookup cache shared with the authentication and memory services. Null disables caching in the routes.</param>
         /// <exception cref="ArgumentNullException">Thrown when a required argument is null.</exception>

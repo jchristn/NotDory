@@ -29,6 +29,7 @@ const EMPTY = {
   storeProvider: 'RecallDb',
   filesystemLayout: 'SingleFile',
   targetPath: '',
+  filesystemMirror: false,
   dimensionality: 1536,
   recallCollectionId: '',
   embeddingEndpointId: '',
@@ -56,6 +57,8 @@ function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, inf
     // Nulls from the API would make the inputs uncontrolled.
     return {
       ...merged,
+      targetPath: merged.targetPath || '',
+      filesystemMirror: merged.filesystemMirror === true,
       rerankEndpointId: merged.rerankEndpointId || '',
       rerankMinScore: merged.rerankMinScore ?? '',
       inferenceEndpointId: merged.inferenceEndpointId || '',
@@ -69,9 +72,17 @@ function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, inf
   const [err, setErr] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const editing = Boolean(initial?.id || initial?.Id);
+  // A target path is required for Filesystem scopes' store and for a RecallDb scope's filesystem mirror.
+  const mirror = form.storeProvider === 'RecallDb' && form.filesystemMirror;
+  const usesTargetPath = form.storeProvider === 'Filesystem' || mirror;
+  const missingTargetPath = mirror && !form.targetPath.trim();
 
   const submit = async (e) => {
     e.preventDefault();
+    if (missingTargetPath) {
+      setErr(t('scopes.mirrorPathRequired'));
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -80,7 +91,8 @@ function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, inf
         description: form.description,
         storeProvider: form.storeProvider,
         filesystemLayout: form.storeProvider === 'Filesystem' ? form.filesystemLayout : undefined,
-        targetPath: form.storeProvider === 'Filesystem' ? form.targetPath : undefined,
+        targetPath: usesTargetPath ? form.targetPath.trim() : undefined,
+        filesystemMirror: mirror,
         dimensionality: Number(form.dimensionality) || undefined,
         recallCollectionId: form.recallCollectionId || undefined,
         embeddingEndpointId: form.embeddingEndpointId || undefined,
@@ -116,7 +128,7 @@ function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, inf
           <button className="btn-secondary" onClick={onClose} disabled={busy}>
             {t('common.cancel')}
           </button>
-          <button className="btn-primary" onClick={submit} disabled={busy || !form.name}>
+          <button className="btn-primary" onClick={submit} disabled={busy || !form.name || missingTargetPath}>
             {t('common.save')}
           </button>
         </>
@@ -172,14 +184,43 @@ function ScopeForm({ initial, onSubmit, onClose, endpoints, rerankEndpoints, inf
           </div>
         )}
         {form.storeProvider === 'RecallDb' && (
-          <div className="field">
-            <label>{t('scopes.recallCollection')}</label>
-            <input
-              value={form.recallCollectionId}
-              onChange={(e) => set('recallCollectionId', e.target.value)}
-              placeholder="col_… (leave blank to auto-provision)"
-            />
-          </div>
+          <>
+            <div className="field">
+              <label>{t('scopes.recallCollection')}</label>
+              <input
+                value={form.recallCollectionId}
+                onChange={(e) => set('recallCollectionId', e.target.value)}
+                placeholder="col_… (leave blank to auto-provision)"
+              />
+            </div>
+            <div className="field checkbox-field">
+              <input
+                id="scopeFilesystemMirror"
+                type="checkbox"
+                checked={form.filesystemMirror}
+                onChange={(e) => set('filesystemMirror', e.target.checked)}
+              />
+              <label htmlFor="scopeFilesystemMirror">{t('scopes.filesystemMirror')}</label>
+            </div>
+            <div className="field-hint" style={{ marginTop: 0, marginBottom: 'var(--spacing-sm)' }}>
+              {t('scopes.filesystemMirrorHint')}
+            </div>
+            {form.filesystemMirror && (
+              <div className="field">
+                <label htmlFor="scopeMirrorPath">
+                  {t('scopes.targetPath')} <span className="field-hint">({t('common.required')})</span>
+                </label>
+                <input
+                  id="scopeMirrorPath"
+                  value={form.targetPath}
+                  onChange={(e) => set('targetPath', e.target.value)}
+                  placeholder="/data/memory"
+                  required
+                />
+                <div className="field-hint">{t('scopes.mirrorPathHint')}</div>
+              </div>
+            )}
+          </>
         )}
         <div className="field">
           <label>{t('scopes.embeddingEndpoint')}</label>
@@ -426,7 +467,19 @@ function ScopesView() {
     {
       key: 'storeProvider',
       label: t('scopes.storeProvider'),
-      render: (s) => <StatusBadge tone="info">{s.storeProvider || '—'}</StatusBadge>
+      render: (s) => (
+        <>
+          <StatusBadge tone="info">{s.storeProvider || '—'}</StatusBadge>
+          {s.filesystemMirror && (
+            <>
+              {' '}
+              <StatusBadge tone="success" title={s.targetPath || ''}>
+                {t('scopes.mirrorBadge')}
+              </StatusBadge>
+            </>
+          )}
+        </>
+      )
     },
     { key: 'dimensionality', label: t('scopes.dimensionality'), numeric: true, render: (s) => s.dimensionality ?? '—' },
     {

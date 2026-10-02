@@ -101,7 +101,8 @@ namespace Test.Shared
                     TestCase.Async("rest", "memory-search-empty-query", "POST /memories/search without queryText is a bad request", MemorySearchEmptyQueryAsync),
                     TestCase.Async("rest", "memory-search-invalid-input", "POST /memories/search: null sub-query ignored, oversized query 400, huge token budget clamped", MemorySearchInvalidInputAsync),
                     TestCase.Async("rest", "body-too-large", "A request body over the server's limit is answered 413", BodyTooLargeAsync),
-                    TestCase.Async("rest", "scope-create-verbex-rejected", "POST /scopes with the unwired Verbex provider is a bad request", ScopeCreateVerbexRejectedAsync),
+                    TestCase.Async("rest", "scope-filesystem-mirror", "Scope filesystemMirror is validated, stored, and creates its directory", ScopeFilesystemMirrorAsync),
+                    TestCase.Async("rest", "scope-create-unknown-provider-rejected", "POST /scopes with an unknown store provider (such as the removed Verbex) is a bad request", ScopeCreateUnknownProviderRejectedAsync),
                     TestCase.Async("rest", "scope-models", "POST/PUT /scopes validate and persist the chat and query models and query settings", ScopeModelsAsync),
                     TestCase.Async("rest", "endpoint-invalid-base-url", "Endpoint create, update, and batch create reject a non-http base URL", EndpointInvalidBaseUrlAsync),
                     TestCase.Async("rest", "failure-recorded", "Failed requests are recorded once in request history: a route failure with its exception summary, and a request rejected during authentication", FailureRecordedAsync),
@@ -973,12 +974,52 @@ namespace Test.Shared
             TestCase.Require(root.GetProperty("queryExpansion").GetString() == "On" && !root.GetProperty("conversationRewrite").GetBoolean() && root.GetProperty("queryDecomposition").GetBoolean(), "The query settings should be stored.");
         }
 
-        private static async Task ScopeCreateVerbexRejectedAsync()
+        private static async Task ScopeFilesystemMirrorAsync()
+        {
+            using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
+            using HttpClient admin = h.AdminClient();
+            HttpResponseMessage emb = await PostAsync(admin, EndpointsPath(h.TenantId), new { name = "emb", kind = "Embedding", apiFormat = "Ollama", baseUrl = "http://127.0.0.1:11434", model = "all-minilm", dimensionality = 384 }).ConfigureAwait(false);
+            ExpectStatus(emb, HttpStatusCode.Created, "create embedding endpoint");
+
+            HttpResponseMessage onFilesystem = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "fs-mirror", storeProvider = "Filesystem", targetPath = Path.Combine(h.WorkDir, "fs-mirror"), filesystemMirror = true }).ConfigureAwait(false);
+            ExpectStatus(onFilesystem, HttpStatusCode.BadRequest, "filesystemMirror on a Filesystem scope");
+            HttpResponseMessage noPath = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "no-path", filesystemMirror = true }).ConfigureAwait(false);
+            ExpectStatus(noPath, HttpStatusCode.BadRequest, "filesystemMirror without a targetPath");
+
+            string mirrorDir = Path.Combine(h.WorkDir, "repo", ".notdory");
+            HttpResponseMessage created = await PostAsync(admin, ScopesPath(h.TenantId), new { name = "mirrored", filesystemMirror = true, targetPath = mirrorDir }).ConfigureAwait(false);
+            ExpectStatus(created, HttpStatusCode.Created, "RecallDb scope with a filesystem mirror");
+            Dictionary<string, object?> body = new Dictionary<string, object?>();
+            string scopeId;
+            using (JsonDocument doc = await ReadJsonAsync(created).ConfigureAwait(false))
+            {
+                TestCase.Require(doc.RootElement.GetProperty("filesystemMirror").GetBoolean(), "filesystemMirror should be stored.");
+                scopeId = doc.RootElement.GetProperty("id").GetString()!;
+                foreach (JsonProperty property in doc.RootElement.EnumerateObject()) body[property.Name] = property.Value.Clone();
+            }
+
+            TestCase.Require(Directory.Exists(mirrorDir), "Creating a mirrored scope should create its target directory.");
+
+            body["targetPath"] = null;
+            HttpResponseMessage clearedPath = await PutAsync(admin, ScopesPath(h.TenantId) + "/" + scopeId, body).ConfigureAwait(false);
+            ExpectStatus(clearedPath, HttpStatusCode.BadRequest, "update that keeps the mirror but clears targetPath");
+
+            body["targetPath"] = mirrorDir;
+            body["filesystemMirror"] = false;
+            HttpResponseMessage off = await PutAsync(admin, ScopesPath(h.TenantId) + "/" + scopeId, body).ConfigureAwait(false);
+            ExpectStatus(off, HttpStatusCode.OK, "turn the mirror off");
+            using (JsonDocument doc = await ReadJsonAsync(off).ConfigureAwait(false))
+            {
+                TestCase.Require(!doc.RootElement.GetProperty("filesystemMirror").GetBoolean(), "filesystemMirror should be off after the update.");
+            }
+        }
+
+        private static async Task ScopeCreateUnknownProviderRejectedAsync()
         {
             using ServerHarness h = await ServerHarness.StartAsync().ConfigureAwait(false);
             using HttpClient access = h.AccessClient();
             HttpResponseMessage r = await PostAsync(access, ScopesPath(h.TenantId), new { name = "vx", storeProvider = "Verbex" }).ConfigureAwait(false);
-            ExpectStatus(r, HttpStatusCode.BadRequest, "Verbex scope");
+            ExpectStatus(r, HttpStatusCode.BadRequest, "Unknown store provider");
         }
 
         private static async Task EndpointInvalidBaseUrlAsync()

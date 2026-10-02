@@ -1,6 +1,7 @@
 namespace NotDory.Server.Services
 {
     using System;
+    using System.IO;
     using System.Threading;
     using System.Threading.Tasks;
     using NotDory.Core.Database;
@@ -55,10 +56,6 @@ namespace NotDory.Server.Services
             Scope? conflict = await _Database.Scopes.ReadByNameAsync(tenantId, scope.Name, token).ConfigureAwait(false);
             if (conflict != null) return ScopeProvisionResult.Refused(409, "Conflict", "A scope with that name already exists.");
 
-            // The Verbex provider is not wired yet; a scope created on it would fail on its first search.
-            if (scope.StoreProvider == StoreProviderEnum.Verbex)
-                return ScopeProvisionResult.Refused(400, "BadRequest", "The Verbex store provider is not available yet. Use RecallDb (semantic and keyword search) or Filesystem (keyword-only, git-trackable files).");
-
             if (scope.StoreProvider == StoreProviderEnum.RecallDb)
             {
                 // A minimally specified scope must be usable: adopt the tenant's embedding endpoint and its dimension, and
@@ -93,11 +90,44 @@ namespace NotDory.Server.Services
                     return ScopeProvisionResult.Refused(400, "BadRequest", "The embedding endpoint '" + endpoint.Id + "' has no dimensionality configured; pass 'dimensionality' explicitly (e.g. 384 for all-minilm).");
             }
 
+            string? storageError = ValidateStorage(scope);
+            if (storageError != null) return ScopeProvisionResult.Refused(400, "BadRequest", storageError);
+
             string? endpointError = await ValidateEndpointsAsync(tenantId, scope, token).ConfigureAwait(false);
             if (endpointError != null) return ScopeProvisionResult.Refused(400, "BadRequest", endpointError);
 
             Scope created = await _Database.Scopes.CreateAsync(scope, token).ConfigureAwait(false);
             return ScopeProvisionResult.Created(created);
+        }
+
+        /// <summary>
+        /// Check a scope's filesystem settings: the mirror applies only to RecallDb scopes and needs a target path, and
+        /// that path must be a directory the server can create and write. Creates the directory when it is missing.
+        /// </summary>
+        /// <param name="scope">The scope to check.</param>
+        /// <returns>An error message, or null when the settings are usable.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when scope is null.</exception>
+        public string? ValidateStorage(Scope scope)
+        {
+            if (scope == null) throw new ArgumentNullException(nameof(scope));
+            if (!scope.FilesystemMirror) return null;
+
+            if (scope.StoreProvider != StoreProviderEnum.RecallDb)
+                return "filesystemMirror applies only to RecallDb scopes; a Filesystem scope already writes its memories as files.";
+            if (string.IsNullOrWhiteSpace(scope.TargetPath))
+                return "filesystemMirror needs a targetPath: the directory, on the NotDory server host, that the Open Knowledge Format bundle is written to.";
+
+            try
+            {
+                string full = Path.GetFullPath(scope.TargetPath);
+                if (File.Exists(full)) return "The targetPath '" + scope.TargetPath + "' is a file; the filesystem mirror needs a directory.";
+                Directory.CreateDirectory(full);
+                return null;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is ArgumentException || e is NotSupportedException)
+            {
+                return "The targetPath '" + scope.TargetPath + "' cannot be used for the filesystem mirror: " + e.Message;
+            }
         }
 
         /// <summary>

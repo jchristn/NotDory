@@ -81,8 +81,7 @@ namespace NotDory.Server
             StoreOptions storeOptions = new StoreOptions
             {
                 RecallDbEndpoint = settings.RecallDb.Endpoint,
-                RecallDbAdminKey = settings.RecallDb.AdminApiKey,
-                VerbexEndpoint = settings.Verbex.Endpoint
+                RecallDbAdminKey = settings.RecallDb.AdminApiKey
             };
             RerankService rerankService = new RerankService(new TransientRetryHandler(new SocketsHttpHandler()));
             MemoryService memoryService = new MemoryService(database, embeddingService, storeOptions, lookupCache, rerankService);

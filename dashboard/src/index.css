@@ -264,7 +264,7 @@ button:disabled {
 
 .dashboard-shell {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: var(--topbar-height) 1fr;
   grid-template-areas:
     'sidebar topbar'
@@ -273,7 +273,7 @@ button:disabled {
   overflow: hidden;
 }
 .dashboard-shell.collapsed {
-  grid-template-columns: var(--sidebar-collapsed-width) 1fr;
+  grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
 }
 
 /* ---------- Topbar ---------- */
@@ -458,6 +458,7 @@ button:disabled {
 /* ---------- Main workspace ---------- */
 .workspace {
   grid-area: main;
+  min-width: 0;
   overflow-y: auto;
   padding: var(--spacing-lg) var(--spacing-xl);
 }
@@ -496,6 +497,71 @@ button:disabled {
 }
 .breadcrumbs a {
   color: var(--color-text-secondary);
+}
+
+/* Compact header for a view rendered inside a hub tab (hub shows the title). */
+.page-header.embedded {
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+.page-header.hub-header {
+  margin-bottom: var(--spacing-sm);
+}
+
+/* ---------- Page tabs (tabbed hubs) ---------- */
+.page-tabs {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.page-tabs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--spacing-lg);
+}
+.page-tabs-list {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+.page-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.6rem 1rem;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  margin-bottom: -1px;
+}
+.page-tab:hover {
+  color: var(--color-text);
+}
+.page-tab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+.page-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+.page-tabs-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding-bottom: 0.375rem;
+  flex-shrink: 0;
+}
+.page-tab-panel {
+  min-width: 0;
 }
 
 /* ---------- Cards / KPIs ---------- */
@@ -767,6 +833,16 @@ table.data-table {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
+}
+/* Request history: keep long paths / identifiers on one line with an ellipsis (full value in the title). */
+.cell-truncate.cell-path {
+  max-width: 320px;
+}
+.cell-truncate.cell-narrow {
+  max-width: 180px;
+}
+.data-table td.cell-nowrap {
+  white-space: nowrap;
 }
 /* Clickable badge (e.g. endpoint health) — no button chrome, badge stays interactive. */
 .badge-button {
@@ -1793,7 +1869,7 @@ table.data-table {
 @media (max-width: 820px) {
   .dashboard-shell,
   .dashboard-shell.collapsed {
-    grid-template-columns: var(--sidebar-collapsed-width) 1fr;
+    grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
   }
   .dashboard-shell .nav-label,
   .dashboard-shell .nav-group-label,

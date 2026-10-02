@@ -170,14 +170,59 @@ function RequestHistoryView() {
   };
 
   const columns = [
-    { key: 'createdUtc', label: t('requestHistory.time'), render: (r) => formatDateTime(r.createdUtc, i18n.language), sortValue: (r) => r.createdUtc || '' },
+    {
+      key: 'createdUtc',
+      label: t('requestHistory.time'),
+      cellClass: 'cell-nowrap',
+      render: (r) => formatDateTime(r.createdUtc, i18n.language),
+      sortValue: (r) => r.createdUtc || ''
+    },
     { key: 'method', label: t('requestHistory.method'), width: '90px', render: (r) => <StatusBadge tone="info">{r.method}</StatusBadge> },
-    { key: 'path', label: t('requestHistory.path'), render: (r) => <span className="cell-truncate cell-mono">{r.path}</span> },
+    {
+      key: 'path',
+      label: t('requestHistory.path'),
+      render: (r) => (
+        <span className="cell-truncate cell-mono cell-path" title={r.path || ''}>
+          {r.path}
+        </span>
+      )
+    },
     { key: 'statusCode', label: t('requestHistory.status'), width: '90px', numeric: true, render: (r) => <StatusBadge tone={statusTone(r.statusCode)}>{r.statusCode}</StatusBadge> },
-    { key: 'durationMs', label: t('requestHistory.duration'), numeric: true, render: (r) => `${Math.round(r.durationMs || 0)} ms` },
-    { key: 'principalName', label: t('requestHistory.principal'), render: (r) => r.principalName || '—' },
-    { key: 'tenantId', label: t('settings.tenant'), render: (r) => (r.tenantId ? <CopyableId value={r.tenantId} /> : '—') },
-    { key: 'sourceIp', label: t('requestHistory.sourceIp'), cellClass: 'cell-mono', render: (r) => r.sourceIp || '—' }
+    { key: 'durationMs', label: t('requestHistory.duration'), numeric: true, cellClass: 'cell-nowrap', render: (r) => `${Math.round(r.durationMs || 0)} ms` },
+    // Principal and tenant are off by default to keep the table narrow; "Select Columns" turns them back on.
+    {
+      key: 'principalName',
+      label: t('requestHistory.principal'),
+      defaultHidden: true,
+      render: (r) =>
+        r.principalName ? (
+          <span className="cell-truncate cell-narrow" title={r.principalName}>
+            {r.principalName}
+          </span>
+        ) : (
+          '—'
+        )
+    },
+    {
+      key: 'tenantId',
+      label: t('settings.tenant'),
+      defaultHidden: true,
+      cellClass: 'cell-nowrap',
+      render: (r) => (r.tenantId ? <CopyableId value={r.tenantId} /> : '—')
+    },
+    {
+      key: 'sourceIp',
+      label: t('requestHistory.sourceIp'),
+      cellClass: 'cell-mono',
+      render: (r) =>
+        r.sourceIp ? (
+          <span className="cell-truncate cell-narrow" title={r.sourceIp}>
+            {r.sourceIp}
+          </span>
+        ) : (
+          '—'
+        )
+    }
   ];
 
   const canClear = isAdmin || isTenantAdmin;

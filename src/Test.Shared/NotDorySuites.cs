@@ -45,6 +45,7 @@ namespace Test.Shared
                         Async("sqlite-round-trip", "SQLite round trip", SqliteRoundTripAsync),
                         Async("filesystem-store-search", "Filesystem store search", FilesystemStoreSearchAsync),
                         Async("memory-service-idempotent", "Memory upsert is idempotent by slug", MemoryServiceIdempotentAsync),
+                        Async("mirror-sync-backfills", "Turning on the filesystem mirror backfills existing memories as OKF files", MirrorSyncBackfillsAsync),
                         Async("tenant-isolation", "Tenant isolation on enumeration", TenantIsolationAsync),
                         Sync("store-capabilities", "Store capability descriptors", StoreCapabilities),
                         Async("http-end-to-end", "HTTP end to end (memory lifecycle)", HttpEndToEndAsync),
@@ -221,6 +222,50 @@ namespace Test.Shared
             }
         }
 
+        private static async Task MirrorSyncBackfillsAsync()
+        {
+            string file = Path.Combine(Path.GetTempPath(), "notdory-mirror-" + Guid.NewGuid().ToString("N") + ".db");
+            string work = Path.Combine(Path.GetTempPath(), "notdory-mirror-" + Guid.NewGuid().ToString("N"));
+            string mirror = Path.Combine(Path.GetTempPath(), "notdory-mirror-okf-" + Guid.NewGuid().ToString("N"));
+            DatabaseDriverBase db = DatabaseDriverFactory.Create(new DatabaseSettings { Type = DatabaseTypeEnum.Sqlite, Filename = file });
+            try
+            {
+                await db.InitializeAsync().ConfigureAwait(false);
+                Tenant tenant = await db.Tenants.CreateAsync(new Tenant { Name = "Acme" }).ConfigureAwait(false);
+                Scope scope = await db.Scopes.CreateAsync(new Scope { TenantId = tenant.Id, Name = "proj", StoreProvider = StoreProviderEnum.Filesystem, TargetPath = work }).ConfigureAwait(false);
+                Category category = await db.Categories.CreateAsync(new Category { TenantId = tenant.Id, ScopeId = scope.Id, Name = "notes" }).ConfigureAwait(false);
+                MemoryService service = new MemoryService(db);
+                for (int i = 0; i < 3; i++)
+                {
+                    await service.UpsertAsync(scope, category, new Memory { Slug = "note-" + i, Title = "Note " + i, Body = "body " + i }).ConfigureAwait(false);
+                }
+
+                // The backfill reads bodies from the NotDory database and writes only the mirror, so an unconfigured
+                // RecallDB primary is never touched.
+                scope.StoreProvider = StoreProviderEnum.RecallDb;
+                scope.FilesystemMirror = true;
+                scope.TargetPath = mirror;
+                int written = await service.SyncFilesystemMirrorAsync(scope).ConfigureAwait(false);
+
+                if (written != 3) throw new InvalidOperationException("Expected 3 memories mirrored, got " + written + ".");
+                for (int i = 0; i < 3; i++)
+                {
+                    string path = Path.Combine(mirror, category.Id, "note-" + i + ".md");
+                    if (!File.Exists(path) || !File.ReadAllText(path).Contains("body " + i)) throw new InvalidOperationException("Expected the OKF file " + path + " with its body.");
+                }
+
+                if (!File.Exists(Path.Combine(mirror, "index.md"))) throw new InvalidOperationException("Expected the mirror's index.md.");
+            }
+            finally
+            {
+                db.Dispose();
+                SqliteConnection.ClearAllPools();
+                TryDelete(file);
+                TryDeleteDir(work);
+                TryDeleteDir(mirror);
+            }
+        }
+
         private static async Task TenantIsolationAsync()
         {
             string file = Path.Combine(Path.GetTempPath(), "notdory-iso-" + Guid.NewGuid().ToString("N") + ".db");
@@ -251,10 +296,6 @@ namespace Test.Shared
         {
             IMemoryStore recall = MemoryStoreFactory.Create(StoreProviderEnum.RecallDb);
             if (!recall.Capabilities.SupportsSemantic || !recall.Capabilities.SupportsHybrid || !recall.Capabilities.RequiresEmbedding) throw new InvalidOperationException("RecallDB must advertise semantic + hybrid + embedding.");
-
-            IMemoryStore verbex = MemoryStoreFactory.Create(StoreProviderEnum.Verbex);
-            if (verbex.Capabilities.SupportsSemantic || verbex.Capabilities.SupportsHybrid) throw new InvalidOperationException("Verbex must not advertise semantic or hybrid.");
-            if (!verbex.Capabilities.SupportsKeyword) throw new InvalidOperationException("Verbex must advertise keyword search.");
 
             IMemoryStore fs = MemoryStoreFactory.Create(StoreProviderEnum.Filesystem);
             if (fs.Capabilities.SupportsSemantic || fs.Capabilities.RequiresEmbedding) throw new InvalidOperationException("Filesystem must not advertise semantic or embeddings.");

@@ -1,7 +1,7 @@
 namespace NotDory.Core.Stores
 {
     /// <summary>
-    /// Connection options for the external memory stores (RecallDB, Verbex), supplied when constructing a
+    /// Connection options for the external memory stores (RecallDB), supplied when constructing a
     /// store for a scope.
     /// </summary>
     public class StoreOptions
@@ -17,11 +17,6 @@ namespace NotDory.Core.Stores
         /// The RecallDB admin API key used server-side.
         /// </summary>
         public string? RecallDbAdminKey { get; set; } = null;
-
-        /// <summary>
-        /// The Verbex server endpoint.
-        /// </summary>
-        public string? VerbexEndpoint { get; set; } = null;
 
         #endregion
 

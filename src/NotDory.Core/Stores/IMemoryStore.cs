@@ -7,7 +7,7 @@ namespace NotDory.Core.Stores
 
     /// <summary>
     /// A memory store backend that holds memory content and performs retrieval for a scope. Implementations
-    /// include RecallDB (semantic/hybrid), Verbex (keyword), and the filesystem (flat files).
+    /// are RecallDB (semantic/hybrid) and the filesystem (flat files).
     /// </summary>
     public interface IMemoryStore
     {

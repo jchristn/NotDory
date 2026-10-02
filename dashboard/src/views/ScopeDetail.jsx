@@ -54,7 +54,7 @@ function ScopeDetail() {
         subtitle={scope?.description || t('scopes.detailTitle')}
         breadcrumbs={
           <>
-            <Link to="/dashboard/scopes">{t('scopes.title')}</Link> / {scope?.name || scopeId}
+            <Link to="/dashboard/memory?tab=scopes">{t('scopes.title')}</Link> / {scope?.name || scopeId}
           </>
         }
         actions={
@@ -109,7 +109,22 @@ function ScopeDetail() {
           <dd>{scope?.conversationRewrite == null ? t('scopes.serverDefault') : scope.conversationRewrite ? t('scopes.enabled') : t('scopes.disabled')}</dd>
           <dt>{t('scopes.queryDecomposition')}</dt>
           <dd>{scope?.queryDecomposition == null ? t('scopes.serverDefault') : scope.queryDecomposition ? t('scopes.enabled') : t('scopes.disabled')}</dd>
-          {scope?.targetPath && (
+          {scope?.storeProvider === 'RecallDb' && (
+            <>
+              <dt>{t('scopes.filesystemMirrorLabel')}</dt>
+              <dd>
+                {scope.filesystemMirror ? (
+                  <>
+                    <StatusBadge tone="success">{t('scopes.enabled')}</StatusBadge>{' '}
+                    {scope.targetPath && <span className="cell-mono">{scope.targetPath}</span>}
+                  </>
+                ) : (
+                  <StatusBadge tone="neutral">{t('scopes.disabled')}</StatusBadge>
+                )}
+              </dd>
+            </>
+          )}
+          {scope?.targetPath && scope?.storeProvider !== 'RecallDb' && (
             <>
               <dt>{t('scopes.targetPath')}</dt>
               <dd className="cell-mono">{scope.targetPath}</dd>

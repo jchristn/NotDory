@@ -74,21 +74,6 @@ namespace NotDory.Server.Settings
         }
 
         /// <summary>
-        /// Verbex integration settings.
-        /// </summary>
-        public VerbexSettings Verbex
-        {
-            get
-            {
-                return _Verbex;
-            }
-            set
-            {
-                _Verbex = value ?? new VerbexSettings();
-            }
-        }
-
-        /// <summary>
         /// Authentication settings.
         /// </summary>
         public AuthSettings Auth
@@ -221,7 +206,6 @@ namespace NotDory.Server.Settings
         private RequestHistorySettings _RequestHistory = new RequestHistorySettings();
         private LoggingSettings _Logging = new LoggingSettings();
         private AuthSettings _Auth = new AuthSettings();
-        private VerbexSettings _Verbex = new VerbexSettings();
         private RecallDbSettings _RecallDb = new RecallDbSettings();
         private DatabaseSettings _Database = new DatabaseSettings();
         private RestSettings _Rest = new RestSettings();

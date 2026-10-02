@@ -34,7 +34,6 @@ export const DISCORD_URL = 'https://discord.gg/tRAN8HgvK5';
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 250, 500, 1000];
 export const DEFAULT_PAGE_SIZE = 25;
 
-// Verbex is not wired yet; the server rejects new Verbex scopes.
 export const STORE_PROVIDERS = ['RecallDb', 'Filesystem'];
 
 export const QUERY_EXPANSION_MODES = ['Auto', 'On', 'Off'];

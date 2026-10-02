@@ -116,6 +116,7 @@ IF OBJECT_ID(N'dbo.scopes', N'U') IS NULL CREATE TABLE scopes (
     conversationrewrite INT NULL,
     queryexpansion NVARCHAR(16) NULL,
     querydecomposition INT NULL,
+    filesystemmirror INT NOT NULL DEFAULT 0,
     INDEX uk_scopes_tenant_name UNIQUE (tenantid, name)
 );
 

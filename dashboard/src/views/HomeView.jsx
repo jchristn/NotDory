@@ -98,7 +98,7 @@ function HomeView() {
             <KpiCard
               label={t('home.kpiScopes')}
               value={formatNumber(scopes.length, i18n.language)}
-              onClick={() => navigate('/dashboard/scopes')}
+              onClick={() => navigate('/dashboard/memory?tab=scopes')}
             />
             <KpiCard label={t('home.kpiMemories')} value={formatNumber(totals.memories, i18n.language)} />
             <KpiCard label={t('home.kpiCategories')} value={formatNumber(totals.categories, i18n.language)} />
@@ -107,7 +107,7 @@ function HomeView() {
               value={`${health.healthy}/${health.total}`}
               sub={`${health.unhealthy} ${t('home.unhealthy')}`}
               tone={health.unhealthy > 0 ? 'danger' : 'success'}
-              onClick={() => navigate('/dashboard/endpoints/embedding')}
+              onClick={() => navigate('/dashboard/models?tab=embedding')}
             />
           </div>
 
@@ -131,19 +131,19 @@ function HomeView() {
           <div className="section">
             <div className="section-title">{t('home.quickActions')}</div>
             <div className="tile-grid">
-              <button className="action-tile" onClick={() => navigate('/dashboard/scopes')}>
+              <button className="action-tile" onClick={() => navigate('/dashboard/memory?tab=scopes')}>
                 <span className="tile-title">{t('home.createScope')}</span>
                 <span className="tile-desc">{t('scopes.subtitle')}</span>
               </button>
-              <button className="action-tile" onClick={() => navigate('/dashboard/endpoints/embedding')}>
+              <button className="action-tile" onClick={() => navigate('/dashboard/models?tab=embedding')}>
                 <span className="tile-title">{t('home.addEndpoint')}</span>
                 <span className="tile-desc">{t('endpoints.embeddingSubtitle')}</span>
               </button>
-              <button className="action-tile" onClick={() => navigate('/dashboard/chat')}>
+              <button className="action-tile" onClick={() => navigate('/dashboard/recall?tab=chat')}>
                 <span className="tile-title">{t('home.openChat')}</span>
                 <span className="tile-desc">{t('chat.subtitle')}</span>
               </button>
-              <button className="action-tile" onClick={() => navigate('/dashboard/api-explorer')}>
+              <button className="action-tile" onClick={() => navigate('/dashboard/monitoring?tab=api-explorer')}>
                 <span className="tile-title">{t('home.openExplorer')}</span>
                 <span className="tile-desc">{t('explorer.subtitle')}</span>
               </button>

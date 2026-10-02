@@ -17,7 +17,7 @@ function MemoriesView() {
         subtitle={t('memories.subtitle')}
         breadcrumbs={
           <>
-            <Link to="/dashboard/scopes">{t('scopes.title')}</Link> /{' '}
+            <Link to="/dashboard/memory?tab=scopes">{t('scopes.title')}</Link> /{' '}
             <Link to={`/dashboard/scopes/${scopeId}`}>{scopeId}</Link> / {t('memories.title')}
           </>
         }

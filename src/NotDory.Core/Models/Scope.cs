@@ -235,7 +235,8 @@ namespace NotDory.Core.Models
         }
 
         /// <summary>
-        /// For the filesystem store, the target path where memory files are written.
+        /// For the filesystem store, the target path where memory files are written; for a RecallDb scope with
+        /// <see cref="FilesystemMirror"/> on, the directory the mirror bundle is written to. A path on the server host.
         /// </summary>
         public string? TargetPath
         {
@@ -248,6 +249,13 @@ namespace NotDory.Core.Models
                 _TargetPath = InputGuard.MaxLength(value, 1024, nameof(TargetPath));
             }
         }
+
+        /// <summary>
+        /// For a RecallDb scope, also write every memory to <see cref="TargetPath"/> as an Open Knowledge Format bundle
+        /// (one markdown file per memory plus a generated index.md), concurrently with the RecallDB write. Search still
+        /// runs on RecallDB; the files are a git-trackable copy. Default false.
+        /// </summary>
+        public bool FilesystemMirror { get; set; } = false;
 
         /// <summary>
         /// When memory bodies in this scope are chunked for embedding. Default OnOverflow (only when a body

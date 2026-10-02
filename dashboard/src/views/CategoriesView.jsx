@@ -17,7 +17,7 @@ function CategoriesView() {
         subtitle={t('categories.subtitle')}
         breadcrumbs={
           <>
-            <Link to="/dashboard/scopes">{t('scopes.title')}</Link> /{' '}
+            <Link to="/dashboard/memory?tab=scopes">{t('scopes.title')}</Link> /{' '}
             <Link to={`/dashboard/scopes/${scopeId}`}>{scopeId}</Link> / {t('categories.title')}
           </>
         }

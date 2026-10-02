@@ -11,7 +11,7 @@ import { DEFAULT_PAGE_SIZE } from '../utils/constants';
  * row-click guards. Column selection persists per table via `tableId`.
  *
  * Column shape:
- *   { key, label, render?(item), sortValue?(item), sortable?, pinned?, cellClass?, numeric? }
+ *   { key, label, render?(item), sortValue?(item), sortable?, pinned?, defaultHidden?, cellClass?, numeric? }
  */
 function DataTable({
   columns = [],
@@ -46,11 +46,14 @@ function DataTable({
   const columnMenuRef = useRef(null);
 
   const storageKey = `notdory_cols_${tableId}`;
+  // Columns flagged `defaultHidden` start hidden until the user changes the selection.
   const [hiddenColumns, setHiddenColumns] = useState(() => {
+    const defaults = columns.filter((c) => c.defaultHidden && !c.pinned).map((c) => c.key);
     try {
-      return new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+      const stored = localStorage.getItem(storageKey);
+      return new Set(stored !== null ? JSON.parse(stored) : defaults);
     } catch {
-      return new Set();
+      return new Set(defaults);
     }
   });
 

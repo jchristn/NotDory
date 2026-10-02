@@ -1,75 +1,25 @@
-import { NavLink } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
-import {
-  IconHome, IconLayers, IconTag, IconNote, IconSearch, IconChat,
-  IconCpu, IconDatabase, IconHistory, IconActivity, IconPlay, IconGear, IconUsers, IconKey
-} from './Icons';
-
-const IconBook = IconNote;
+import { NAV_SECTIONS, itemVisible, itemIsActive } from '../config/navConfig';
 
 /**
- * Grouped, workflow-oriented navigation. Administration is only shown to admins
+ * Workflow-ordered navigation rendered from config/navConfig.jsx: Workspace (organize and
+ * recall memory) then Administration. Items gated to admins are hidden for other users
  * (client-side gating is UX only; the server still enforces authorization).
  */
 function Sidebar() {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
   const { isAdmin, isTenantAdmin } = useAuth();
   const { sidebarCollapsed } = useApp();
+  const auth = { isAdmin, isTenantAdmin };
 
-  const groups = [
-    {
-      label: t('nav.groups.memory'),
-      items: [
-        { to: '/dashboard/home', label: t('nav.home'), icon: IconHome },
-        { to: '/dashboard/scopes', label: t('nav.scopes'), icon: IconLayers },
-        { to: '/dashboard/memories', label: t('nav.memories'), icon: IconNote },
-        { to: '/dashboard/instructions', label: t('nav.instructions'), icon: IconBook },
-        { to: '/dashboard/agent-protocol', label: t('nav.agentProtocol'), icon: IconBook }
-      ]
-    },
-    {
-      label: t('nav.groups.recall'),
-      items: [
-        { to: '/dashboard/search', label: t('nav.search'), icon: IconSearch },
-        { to: '/dashboard/chat', label: t('nav.chat'), icon: IconChat }
-      ]
-    },
-    {
-      label: t('nav.groups.inference'),
-      items: [
-        { to: '/dashboard/endpoints/embedding', label: t('nav.embedding'), icon: IconCpu },
-        { to: '/dashboard/endpoints/inference', label: t('nav.inference'), icon: IconCpu }
-      ]
-    },
-    {
-      label: t('nav.groups.collections'),
-      items: [{ to: '/dashboard/collections', label: t('nav.collectionsRecall'), icon: IconDatabase }]
-    },
-    {
-      label: t('nav.groups.observability'),
-      items: [
-        { to: '/dashboard/request-history', label: t('nav.requestHistory'), icon: IconHistory },
-        { to: '/dashboard/operations', label: t('nav.operations'), icon: IconActivity },
-        { to: '/dashboard/api-explorer', label: t('nav.apiExplorer'), icon: IconPlay }
-      ]
-    },
-    {
-      label: t('nav.groups.system'),
-      items: [{ to: '/dashboard/settings', label: t('nav.settings'), icon: IconGear }]
-    }
-  ];
-
-  if (isAdmin || isTenantAdmin) {
-    const adminItems = [{ to: '/dashboard/users', label: t('nav.users'), icon: IconUsers },
-      { to: '/dashboard/credentials', label: t('nav.credentials'), icon: IconKey }];
-    if (isAdmin) adminItems.unshift({ to: '/dashboard/tenants', label: t('nav.tenants'), icon: IconLayers });
-    groups.push({
-      label: t('nav.groups.administration'),
-      items: adminItems
-    });
-  }
+  const sections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => itemVisible(item, auth))
+  })).filter((section) => section.items.length > 0);
 
   return (
     <aside className={`sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
@@ -81,23 +31,26 @@ function Sidebar() {
         </div>
       </div>
       <nav className="sidebar-nav" aria-label="Primary">
-        {groups.map((group) => (
-          <div className="nav-group" key={group.label}>
-            <div className="nav-group-label">{group.label}</div>
-            {group.items.map((item) => {
+        {sections.map((section) => (
+          <div className="nav-group" key={section.key}>
+            <div className="nav-group-label">{t(section.labelKey)}</div>
+            {section.items.map((item) => {
               const Icon = item.icon;
+              const label = t(item.labelKey);
+              const active = itemIsActive(item, pathname);
               return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-                  title={item.label}
+                <Link
+                  key={item.key}
+                  to={item.path}
+                  className={`nav-item${active ? ' active' : ''}`}
+                  aria-current={active ? 'page' : undefined}
+                  title={label}
                 >
                   <span className="nav-icon">
                     <Icon />
                   </span>
-                  <span className="nav-label">{item.label}</span>
-                </NavLink>
+                  <span className="nav-label">{label}</span>
+                </Link>
               );
             })}
           </div>

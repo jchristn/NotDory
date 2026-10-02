@@ -18,7 +18,6 @@
     "endpoint": "http://127.0.0.1:8600",
     "adminApiKey": "override-via-env"
   },
-  "verbex": {},
   "auth": {
     "issuer": "notdory",
     "sessionLifetimeMinutes": 1440,

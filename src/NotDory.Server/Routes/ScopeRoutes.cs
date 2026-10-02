@@ -161,6 +161,13 @@ namespace NotDory.Server.Routes
             update.StoreProvider = existing.StoreProvider;
             update.Dimensionality = existing.Dimensionality;
             update.RecallCollectionId = existing.RecallCollectionId;
+            string? storageError = _Provisioner.ValidateStorage(update);
+            if (storageError != null)
+            {
+                await RouteHelpers.ErrorAsync(context, 400, "BadRequest", storageError).ConfigureAwait(false);
+                return;
+            }
+
             string? rerankError = await _Provisioner.ValidateEndpointsAsync(tenantId, update, context.Token).ConfigureAwait(false);
             if (rerankError != null)
             {
@@ -169,6 +176,12 @@ namespace NotDory.Server.Routes
             }
 
             Scope saved = await _Database.Scopes.UpdateAsync(update, context.Token).ConfigureAwait(false);
+
+            // A mirror turned on, or pointed at a new directory, starts empty: copy the scope's existing memories into it.
+            bool mirrorStarted = saved.FilesystemMirror && saved.StoreProvider == StoreProviderEnum.RecallDb
+                && (!existing.FilesystemMirror || !string.Equals(existing.TargetPath, saved.TargetPath, StringComparison.Ordinal));
+            if (mirrorStarted) await _MemoryService.SyncFilesystemMirrorAsync(saved, context.Token).ConfigureAwait(false);
+
             await RouteHelpers.JsonAsync(context, 200, saved).ConfigureAwait(false);
         }
 

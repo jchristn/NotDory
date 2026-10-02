@@ -121,7 +121,7 @@ revision removed `ping` (it gets `-32601`); probe connectivity with `GET /` inst
 | `scope_enumerate` | `GET .../scopes` | List the memory scopes in a tenant |
 | `scope_create` | `POST .../scopes` | Create a memory scope |
 | `scope_read` | `GET .../scopes/{sid}` | Read a scope by id |
-| `scope_update` | `GET` then `PUT .../scopes/{sid}` | Update a scope's name, description, models, or rerank and query settings, keeping everything else (an empty string clears a model or `queryExpansion`) |
+| `scope_update` | `GET` then `PUT .../scopes/{sid}` | Update a scope's name, description, filesystem mirror (`filesystemMirror`, `targetPath`), models, or rerank and query settings, keeping everything else (an empty string clears a model or `queryExpansion`) |
 | `scope_delete` | `DELETE .../scopes/{sid}` | Delete a scope (cascades categories, memories, scope instructions) |
 | `category_enumerate` | `GET .../categories` | List categories in a scope |
 | `category_create` | `POST .../categories` | Create a category |
@@ -309,11 +309,12 @@ Proxies `POST /v1.0/api/tenants/{tenantId}/scopes`.
 | `tenantId` | string | No | your credential's tenant | Tenant identifier |
 | `name` | string | Yes | n/a | Scope name (for example the project name) |
 | `description` | string | No | null | What the scope holds |
-| `storeProvider` | string | No | server default | Backing store: `RecallDb` or `Filesystem` (`Verbex` is not available yet and is rejected) |
+| `storeProvider` | string | No | server default | Backing store: `RecallDb` or `Filesystem` |
 | `embeddingEndpointId` | string | No | null | Embedding endpoint id for semantic scopes |
 | `dimensionality` | integer | No | null | Embedding vector dimension |
 | `filesystemLayout` | string | No | null | Layout for a `Filesystem` scope: `SingleFile`, `Hierarchy`, or `OkfBundle` |
-| `targetPath` | string | No | null | Root path for a `Filesystem` scope |
+| `targetPath` | string | No | null | Directory on the NotDory server host: the root of a `Filesystem` scope, or where a `RecallDb` scope's filesystem mirror is written |
+| `filesystemMirror` | boolean | No | false | `RecallDb` scopes only: also write every memory, concurrently, to an Open Knowledge Format bundle at `targetPath` (required). Search still uses RecallDB; deleting the scope leaves the files |
 | `chunkingMode` | string | No | `OnOverflow` | When to chunk oversized memory bodies for embedding: `OnOverflow`, `Always`, or `Off` |
 | `chunkStrategy` | string | No | `FixedTokenCount` | Chunk splitting strategy (e.g. `FixedTokenCount`, `SentenceBased`, `ParagraphBased`, `Recursive`) |
 | `chunkMaxTokens` | integer | No | 0 | Per-chunk token budget (0 = use the embedding model's resolved budget) |

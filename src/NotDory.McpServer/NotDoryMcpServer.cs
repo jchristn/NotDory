@@ -565,11 +565,12 @@ namespace NotDory.McpServer
                         tenantId = new { type = "string", description = "Optional: defaults to the tenant of your credential." },
                         name = new { type = "string", description = "Unique scope name within the tenant (e.g. the project name)." },
                         description = new { type = "string" },
-                        storeProvider = new { type = "string", description = "RecallDb or Filesystem (Verbex is not available yet). Defaults to RecallDb." },
+                        storeProvider = new { type = "string", description = "RecallDb or Filesystem. Defaults to RecallDb." },
                         embeddingEndpointId = new { type = "string", description = "Embedding endpoint id for RecallDb semantic scopes." },
                         dimensionality = new { type = "integer", description = "Embedding vector dimension for RecallDb scopes." },
                         filesystemLayout = new { type = "string", description = "SingleFile, Hierarchy, or OkfBundle (Open Knowledge Format), for Filesystem scopes." },
-                        targetPath = new { type = "string", description = "Directory or file path, for Filesystem scopes." },
+                        targetPath = new { type = "string", description = "Directory or file path on the NotDory server host: where a Filesystem scope's files, or a RecallDb scope's filesystem mirror, are written." },
+                        filesystemMirror = new { type = "boolean", description = "RecallDb scopes only: also write every memory to targetPath as an Open Knowledge Format bundle, concurrently with RecallDB; search still uses RecallDB. Requires targetPath. Default false." },
                         chunkingMode = new { type = "string", description = "When to chunk oversized bodies for embedding: OnOverflow (default), Always, or Off." },
                         chunkStrategy = new { type = "string", description = "Chunk splitting strategy, for example FixedTokenCount (default), SentenceBased, ParagraphBased, Recursive." },
                         chunkMaxTokens = new { type = "integer", description = "Per-chunk token budget (0 = the embedding model's budget)." },
@@ -596,6 +597,8 @@ namespace NotDory.McpServer
                     if (dimensionality.HasValue) body["dimensionality"] = dimensionality.Value;
                     if (p?.GetString("filesystemLayout") != null) body["filesystemLayout"] = p.GetString("filesystemLayout");
                     if (p?.GetString("targetPath") != null) body["targetPath"] = p.GetString("targetPath");
+                    bool? filesystemMirror = p?.GetBoolean("filesystemMirror");
+                    if (filesystemMirror.HasValue) body["filesystemMirror"] = filesystemMirror.Value;
                     if (p?.GetString("chunkingMode") != null) body["chunkingMode"] = p.GetString("chunkingMode");
                     if (p?.GetString("chunkStrategy") != null) body["chunkStrategy"] = p.GetString("chunkStrategy");
                     long? chunkMaxTokens = p?.GetInt64("chunkMaxTokens");
@@ -835,6 +838,8 @@ namespace NotDory.McpServer
                         scopeId = new { type = "string" },
                         name = new { type = "string" },
                         description = new { type = "string" },
+                        filesystemMirror = new { type = "boolean", description = "RecallDb scopes only: also write every memory to targetPath as an Open Knowledge Format bundle. Turning it on copies the scope's existing memories into the bundle." },
+                        targetPath = new { type = "string", description = "Directory on the NotDory server host for the filesystem mirror (or a Filesystem scope's files). Changing it while the mirror is on copies existing memories to the new directory." },
                         rerankEndpointId = new { type = "string", description = "Inference endpoint that reranks (a cross-encoder or a chat model), or an empty string to stop reranking." },
                         rerankCandidates = new { type = "integer", description = "Candidates sent to the reranker (1..100)." },
                         rerankMinScore = new { type = "number", description = "Drop reranked hits scoring below this (0..1)." },
@@ -859,6 +864,9 @@ namespace NotDory.McpServer
                     foreach (JsonProperty property in element.EnumerateObject()) body[property.Name] = property.Value;
                     if (p?.GetString("name") != null) body["name"] = p.GetString("name");
                     if (p?.GetString("description") != null) body["description"] = p.GetString("description");
+                    bool? filesystemMirror = p?.GetBoolean("filesystemMirror");
+                    if (filesystemMirror.HasValue) body["filesystemMirror"] = filesystemMirror.Value;
+                    if (p?.GetString("targetPath") != null) body["targetPath"] = p.GetString("targetPath");
                     AddRerankSettings(p, body);
                     AddModelSettings(p, body);
                     return await ProxyAsync(HttpMethod.Put, path, JsonSerializer.Serialize(body), "scope_update", credentials, ct).ConfigureAwait(false);

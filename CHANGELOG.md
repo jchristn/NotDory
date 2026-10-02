@@ -7,6 +7,26 @@ All notable changes to NotDory are documented here. This project adheres to
 
 ### Added
 
+- **Filesystem mirror for RecallDB scopes.** A RecallDb scope with `filesystemMirror: true` and a `targetPath` writes
+  every memory to RecallDB and, concurrently, to an Open Knowledge Format bundle in that directory (one markdown file per
+  memory with YAML frontmatter, plus a generated `index.md`), so a project gets semantic search and a git-trackable copy
+  of its memory in the repository. RecallDB stays the system of record and serves every search and chat; a write fails if
+  either side fails; mirror writes to one directory are serialized so `index.md` stays complete. Turning the mirror on
+  (or changing its `targetPath`) copies the scope's existing memories into the bundle, and deleting the scope leaves the
+  files in place. Validation returns 400 for a mirror on a Filesystem scope, without a `targetPath`, or with a path the
+  server cannot create. New `MirroredMemoryStore`, migration `2026-10-01-scope-filesystem-mirror` (Migration012), REST,
+  MCP (`scope_create` and `scope_update` take `filesystemMirror` and `targetPath`), dashboard (scope form checkbox and
+  scope detail), docs, and tests.
+- **Dashboard navigation consolidated into seven tabbed hubs.** The sidebar goes from 17 items in 7 groups to two
+  sections: **Workspace** (Home; Memory: Scopes, Memories, Instructions; Recall: Search, Chat) and **Administration**
+  (Models: Embedding, Inference; Access: Tenants, Users, Credentials; Monitoring: Requests, Operations, API Explorer;
+  System: Settings, Agent Onboarding, Collections). The active tab is in the URL (`?tab=`), tabs support arrow-key
+  navigation, admin gating is unchanged and applied per tab, and every old URL redirects to its hub and tab with the
+  query string kept. The nav is defined once in `dashboard/src/config/navConfig.jsx`.
+- **Request History table fits the page.** The Path column is truncated with the full path on hover, Principal and Tenant
+  are hidden by default (they can be shown from the column picker), and wide tables scroll inside their frame instead of
+  widening the page.
+
 - **Agents audit memory when they save.** The default server instructions and the `memory_upsert` description now
   permit and expect an agent, each time it writes memories, to check the scope's categories (create or update any that
   are missing or unclear) and to check that memory is complete enough for a new agent to start from, adding, updating,
@@ -141,6 +161,10 @@ All notable changes to NotDory are documented here. This project adheres to
   dashboard has a Rerank Endpoints page and rerank settings on the scope form.
 
 ### Changed
+
+- **Verbex removed.** The never-wired Verbex store provider is gone: the `Verbex` value of `storeProvider`, the
+  `VerbexMemoryStore`, the `verbex` settings section, and its documentation. Creating a scope with `storeProvider: "Verbex"`
+  is a 400 (an unknown provider). Store providers are now RecallDb and Filesystem.
 
 - **Renamed from Isis to NotDory** (breaking). The new name is used everywhere: projects and namespaces
   (`NotDory.Core`, `NotDory.Server`, `NotDory.McpServer`, `NotDory.sln`), the settings file (`notdory.json`),

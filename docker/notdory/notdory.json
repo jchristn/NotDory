@@ -21,7 +21,6 @@
     "endpoint": "http://recalldb-server:8600",
     "adminApiKey": "recalldbadmin"
   },
-  "verbex": {},
   "auth": {
     "issuer": "notdory",
     "sessionLifetimeMinutes": 1440,

@@ -42,7 +42,7 @@ namespace NotDory.Core.Database.Sqlite.Implementations
             scope.LastUpdateUtc = DateTime.UtcNow;
 
             string query =
-                "INSERT INTO scopes (id, tenantid, name, description, storeprovider, recallcollectionid, dimensionality, embeddingendpointid, filesystemlayout, targetpath, chunkingmode, chunkstrategy, chunkmaxtokens, chunkoverlaptokens, active, createdutc, lastupdateutc, rerankendpointid, rerankcandidates, rerankminscore, inferenceendpointid, queryendpointid, conversationrewrite, queryexpansion, querydecomposition) VALUES (" +
+                "INSERT INTO scopes (id, tenantid, name, description, storeprovider, recallcollectionid, dimensionality, embeddingendpointid, filesystemlayout, targetpath, chunkingmode, chunkstrategy, chunkmaxtokens, chunkoverlaptokens, active, createdutc, lastupdateutc, rerankendpointid, rerankcandidates, rerankminscore, inferenceendpointid, queryendpointid, conversationrewrite, queryexpansion, querydecomposition, filesystemmirror) VALUES (" +
                 SqliteHelpers.ToSqlRequired(scope.Id) + ", " +
                 SqliteHelpers.ToSqlRequired(scope.TenantId) + ", " +
                 SqliteHelpers.ToSqlRequired(scope.Name) + ", " +
@@ -67,7 +67,8 @@ namespace NotDory.Core.Database.Sqlite.Implementations
                 SqliteHelpers.ToSql(scope.QueryEndpointId) + ", " +
                 NullableBool(scope.ConversationRewrite) + ", " +
                 SqliteHelpers.ToSql(scope.QueryExpansion?.ToString()) + ", " +
-                NullableBool(scope.QueryDecomposition) + ");";
+                NullableBool(scope.QueryDecomposition) + ", " +
+                SqliteHelpers.ToSql(scope.FilesystemMirror) + ");";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
             return scope;
@@ -156,6 +157,7 @@ namespace NotDory.Core.Database.Sqlite.Implementations
                 "conversationrewrite = " + NullableBool(scope.ConversationRewrite) + ", " +
                 "queryexpansion = " + SqliteHelpers.ToSql(scope.QueryExpansion?.ToString()) + ", " +
                 "querydecomposition = " + NullableBool(scope.QueryDecomposition) + ", " +
+                "filesystemmirror = " + SqliteHelpers.ToSql(scope.FilesystemMirror) + ", " +
                 "active = " + SqliteHelpers.ToSql(scope.Active) + ", " +
                 "lastupdateutc = " + SqliteHelpers.ToSqlRequired(scope.LastUpdateUtc) + " " +
                 "WHERE tenantid = " + SqliteHelpers.ToSqlRequired(scope.TenantId) +
@@ -259,6 +261,7 @@ namespace NotDory.Core.Database.Sqlite.Implementations
             if (row.Table.Columns.Contains("queryendpointid")) scope.QueryEndpointId = SqliteHelpers.NullIfEmpty(SqliteHelpers.GetString(row["queryendpointid"]));
             if (row.Table.Columns.Contains("conversationrewrite")) scope.ConversationRewrite = NullableBoolValue(row["conversationrewrite"]);
             if (row.Table.Columns.Contains("querydecomposition")) scope.QueryDecomposition = NullableBoolValue(row["querydecomposition"]);
+            if (row.Table.Columns.Contains("filesystemmirror")) scope.FilesystemMirror = SqliteHelpers.GetBool(row["filesystemmirror"]);
             if (row.Table.Columns.Contains("queryexpansion") && Enum.TryParse(SqliteHelpers.GetString(row["queryexpansion"]), out QueryExpansionModeEnum expansion)) scope.QueryExpansion = expansion;
 
             return scope;

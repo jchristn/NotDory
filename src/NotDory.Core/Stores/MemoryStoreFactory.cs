@@ -5,7 +5,6 @@ namespace NotDory.Core.Stores
     using NotDory.Core.Models;
     using NotDory.Core.Stores.Filesystem;
     using NotDory.Core.Stores.RecallDb;
-    using NotDory.Core.Stores.Verbex;
 
     /// <summary>
     /// Creates the appropriate <see cref="IMemoryStore"/> for a scope based on its configured provider.
@@ -25,8 +24,6 @@ namespace NotDory.Core.Stores
             {
                 case StoreProviderEnum.RecallDb:
                     return new RecallDbMemoryStore();
-                case StoreProviderEnum.Verbex:
-                    return new VerbexMemoryStore();
                 case StoreProviderEnum.Filesystem:
                     return new FilesystemMemoryStore();
                 default:
@@ -43,7 +40,7 @@ namespace NotDory.Core.Stores
         public static IMemoryStore Create(Scope scope)
         {
             if (scope == null) throw new ArgumentNullException(nameof(scope));
-            return Create(scope.StoreProvider);
+            return WithMirror(scope, Create(scope.StoreProvider));
         }
 
         /// <summary>
@@ -62,17 +59,29 @@ namespace NotDory.Core.Stores
                 case StoreProviderEnum.RecallDb:
                     if (options != null && !string.IsNullOrEmpty(options.RecallDbEndpoint) && !string.IsNullOrEmpty(options.RecallDbAdminKey))
                     {
-                        return new RecallDbMemoryStore(options.RecallDbEndpoint!, options.RecallDbAdminKey!);
+                        return WithMirror(scope, new RecallDbMemoryStore(options.RecallDbEndpoint!, options.RecallDbAdminKey!));
                     }
 
-                    return new RecallDbMemoryStore();
-                case StoreProviderEnum.Verbex:
-                    return new VerbexMemoryStore();
+                    return WithMirror(scope, new RecallDbMemoryStore());
                 case StoreProviderEnum.Filesystem:
                     return new FilesystemMemoryStore();
                 default:
                     throw new NotSupportedException("Unknown store provider: " + scope.StoreProvider + ".");
             }
+        }
+
+        #endregion
+
+        #region Private-Methods
+
+        /// <summary>
+        /// Wrap a RecallDb scope's store in a <see cref="MirroredMemoryStore"/> when the scope mirrors to the filesystem.
+        /// A Filesystem scope already writes files, so its flag is ignored.
+        /// </summary>
+        private static IMemoryStore WithMirror(Scope scope, IMemoryStore store)
+        {
+            if (scope.FilesystemMirror && scope.StoreProvider == StoreProviderEnum.RecallDb) return new MirroredMemoryStore(store);
+            return store;
         }
 
         #endregion

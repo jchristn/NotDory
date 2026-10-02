@@ -355,5 +355,19 @@ namespace NotDory.Core.Models
         }
 
         #endregion
+
+        #region Public-Methods
+
+        /// <summary>
+        /// Create a shallow copy of this memory, so a store can set fields such as <see cref="StoreKey"/> on the copy
+        /// without changing the original. Lists are shared with the original, so treat them as read-only.
+        /// </summary>
+        /// <returns>The copy.</returns>
+        public Memory ShallowCopy()
+        {
+            return (Memory)MemberwiseClone();
+        }
+
+        #endregion
     }
 }

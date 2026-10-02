@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS scopes (
     conversationrewrite INT NULL,
     queryexpansion VARCHAR(16) NULL,
     querydecomposition INT NULL,
+    filesystemmirror INT NOT NULL DEFAULT 0,
     UNIQUE KEY uk_scopes_tenant_name (tenantid, name)
 );
 

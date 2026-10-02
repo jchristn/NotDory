@@ -10,14 +10,13 @@ namespace Test.Shared
     using NotDory.Core.Stores;
     using NotDory.Core.Stores.Filesystem;
     using NotDory.Core.Stores.RecallDb;
-    using NotDory.Core.Stores.Verbex;
     using RecallDb.Sdk;
     using Touchstone.Core;
 
     /// <summary>
     /// Touchstone test suite exercising the NotDory memory stores: the filesystem store (hierarchy and
-    /// single-file layouts), the store factory, provider capabilities, and the unconfigured RecallDB and
-    /// Verbex stores. These tests use only the real store APIs and temporary directories; they touch no
+    /// single-file layouts), the store factory, provider capabilities, and the unconfigured RecallDB
+    /// store. These tests use only the real store APIs and temporary directories; they touch no
     /// external services.
     /// </summary>
     public static class StoreSuite
@@ -78,7 +77,6 @@ namespace Test.Shared
                     // Factory.
                     TestCase.Async("store", "factory-filesystem-type", "Factory creates a FilesystemMemoryStore for Filesystem", FactoryFilesystemTypeAsync),
                     TestCase.Async("store", "factory-recalldb-type", "Factory creates a RecallDbMemoryStore for RecallDb", FactoryRecallDbTypeAsync),
-                    TestCase.Async("store", "factory-verbex-type", "Factory creates a VerbexMemoryStore for Verbex", FactoryVerbexTypeAsync),
                     TestCase.Async("store", "factory-scope-uses-provider", "Factory create-from-scope honors the scope provider", FactoryScopeUsesProviderAsync),
                     TestCase.Async("store", "factory-scope-options-null-endpoint", "Factory returns an unconfigured RecallDB store when the endpoint is null", FactoryScopeOptionsNullEndpointAsync),
 
@@ -86,7 +84,6 @@ namespace Test.Shared
                     TestCase.Async("store", "caps-recalldb", "RecallDB advertises semantic, hybrid, keyword, and embeddings", CapsRecallDbAsync),
                     TestCase.Async("store", "recalldb-chunk-key-url-safe", "RecallDB chunk document keys are URL-safe (no reserved chars)", RecallDbChunkKeyUrlSafeAsync),
                     TestCase.Sync("store", "recalldb-client-pooled", "RecallDB clients are shared per endpoint and key, not created per store", RecallDbClientPooled),
-                    TestCase.Async("store", "caps-verbex", "Verbex advertises keyword only, no semantic/hybrid/embeddings", CapsVerbexAsync),
                     TestCase.Async("store", "caps-filesystem", "Filesystem advertises keyword only, no semantic/embeddings", CapsFilesystemAsync),
 
                     // Unconfigured RecallDB.
@@ -95,14 +92,16 @@ namespace Test.Shared
                     TestCase.Async("store", "recalldb-unconfigured-search-throws", "Unconfigured RecallDB Search throws NotSupported", RecallDbUnconfiguredSearchThrowsAsync),
                     TestCase.Async("store", "recalldb-unconfigured-delete-throws", "Unconfigured RecallDB Delete throws NotSupported", RecallDbUnconfiguredDeleteThrowsAsync),
                     TestCase.Async("store", "recalldb-unconfigured-deletetenant-noop", "Unconfigured RecallDB DeleteTenant is a best-effort no-op", RecallDbUnconfiguredDeleteTenantNoopAsync),
+                    TestCase.Async("store", "filesystem-deletetenant-noop", "Filesystem DeleteTenant is a no-op (no tenant container)", FilesystemDeleteTenantNoopAsync),
 
-                    // Verbex (not wired).
-                    TestCase.Async("store", "verbex-ensure-throws", "Verbex EnsureScope throws NotSupported", VerbexEnsureThrowsAsync),
-                    TestCase.Async("store", "verbex-upsert-throws", "Verbex Upsert throws NotSupported", VerbexUpsertThrowsAsync),
-                    TestCase.Async("store", "verbex-search-throws", "Verbex Search throws NotSupported", VerbexSearchThrowsAsync),
-                    TestCase.Async("store", "verbex-delete-throws", "Verbex Delete throws NotSupported", VerbexDeleteThrowsAsync),
-                    TestCase.Async("store", "verbex-deletetenant-noop", "Verbex DeleteTenant is a best-effort no-op", VerbexDeleteTenantNoopAsync),
-                    TestCase.Async("store", "filesystem-deletetenant-noop", "Filesystem DeleteTenant is a no-op (no tenant container)", FilesystemDeleteTenantNoopAsync)
+                    // Filesystem mirror (RecallDb scope also written as an OKF bundle).
+                    TestCase.Sync("store", "mirror-factory-wraps-recalldb", "Factory wraps a mirrored RecallDb scope and ignores the flag on a Filesystem scope", MirrorFactoryWrapsRecallDb),
+                    TestCase.Async("store", "mirror-upsert-writes-both", "Mirrored upsert writes the primary store and an OKF file, returning the primary key", MirrorUpsertWritesBothAsync),
+                    TestCase.Async("store", "mirror-upsert-many-concurrent", "Concurrent mirrored upserts all land and the OKF index lists every memory", MirrorUpsertManyConcurrentAsync),
+                    TestCase.Async("store", "mirror-delete-removes-both", "Mirrored delete removes the memory from the primary store and its OKF file", MirrorDeleteRemovesBothAsync),
+                    TestCase.Async("store", "mirror-search-uses-primary", "Mirrored search is served by the primary store only", MirrorSearchUsesPrimaryAsync),
+                    TestCase.Async("store", "mirror-deletescope-keeps-files", "Deleting a mirrored scope tears down the primary store but leaves the OKF files", MirrorDeleteScopeKeepsFilesAsync),
+                    TestCase.Sync("store", "mirror-requires-target-path", "A mirror scope without a target path is rejected", MirrorRequiresTargetPath)
                 });
         }
 
@@ -784,13 +783,6 @@ namespace Test.Shared
             return Task.CompletedTask;
         }
 
-        private static Task FactoryVerbexTypeAsync()
-        {
-            IMemoryStore store = MemoryStoreFactory.Create(StoreProviderEnum.Verbex);
-            TestCase.Require(store is VerbexMemoryStore, "Verbex provider should produce a VerbexMemoryStore.");
-            return Task.CompletedTask;
-        }
-
         private static Task FactoryScopeUsesProviderAsync()
         {
             Scope scope = new Scope { TenantId = "ten_x", Name = "s", StoreProvider = StoreProviderEnum.Filesystem };
@@ -820,16 +812,6 @@ namespace Test.Shared
             TestCase.Require(caps.SupportsHybrid, "RecallDB should support hybrid search.");
             TestCase.Require(caps.RequiresEmbedding, "RecallDB should require embeddings.");
             TestCase.Require(caps.SupportsKeyword, "RecallDB should support keyword search.");
-            return Task.CompletedTask;
-        }
-
-        private static Task CapsVerbexAsync()
-        {
-            StoreCapabilities caps = new VerbexMemoryStore().Capabilities;
-            TestCase.Require(!caps.SupportsSemantic, "Verbex should not support semantic search.");
-            TestCase.Require(!caps.SupportsHybrid, "Verbex should not support hybrid search.");
-            TestCase.Require(caps.SupportsKeyword, "Verbex should support keyword search.");
-            TestCase.Require(!caps.RequiresEmbedding, "Verbex should not require embeddings.");
             return Task.CompletedTask;
         }
 
@@ -911,51 +893,7 @@ namespace Test.Shared
 
         #endregion
 
-        #region Private-Methods-Verbex
-
-        private static async Task VerbexEnsureThrowsAsync()
-        {
-            IMemoryStore store = new VerbexMemoryStore();
-            Scope scope = new Scope { TenantId = "ten_x", Name = "s", StoreProvider = StoreProviderEnum.Verbex };
-            await TestCase.ThrowsAsync<NotSupportedException>(
-                () => store.EnsureScopeAsync(scope),
-                "The Verbex store should throw NotSupportedException from EnsureScope.").ConfigureAwait(false);
-        }
-
-        private static async Task VerbexUpsertThrowsAsync()
-        {
-            IMemoryStore store = new VerbexMemoryStore();
-            Scope scope = new Scope { TenantId = "ten_x", Name = "s", StoreProvider = StoreProviderEnum.Verbex };
-            Memory memory = new Memory { TenantId = "ten_x", ScopeId = scope.Id, CategoryId = "cat_1", Slug = "grip", Title = "Grip", Body = "Win the grip." };
-            await TestCase.ThrowsAsync<NotSupportedException>(
-                () => store.UpsertAsync(scope, memory, One(memory)),
-                "The Verbex store should throw NotSupportedException from Upsert.").ConfigureAwait(false);
-        }
-
-        private static async Task VerbexSearchThrowsAsync()
-        {
-            IMemoryStore store = new VerbexMemoryStore();
-            Scope scope = new Scope { TenantId = "ten_x", Name = "s", StoreProvider = StoreProviderEnum.Verbex };
-            await TestCase.ThrowsAsync<NotSupportedException>(
-                () => store.SearchAsync(scope, new MemorySearchQuery { QueryText = "grip", Mode = SearchModeEnum.Keyword }, null),
-                "The Verbex store should throw NotSupportedException from Search.").ConfigureAwait(false);
-        }
-
-        private static async Task VerbexDeleteThrowsAsync()
-        {
-            IMemoryStore store = new VerbexMemoryStore();
-            Scope scope = new Scope { TenantId = "ten_x", Name = "s", StoreProvider = StoreProviderEnum.Verbex };
-            Memory memory = new Memory { TenantId = "ten_x", ScopeId = scope.Id, CategoryId = "cat_1", Slug = "grip", Title = "Grip", Body = "Win the grip." };
-            await TestCase.ThrowsAsync<NotSupportedException>(
-                () => store.DeleteAsync(scope, memory),
-                "The Verbex store should throw NotSupportedException from Delete.").ConfigureAwait(false);
-        }
-
-        private static async Task VerbexDeleteTenantNoopAsync()
-        {
-            IMemoryStore store = new VerbexMemoryStore();
-            await store.DeleteTenantAsync("ten_x").ConfigureAwait(false);
-        }
+        #region Private-Methods-Filesystem-Tenant
 
         private static async Task FilesystemDeleteTenantNoopAsync()
         {
@@ -965,7 +903,167 @@ namespace Test.Shared
 
         #endregion
 
+        #region Private-Methods-Mirror
+
+        private static void MirrorFactoryWrapsRecallDb()
+        {
+            Scope recall = new Scope { TenantId = "ten_x", Name = "s", StoreProvider = StoreProviderEnum.RecallDb, FilesystemMirror = true, TargetPath = WorkDir() };
+            IMemoryStore store = MemoryStoreFactory.Create(recall, new StoreOptions());
+            TestCase.Require(store is MirroredMemoryStore mirrored && mirrored.Primary is RecallDbMemoryStore && mirrored.Mirror is FilesystemMemoryStore, "A mirrored RecallDb scope should get a MirroredMemoryStore over RecallDB and the filesystem.");
+            TestCase.Require(store.Capabilities.SupportsSemantic && store.Capabilities.SupportsHybrid, "A mirrored store should advertise the primary store's capabilities.");
+
+            recall.FilesystemMirror = false;
+            TestCase.Require(MemoryStoreFactory.Create(recall, new StoreOptions()) is RecallDbMemoryStore, "Without the flag the RecallDb store is not wrapped.");
+
+            Scope fs = new Scope { TenantId = "ten_x", Name = "s", StoreProvider = StoreProviderEnum.Filesystem, FilesystemMirror = true, TargetPath = WorkDir() };
+            TestCase.Require(MemoryStoreFactory.Create(fs) is FilesystemMemoryStore, "A Filesystem scope already writes files; the mirror flag is ignored.");
+        }
+
+        private static async Task MirrorUpsertWritesBothAsync()
+        {
+            string work = WorkDir();
+            try
+            {
+                Scope scope = MirrorScope(work);
+                RecordingMemoryStore primary = new RecordingMemoryStore();
+                MirroredMemoryStore store = new MirroredMemoryStore(primary);
+                await store.EnsureScopeAsync(scope).ConfigureAwait(false);
+
+                Memory memory = Mem(scope, "grip", "Grip", "Win the grip; control the sleeve and collar.");
+                string key = await store.UpsertAsync(scope, memory, One(memory)).ConfigureAwait(false);
+
+                TestCase.Require(key == "rec:grip", "The primary store's key should be returned, got '" + key + "'.");
+                TestCase.Require(memory.StoreKey == null, "The mirror must not overwrite the caller's memory store key.");
+                TestCase.Require(primary.Keys.ContainsKey("grip"), "The primary store should have received the memory.");
+                string file = Path.Combine(work, "cat_1", "grip.md");
+                TestCase.Require(File.Exists(file), "The mirror should write an OKF file at " + file + ".");
+                TestCase.Require(File.ReadAllText(file).Contains("control the sleeve and collar"), "The OKF file should hold the memory body.");
+                TestCase.Require(File.Exists(Path.Combine(work, OkfDocument.IndexFileName)), "The mirror should generate the bundle index.");
+            }
+            finally
+            {
+                TryDeleteDir(work);
+            }
+        }
+
+        private static async Task MirrorUpsertManyConcurrentAsync()
+        {
+            string work = WorkDir();
+            try
+            {
+                Scope scope = MirrorScope(work);
+                RecordingMemoryStore primary = new RecordingMemoryStore();
+                MirroredMemoryStore store = new MirroredMemoryStore(primary);
+                await store.EnsureScopeAsync(scope).ConfigureAwait(false);
+
+                List<Task> writes = new List<Task>();
+                for (int i = 0; i < 20; i++)
+                {
+                    Memory memory = Mem(scope, "m" + i, "Memory " + i, "Body " + i, i % 2 == 0 ? "cat_a" : "cat_b");
+                    writes.Add(store.UpsertAsync(scope, memory, One(memory)));
+                }
+
+                await Task.WhenAll(writes).ConfigureAwait(false);
+                TestCase.Require(primary.Keys.Count == 20, "Every memory should reach the primary store.");
+                TestCase.Require(Directory.GetFiles(work, "*.md", SearchOption.AllDirectories).Length == 21, "Expected 20 memory files plus index.md.");
+                string index = File.ReadAllText(Path.Combine(work, OkfDocument.IndexFileName));
+                for (int i = 0; i < 20; i++)
+                {
+                    TestCase.Require(index.Contains("Memory " + i + "]"), "The index should list 'Memory " + i + "'.");
+                }
+            }
+            finally
+            {
+                TryDeleteDir(work);
+            }
+        }
+
+        private static async Task MirrorDeleteRemovesBothAsync()
+        {
+            string work = WorkDir();
+            try
+            {
+                Scope scope = MirrorScope(work);
+                RecordingMemoryStore primary = new RecordingMemoryStore();
+                MirroredMemoryStore store = new MirroredMemoryStore(primary);
+                Memory memory = Mem(scope, "grip", "Grip", "Win the grip.");
+                await store.UpsertAsync(scope, memory, One(memory)).ConfigureAwait(false);
+
+                await store.DeleteAsync(scope, memory).ConfigureAwait(false);
+                TestCase.Require(!primary.Keys.ContainsKey("grip"), "The primary store should have deleted the memory.");
+                TestCase.Require(!File.Exists(Path.Combine(work, "cat_1", "grip.md")), "The mirror should delete the OKF file.");
+            }
+            finally
+            {
+                TryDeleteDir(work);
+            }
+        }
+
+        private static async Task MirrorSearchUsesPrimaryAsync()
+        {
+            string work = WorkDir();
+            try
+            {
+                Scope scope = MirrorScope(work);
+                RecordingMemoryStore primary = new RecordingMemoryStore();
+                primary.SearchResult = new MemorySearchResult { Hits = new List<MemorySearchHit> { new MemorySearchHit { StoreKey = "rec:grip", Slug = "grip", Score = 1.0 } } };
+                MirroredMemoryStore store = new MirroredMemoryStore(primary);
+
+                MemorySearchResult result = await store.SearchAsync(scope, new MemorySearchQuery { QueryText = "grip" }, null).ConfigureAwait(false);
+                TestCase.Require(ReferenceEquals(result, primary.SearchResult), "The primary store's result should be returned as-is.");
+                TestCase.Require(primary.Calls.Contains("Search"), "The primary store should serve the search.");
+            }
+            finally
+            {
+                TryDeleteDir(work);
+            }
+        }
+
+        private static async Task MirrorDeleteScopeKeepsFilesAsync()
+        {
+            string work = WorkDir();
+            try
+            {
+                Scope scope = MirrorScope(work);
+                RecordingMemoryStore primary = new RecordingMemoryStore();
+                MirroredMemoryStore store = new MirroredMemoryStore(primary);
+                Memory memory = Mem(scope, "grip", "Grip", "Win the grip.");
+                await store.UpsertAsync(scope, memory, One(memory)).ConfigureAwait(false);
+
+                await store.DeleteScopeAsync(scope).ConfigureAwait(false);
+                TestCase.Require(primary.Calls.Contains("DeleteScope"), "The primary store's scope content should be torn down.");
+                TestCase.Require(File.Exists(Path.Combine(work, "cat_1", "grip.md")), "The mirror files should be left in place.");
+            }
+            finally
+            {
+                TryDeleteDir(work);
+            }
+        }
+
+        private static void MirrorRequiresTargetPath()
+        {
+            Scope scope = new Scope { TenantId = "ten_x", Name = "s", StoreProvider = StoreProviderEnum.RecallDb, FilesystemMirror = true };
+            bool threw = false;
+            try
+            {
+                MirroredMemoryStore.MirrorScope(scope);
+            }
+            catch (InvalidOperationException)
+            {
+                threw = true;
+            }
+
+            TestCase.Require(threw, "A mirror scope with no target path should be rejected.");
+        }
+
+        #endregion
+
         #region Private-Methods-Helpers
+
+        private static Scope MirrorScope(string dir)
+        {
+            return new Scope { TenantId = "ten_x", Name = "Mirror", StoreProvider = StoreProviderEnum.RecallDb, FilesystemMirror = true, TargetPath = dir };
+        }
 
         private static string WorkDir()
         {

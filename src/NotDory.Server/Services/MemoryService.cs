@@ -210,7 +210,7 @@ namespace NotDory.Server.Services
         /// </summary>
         /// <param name="database">The database driver.</param>
         /// <param name="embeddingService">The embedding service, required for embedding-based stores.</param>
-        /// <param name="storeOptions">Options used to configure external stores (RecallDB, Verbex).</param>
+        /// <param name="storeOptions">Options used to configure external stores (RecallDB).</param>
         /// <param name="cache">Optional lookup cache for embedding-endpoint reads; also invalidated when provisioning fills in a scope's collection id.</param>
         /// <param name="rerankService">Optional rerank service, required to rerank searches in scopes with a rerank endpoint.</param>
         /// <exception cref="ArgumentNullException">Thrown when database is null.</exception>
@@ -445,9 +445,56 @@ namespace NotDory.Server.Services
         }
 
         /// <summary>
+        /// Write every memory in a scope to its filesystem mirror, for a mirror turned on (or pointed at a new directory)
+        /// after the scope already had memories. New writes reach the mirror on their own; this fills in the rest. Each
+        /// memory is re-read under its write lock, so a concurrent upsert is never overwritten with an older body.
+        /// </summary>
+        /// <param name="scope">The scope; it must be a RecallDb scope with <see cref="Scope.FilesystemMirror"/> on.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>The number of memories written to the mirror.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when scope is null.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the scope does not mirror to the filesystem.</exception>
+        public async Task<int> SyncFilesystemMirrorAsync(Scope scope, CancellationToken token = default)
+        {
+            if (scope == null) throw new ArgumentNullException(nameof(scope));
+            if (!(MemoryStoreFactory.Create(scope, _StoreOptions) is MirroredMemoryStore store))
+                throw new InvalidOperationException("Scope '" + scope.Id + "' does not mirror to the filesystem.");
+
+            await store.Mirror.EnsureScopeAsync(MirroredMemoryStore.MirrorScope(scope), token).ConfigureAwait(false);
+
+            int written = 0;
+            int skip = 0;
+            while (true)
+            {
+                EnumerationResult<Memory> page = await _Database.Memories.EnumerateAsync(scope.TenantId, scope.Id, null, new EnumerationQuery { MaxResults = 500, Skip = skip }, token).ConfigureAwait(false);
+                foreach (Memory listed in page.Objects)
+                {
+                    string memoryKey = MemoryLockKey(scope.Id, listed.CategoryId, listed.Slug);
+                    await _MemoryLocks.WaitAsync(memoryKey, token).ConfigureAwait(false);
+                    try
+                    {
+                        Memory? current = await _Database.Memories.ReadBySlugAsync(scope.TenantId, scope.Id, listed.CategoryId, listed.Slug, token).ConfigureAwait(false);
+                        if (current == null) continue;
+                        await store.UpsertMirrorAsync(scope, current, token).ConfigureAwait(false);
+                        written++;
+                    }
+                    finally
+                    {
+                        _MemoryLocks.Release(memoryKey);
+                    }
+                }
+
+                skip += page.Objects.Count;
+                if (page.EndOfResults || page.Objects.Count == 0) break;
+            }
+
+            return written;
+        }
+
+        /// <summary>
         /// Tear down any tenant-level external store container after a tenant's scopes have been deleted. Only
         /// RecallDB maintains a tenant-level container (the RecallDB tenant that NotDory provisions on first use);
-        /// filesystem and Verbex keep no such state. Best-effort: a missing container or unconfigured store is a
+        /// the filesystem keeps no such state. Best-effort: a missing container or unconfigured store is a
         /// no-op so the tenant cascade is never blocked. Virtual to allow the cascade to be observed in tests.
         /// </summary>
         /// <param name="tenantId">The tenant whose external container is being removed.</param>
@@ -498,7 +545,7 @@ namespace NotDory.Server.Services
                         }
                         catch (NotSupportedException)
                         {
-                            // Best-effort store cleanup during cascade (e.g. Verbex not wired).
+                            // Best-effort store cleanup during cascade.
                         }
                     }
 

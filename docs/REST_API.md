@@ -330,6 +330,15 @@ null means the server default (the `retrieval` settings), so a scope only record
 | `queryExpansion` | Expand searches with a drafted answer and keywords: `Off`, `On`, or `Auto` (only searches that are not reranked) | `retrieval.queryExpansion`, `Auto` |
 | `queryDecomposition` | Split multi-part questions into sub-queries (true / false) | `retrieval.queryDecomposition`, false |
 
+A RecallDb scope can also keep a filesystem copy of its memory. Set `filesystemMirror` to true and `targetPath` to a
+directory on the NotDory server host (in Docker, a path bind-mounted into `notdory-server`). Every memory upsert and
+delete then goes to RecallDB and, concurrently, to an Open Knowledge Format bundle in that directory: one markdown file
+per memory (under a folder per category id) with YAML frontmatter, plus a generated `index.md`. RecallDB remains the
+system of record and serves every search and chat. The write fails if either side fails. Creating or updating a scope
+with `filesystemMirror` on a `Filesystem` scope, without a `targetPath`, or with a `targetPath` the server cannot create
+returns 400. An update that turns the mirror on, or changes its `targetPath`, copies the scope's existing memories into
+the bundle before responding. Deleting the scope leaves the bundle on disk.
+
 Settings resolve in the same order everywhere: the request, then the scope, then the server. A search's `expand` and
 `decompose` (and a chat request's `inferenceEndpointId`) override the scope for that call; left unset, they follow it.
 An endpoint the scope names must exist in the tenant and be of the right kind (400 otherwise); one that is later

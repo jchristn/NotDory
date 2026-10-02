@@ -12,11 +12,6 @@ namespace NotDory.Core.Enums
         RecallDb,
 
         /// <summary>
-        /// Verbex inverted index. Keyword/TF-IDF search only; no embeddings, no semantic or hybrid search.
-        /// </summary>
-        Verbex,
-
-        /// <summary>
         /// Filesystem. Memory stored as flat files at a target path; keyword/metadata search only.
         /// </summary>
         Filesystem

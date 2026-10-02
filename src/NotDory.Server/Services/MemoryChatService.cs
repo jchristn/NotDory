@@ -350,7 +350,7 @@ namespace NotDory.Server.Services
         /// <summary>
         /// Build the grounding context for a question. The strategy depends on the scope's store:
         /// <list type="bullet">
-        /// <item>Keyword-only stores (filesystem, Verbex) have no semantic relevance ranking — lexical
+        /// <item>Keyword-only stores (filesystem) have no semantic relevance ranking — lexical
         /// scoring is a poor way to answer questions and fails outright on broad/meta questions. For those,
         /// skip searching entirely and hand the model the scope's whole memory map, organized top-down by
         /// category, so it can analyze it and decide what is relevant.</item>

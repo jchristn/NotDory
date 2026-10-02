@@ -6,25 +6,13 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import ToastStack from './components/Toast';
 import HomeView from './views/HomeView';
-import ScopesView from './views/ScopesView';
 import ScopeDetail from './views/ScopeDetail';
 import CategoriesView from './views/CategoriesView';
 import MemoriesView from './views/MemoriesView';
-import MemoryBrowserView from './views/MemoryBrowserView';
-import SearchExplorerView from './views/SearchExplorerView';
 import ChatView from './views/ChatView';
-import EmbeddingEndpointsView from './views/EmbeddingEndpointsView';
-import InferenceEndpointsView from './views/InferenceEndpointsView';
-import CollectionsView from './views/CollectionsView';
-import RequestHistoryView from './views/RequestHistoryView';
-import OperationsView from './views/OperationsView';
-import ApiExplorerView from './views/ApiExplorerView';
-import SettingsView from './views/SettingsView';
-import TenantsView from './views/TenantsView';
-import UsersView from './views/UsersView';
-import CredentialsView from './views/CredentialsView';
-import InstructionsView from './views/InstructionsView';
-import AgentProtocolView from './views/AgentProtocolView';
+import HubView from './views/hubs/HubView';
+import LegacyRedirect from './components/LegacyRedirect';
+import { NAV_ITEMS, LEGACY_REDIRECTS, DASHBOARD_BASE } from './config/navConfig';
 import './App.css';
 
 function PrivateRoute({ children }) {
@@ -60,27 +48,17 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<HomeView />} />
-        <Route path="scopes" element={<ScopesView />} />
-        <Route path="memories" element={<MemoryBrowserView />} />
-        <Route path="instructions" element={<InstructionsView />} />
-        <Route path="agent-protocol" element={<AgentProtocolView />} />
+        {NAV_ITEMS.filter((item) => item.tabs).map((item) => (
+          <Route key={item.key} path={item.path.slice(DASHBOARD_BASE.length + 1)} element={<HubView key={item.key} hubKey={item.key} />} />
+        ))}
         <Route path="scopes/:scopeId" element={<ScopeDetail />} />
         <Route path="scopes/:scopeId/categories" element={<CategoriesView />} />
         <Route path="scopes/:scopeId/memories" element={<MemoriesView />} />
         <Route path="scopes/:scopeId/chat" element={<ChatView />} />
-        <Route path="search" element={<SearchExplorerView />} />
-        <Route path="chat" element={<ChatView />} />
-        <Route path="endpoints/embedding" element={<EmbeddingEndpointsView />} />
-        <Route path="endpoints/inference" element={<InferenceEndpointsView />} />
-        <Route path="endpoints/rerank" element={<Navigate to="/dashboard/endpoints/inference" replace />} />
-        <Route path="collections" element={<CollectionsView />} />
-        <Route path="request-history" element={<RequestHistoryView />} />
-        <Route path="operations" element={<OperationsView />} />
-        <Route path="api-explorer" element={<ApiExplorerView />} />
-        <Route path="settings" element={<SettingsView />} />
-        <Route path="tenants" element={<TenantsView />} />
-        <Route path="users" element={<UsersView />} />
-        <Route path="credentials" element={<CredentialsView />} />
+        {/* Pre-hub URLs redirect (replace) to their hub + tab, preserving the query string. */}
+        {LEGACY_REDIRECTS.map((r) => (
+          <Route key={r.from} path={r.from} element={<LegacyRedirect to={r.to} tab={r.tab} />} />
+        ))}
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

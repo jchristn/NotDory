@@ -35,6 +35,7 @@ namespace NotDory.Core.Helpers
                 + "Required: name. Optional: description; storeProvider: RecallDb (default: semantic + keyword, needs an embedding endpoint) or Filesystem (keyword-only, git-trackable files). "
                 + "For RecallDb you may pass embeddingEndpointId and dimensionality, but if you omit them the tenant's embedding endpoint and its dimensionality are selected AUTOMATICALLY (list options with endpoint_enumerate). "
                 + "If the tenant has NO embedding endpoint, RecallDb is rejected with guidance; use storeProvider Filesystem instead. Filesystem also accepts filesystemLayout (SingleFile|Hierarchy|OkfBundle; OkfBundle writes a git-trackable Open Knowledge Format bundle: one markdown file per memory with YAML frontmatter plus a generated index.md) and targetPath. "
+                + "To get both, create a RecallDb scope with filesystemMirror true and a targetPath: every memory is written to RecallDB (which serves search) and, concurrently, to an OKF bundle at targetPath (a directory on the NotDory server host, for example inside the repository). "
                 + "Optional model and retrieval settings: rerankEndpointId, rerankCandidates, rerankMinScore, inferenceEndpointId (chat model), queryEndpointId (model for query rewriting and expansion), conversationRewrite, queryExpansion (Off|On|Auto), queryDecomposition; unset values use the server defaults."),
             new KeyValuePair<string, string>(
                 "endpoint_enumerate",
@@ -72,7 +73,7 @@ namespace NotDory.Core.Helpers
                 "Read a single scope by id. Required: scopeId."),
             new KeyValuePair<string, string>(
                 "scope_update",
-                "Update a scope's name, description, models, or retrieval settings (store provider and dimensionality are immutable); settings not passed are kept. Required: scopeId. Optional: name, description, rerankEndpointId (empty string removes it), rerankCandidates, rerankMinScore, inferenceEndpointId and queryEndpointId (the models for chat and for query rewriting/expansion), conversationRewrite, queryExpansion (Off|On|Auto), queryDecomposition."),
+                "Update a scope's name, description, filesystem mirror, models, or retrieval settings (store provider and dimensionality are immutable); settings not passed are kept. Required: scopeId. Optional: name, description, filesystemMirror and targetPath (RecallDb scopes: also write every memory to an Open Knowledge Format bundle at targetPath; turning it on copies existing memories there), rerankEndpointId (empty string removes it), rerankCandidates, rerankMinScore, inferenceEndpointId and queryEndpointId (the models for chat and for query rewriting/expansion), conversationRewrite, queryExpansion (Off|On|Auto), queryDecomposition."),
             new KeyValuePair<string, string>(
                 "scope_delete",
                 "Delete a scope and cascade its categories, memories, and scope instructions. Required: scopeId."),

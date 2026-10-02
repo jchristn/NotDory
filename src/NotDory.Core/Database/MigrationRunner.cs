@@ -32,7 +32,8 @@ namespace NotDory.Core.Database
             new Migration008RerankEndpointsAreInference(),
             new Migration009HistoryCreatedIndexes(),
             new Migration010EndpointReasoning(),
-            new Migration011SessionStartInstructions()
+            new Migration011SessionStartInstructions(),
+            new Migration012ScopeFilesystemMirror()
         };
 
         #endregion
