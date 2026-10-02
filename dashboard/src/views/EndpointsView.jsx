@@ -582,20 +582,21 @@ function EndpointsView({ kind }) {
       key: 'health',
       label: t('endpoints.health'),
       sortable: false,
+      // The whole cell opens the health details modal (not the row's edit form).
+      onCellClick: openHealth,
+      cellTitle: t('endpoints.viewHealth'),
       render: (e) => {
         const { tone, label } = healthTone(e);
         const hist = historyRef.current[e.id || e.Id] || [];
         return (
-          <span style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button
-              type="button"
-              className="badge-button"
-              data-row-click-ignore="true"
-              title={t('endpoints.viewHealth')}
-              onClick={(ev) => { ev.stopPropagation(); openHealth(e); }}
-            >
-              <StatusBadge tone={tone}>{label}</StatusBadge>
-            </button>
+          <span
+            className="health-cell"
+            role="button"
+            tabIndex={0}
+            aria-label={t('endpoints.viewHealth')}
+            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); openHealth(e); } }}
+          >
+            <StatusBadge tone={tone}>{label}</StatusBadge>
             {hist.length > 0 && <HealthHistogram history={hist} />}
           </span>
         );

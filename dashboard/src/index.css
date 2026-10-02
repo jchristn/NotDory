@@ -1206,6 +1206,18 @@ table.data-table {
   height: 18px;
 }
 
+/* Health column: the whole cell opens the health details modal. */
+td.cell-clickable { cursor: pointer; }
+td.cell-clickable:hover { background: var(--color-surface-alt, rgba(127, 127, 127, 0.08)); }
+.health-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.health-cell:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: 4px; }
+
 /* ---------- Login ---------- */
 .login-page {
   display: flex;

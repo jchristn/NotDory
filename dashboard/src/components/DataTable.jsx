@@ -312,7 +312,10 @@ function DataTable({
                     {visibleColumns.map((col) => (
                       <td
                         key={col.key}
-                        className={`${col.cellClass || ''}${col.numeric ? ' cell-num' : ''}`}
+                        className={`${col.cellClass || ''}${col.numeric ? ' cell-num' : ''}${col.onCellClick ? ' cell-clickable' : ''}`}
+                        data-row-click-ignore={col.onCellClick ? 'true' : undefined}
+                        title={col.onCellClick && col.cellTitle ? col.cellTitle : undefined}
+                        onClick={col.onCellClick ? (ev) => { ev.stopPropagation(); col.onCellClick(item); } : undefined}
                       >
                         {col.render ? col.render(item) : item[col.key] ?? '—'}
                       </td>
