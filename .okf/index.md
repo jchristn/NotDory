@@ -39,6 +39,6 @@ okf_version: "0.2"
 
 # cat_muqc4qmx_JakomwWhV0BBghvFt6b
 
-* [Known gaps in v0.1.0 alpha](cat_muqc4qmx_JakomwWhV0BBghvFt6b/known-gaps-v0-1-0.md) - No test.sh or docker/update.sh; the mirror is one-way; the dashboard nav and chart are not browser-tested; the remote deployment must pull the 2026-10-02 images and has a stray "~" directory; alpha has no migration guarantees.
+* [Known gaps in v0.1.0 alpha](cat_muqc4qmx_JakomwWhV0BBghvFt6b/known-gaps-v0-1-0.md) - No test.sh or docker/update.sh; the mirror is one-way; the dashboard nav and chart are not browser-tested; there may be a stray "~" directory on the remote host; tenant instructions are stale; alpha has no migration guarantees.
 * [Running tenant's "Start here" instruction still says Isis](cat_muqc4qmx_JakomwWhV0BBghvFt6b/stale-isis-tenant-instruction.md) - ins_mtw23496_mC4eOGSdSxXcMHUcgN1 in ten_default still names the product Isis; Migration011 cannot fix it because it only replaces known seeded texts.
 
