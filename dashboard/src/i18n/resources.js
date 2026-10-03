@@ -278,6 +278,7 @@ export const en = {
       inferenceEndpoint: 'Inference endpoint',
       placeholder: 'Ask a question, or type / for commands…',
       send: 'Send',
+      disclaimer: 'AI can make mistakes, please check answers.',
       thinking: 'Retrieving and composing…',
       citations: 'Citations',
       noInference: 'No inference endpoint is configured for this tenant. Add one under Inference Endpoints to enable synthesized answers.',

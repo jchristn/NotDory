@@ -506,6 +506,7 @@ function ChatView() {
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder={t('chat.placeholder')}
+            rows={1}
             disabled={busy}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -522,6 +523,7 @@ function ChatView() {
             {t('chat.send')}
           </button>
         </div>
+        <div className="chat-disclaimer">{t('chat.disclaimer')}</div>
       </div>
     </>
   );

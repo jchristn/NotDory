@@ -1498,12 +1498,18 @@ td.cell-clickable:hover { background: var(--color-surface-alt, rgba(127, 127, 12
 .chat-input-row {
   display: flex;
   gap: 0.5rem;
-  align-items: flex-end;
+  align-items: stretch;
 }
+/* One line tall; the row stretches the textarea and Send button to the same height. */
 .chat-input-row textarea {
   flex: 1;
-  min-height: 44px;
-  max-height: 140px;
+  min-height: 0;
+  resize: none;
+}
+.chat-disclaimer {
+  margin-top: 0.35rem;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
 }
 
 .chat-answer {
