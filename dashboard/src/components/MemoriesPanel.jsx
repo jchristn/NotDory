@@ -13,6 +13,7 @@ import StatusBadge from './StatusBadge';
 import { ErrorBanner } from './States';
 import { MEMORY_TYPES } from '../utils/constants';
 import { formatDateTime } from '../i18n/formatters';
+import { sortByName } from '../utils/sort';
 
 const EMPTY = { categoryId: '', slug: '', title: '', summary: '', body: '', type: 'Project', tags: '' };
 
@@ -175,7 +176,7 @@ function MemoriesPanel({ tenantId, scopeId, onCountChange }) {
     if (!scopeId) return;
     try {
       const res = await apiClient.listCategories(tenantId, scopeId, { maxResults: 1000 });
-      setCategories(res.items || []);
+      setCategories(sortByName(res.items));
     } catch {
       setCategories([]);
     }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import { sortByName } from '../utils/sort';
 
 /**
  * Loads scopes for the active tenant and renders a labeled selector. Calls
@@ -18,7 +19,7 @@ function ScopePicker({ value, onChange, onScopesLoaded, tenantId: tenantIdProp }
       .listScopes(tenantId, { maxResults: 1000 })
       .then((res) => {
         if (cancelled) return;
-        const list = res.items || [];
+        const list = sortByName(res.items);
         setScopes(list);
         onScopesLoaded?.(list);
         if (!value && list.length) onChange(list[0].id || list[0].Id);

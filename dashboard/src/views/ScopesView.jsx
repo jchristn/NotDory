@@ -22,6 +22,7 @@ import {
   QUERY_EXPANSION_MODES,
   canChat
 } from '../utils/constants';
+import { sortByName } from '../utils/sort';
 
 const EMPTY = {
   name: '',
@@ -399,13 +400,13 @@ function ScopesView() {
     }
     try {
       const eps = await apiClient.listEndpoints(tenantId, 'Embedding', { maxResults: 1000 });
-      setEndpoints(eps.items || []);
+      setEndpoints(sortByName(eps.items));
     } catch {
       setEndpoints([]);
     }
     try {
       const ieps = await apiClient.listEndpoints(tenantId, 'Inference', { maxResults: 1000 });
-      setInferenceEndpoints(ieps.items || []);
+      setInferenceEndpoints(sortByName(ieps.items));
     } catch {
       setInferenceEndpoints([]);
     }

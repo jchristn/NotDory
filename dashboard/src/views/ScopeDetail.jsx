@@ -7,6 +7,7 @@ import CopyableId from '../components/CopyableId';
 import StatusBadge from '../components/StatusBadge';
 import CodeViewer from '../components/CodeViewer';
 import { LoadingState, ErrorState } from '../components/States';
+import { sortByName } from '../utils/sort';
 
 function ScopeDetail() {
   const { t } = useTranslation();
@@ -159,7 +160,7 @@ function ScopeDetail() {
                 {t('categories.title')} ({guide.categories.length})
               </div>
               <div className="tile-grid">
-                {guide.categories.map((c) => (
+                {sortByName(guide.categories).map((c) => (
                   <div className="action-tile" key={c.id}>
                     <span className="tile-title">{c.name}</span>
                     {c.description && <span className="tile-desc">{c.description}</span>}

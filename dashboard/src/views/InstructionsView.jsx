@@ -10,6 +10,7 @@ import ActionMenu from '../components/ActionMenu';
 import StatusBadge from '../components/StatusBadge';
 import { EmptyState, ErrorBanner } from '../components/States';
 import { INSTRUCTION_MERGE_MODES } from '../utils/constants';
+import { sortByName } from '../utils/sort';
 
 function sourceTone(source) {
   if (source === 'ScopeOverride') return 'warning';
@@ -117,7 +118,7 @@ function InstructionsView() {
 
   // Load the tenant's scopes once for the selector.
   useEffect(() => {
-    apiClient.listScopes(tenantId, { maxResults: 1000 }).then((res) => setScopes(res.items || [])).catch(() => setScopes([]));
+    apiClient.listScopes(tenantId, { maxResults: 1000 }).then((res) => setScopes(sortByName(res.items))).catch(() => setScopes([]));
   }, [apiClient, tenantId]);
 
   const load = useCallback(async () => {

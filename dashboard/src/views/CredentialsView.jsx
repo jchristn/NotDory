@@ -10,6 +10,7 @@ import ActionMenu from '../components/ActionMenu';
 import CopyableId from '../components/CopyableId';
 import StatusBadge from '../components/StatusBadge';
 import { EmptyState, ErrorBanner } from '../components/States';
+import { sortByName } from '../utils/sort';
 
 function CredentialForm({ initial, users, onSubmit, onClose, t }) {
   const editing = Boolean(initial);
@@ -102,7 +103,7 @@ function CredentialsView() {
         apiClient.listUsers(tenantId, { maxResults: 1000 })
       ]);
       setCredentials(creds.items || []);
-      setUsers(us.items || []);
+      setUsers(sortByName(us.items, (u) => u.email));
     } catch (err) {
       setError(err.message);
     } finally {

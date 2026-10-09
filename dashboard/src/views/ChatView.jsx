@@ -9,6 +9,7 @@ import ScopePicker from '../components/ScopePicker';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
 import { EmptyState, ErrorBanner } from '../components/States';
+import { sortByName } from '../utils/sort';
 
 /** Format a millisecond duration compactly (e.g. "820 ms", "1.2 s"). */
 function formatMs(ms) {
@@ -217,7 +218,7 @@ function ChatView() {
     let cancelled = false;
     apiClient
       .listTenants({ maxResults: 1000 })
-      .then((res) => !cancelled && setTenants(res.items || []))
+      .then((res) => !cancelled && setTenants(sortByName(res.items)))
       .catch(() => !cancelled && setTenants([]));
     return () => {
       cancelled = true;
@@ -231,7 +232,7 @@ function ChatView() {
       .listEndpoints(activeTenant, 'Inference', { maxResults: 1000 })
       .then((res) => {
         if (cancelled) return;
-        const list = res.items || [];
+        const list = sortByName(res.items);
         setInferenceEndpoints(list);
         const firstActive = list.find((e) => e.active !== false);
         setInferenceEndpointId(firstActive ? firstActive.id || firstActive.Id : '');

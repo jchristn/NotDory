@@ -6,6 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import LanguageSelector from '../i18n/LanguageSelector';
 import { IconSun, IconMoon } from './Icons';
 import { DEFAULT_SERVER_URL, DEFAULT_ADMIN_EMAIL } from '../utils/constants';
+import { sortByName } from '../utils/sort';
 
 /**
  * Three-step credential login:
@@ -35,8 +36,8 @@ function Login() {
     setError('');
     setLoading(true);
     try {
-      const found = await fetchTenantsForEmail(serverUrl.trim(), email.trim());
-      if (!found || found.length === 0) {
+      const found = sortByName(await fetchTenantsForEmail(serverUrl.trim(), email.trim()));
+      if (found.length === 0) {
         setError(t('login.noTenants'));
         return;
       }

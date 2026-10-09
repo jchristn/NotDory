@@ -6,6 +6,7 @@ import ScopePicker from '../components/ScopePicker';
 import CategoriesPanel from '../components/CategoriesPanel';
 import MemoriesPanel from '../components/MemoriesPanel';
 import { EmptyState } from '../components/States';
+import { sortByName } from '../utils/sort';
 
 /**
  * Top-level memory browser: filter by tenant (system admins) then by scope, and manage
@@ -26,7 +27,7 @@ function MemoryBrowserView() {
     let cancelled = false;
     apiClient
       .listTenants({ maxResults: 1000 })
-      .then((res) => !cancelled && setTenants(res.items || []))
+      .then((res) => !cancelled && setTenants(sortByName(res.items)))
       .catch(() => !cancelled && setTenants([]));
     return () => {
       cancelled = true;
