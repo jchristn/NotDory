@@ -8,6 +8,8 @@ scripts/
   windows/   install-<agent>.bat   remove-<agent>.bat
   macos/     install-<agent>.sh    remove-<agent>.sh
   linux/     install-<agent>.sh    remove-<agent>.sh
+  wsl/       install-<agent>.sh    remove-<agent>.sh   (WSL 1)
+  wsl2/      install-<agent>.sh    remove-<agent>.sh   (WSL 2)
 ```
 
 Supported agents: **claude**, **codex**, **gemini**, **cursor**, **mux**.
@@ -28,6 +30,22 @@ sh scripts/macos/install-cursor.sh      # or scripts/linux/... ; the two are ide
 sh scripts/linux/remove-cursor.sh
 ```
 
+WSL (run inside the distro; use `wsl2/` on WSL 2 and `wsl/` on WSL 1):
+
+```sh
+sh scripts/wsl2/install-claude.sh
+sh scripts/wsl2/remove-claude.sh
+```
+
+The WSL scripts register the agent that runs *inside* WSL and write the WSL-side config (`~` in the distro). They
+reuse the Linux scripts after fixing the WSL environment: Windows entries on `PATH` are ignored, so a Windows
+`claude`/`codex`/`gemini` shim is never used (install the agent inside WSL, or run `scripts\windows\...` from Windows
+for a Windows agent). On WSL 2 with NAT networking, `127.0.0.1` inside the distro is not Windows; when the default
+endpoint does not answer inside WSL but the Windows host does, the scripts use the Windows host address instead
+(set `NOTDORY_MCP_URL`/`NOTDORY_MCP_BASE_URL` to choose the address yourself, `WSL_NO_HOST_REWRITE=1` to keep `127.0.0.1`,
+or enable `networkingMode=mirrored` in `.wslconfig`). That host address can change after a Windows restart, so
+re-run the install script if the agent stops connecting.
+
 Each `install` script is idempotent — it updates the existing `notdory` entry in place and preserves every
 other MCP server in the config. Restart the agent afterward to pick up the change.
 
@@ -36,7 +54,7 @@ other MCP server in the config. Restart the agent afterward to pick up the chang
 | Agent | How it connects | Config it edits |
 | --- | --- | --- |
 | **claude** | runs the `claude` CLI at user scope (`claude mcp add --scope user`), then installs the NotDory SessionStart hook (`notdory-claude-hook.ps1` / `notdory-claude-hook.sh`) | Claude Code's own store, and `~/.claude/settings.json` for the hook |
-| **codex** | writes an `mcpServers.notdory` entry (`type: http`) | `~/.codex/config.json` |
+| **codex** | writes an `[mcp_servers.notdory]` table (`url`, `http_headers`) | `~/.codex/config.toml` |
 | **cursor** | writes an `mcpServers.notdory` entry | `~/.cursor/mcp.json` |
 | **gemini** | writes an `mcpServers.notdory` entry (`httpUrl`) | `~/.gemini/settings.json` |
 | **mux** | appends a `notdory` object to the `servers` array (bearer auth, access key only) | `~/.mux/mcp-servers.json` |
@@ -45,7 +63,7 @@ The scripts connect to `http://127.0.0.1:8720/mcp`. Every agent authenticates wi
 **access key alone** — none send the secret, which stays client-side. **Mux** carries the access key as a
 bearer token (`Authorization: Bearer <accessKey>`); **claude**, **codex**, **cursor**, and **gemini** send
 it in the `x-access-key` header. Because the access key alone authenticates, treat it as a **capability
-token** and prefer a least-privilege credential. On Windows the JSON is edited with PowerShell; on
+token** and prefer a least-privilege credential. On Windows the config is edited with PowerShell; on
 macOS/Linux with `python3` (required). The `claude` scripts require the `claude` CLI on `PATH`.
 
 ## Overriding the defaults

@@ -6,37 +6,24 @@
 
 NotDory serves the modern **MCP Streamable HTTP + SSE** transport at `http://127.0.0.1:8720/mcp`. Every request authenticates with a single header: `x-access-key` (a credential access key, default `notdorydefaultkey`). The access key alone identifies a tenant credential and scopes the connection to its tenant. The secret key is never sent by Codex. Because the access key authenticates on its own, treat it as a **capability token** and prefer a least-privilege credential. Change the default before exposing NotDory outside a trusted local environment.
 
-### Config file -- `~/.codex/config.json`
+### Config file -- `~/.codex/config.toml`
 
-Codex reads its MCP servers from `~/.codex/config.json`. Add a `notdory` entry under `mcpServers` pointing at the streamable-HTTP endpoint, with the access-key header:
+Codex reads its MCP servers from `~/.codex/config.toml`. Add an `[mcp_servers.notdory]` table pointing at the streamable-HTTP endpoint, with the access-key header (`scripts/<os>/install-codex` writes exactly this):
 
-```json
-{
-  "mcpServers": {
-    "notdory": {
-      "type": "http",
-      "url": "http://127.0.0.1:8720/mcp",
-      "headers": {
-        "x-access-key": "notdorydefaultkey"
-      }
-    }
-  }
-}
+```toml
+[mcp_servers.notdory]
+url = "http://127.0.0.1:8720/mcp"
+http_headers = { "x-access-key" = "notdorydefaultkey" }
 ```
 
 Only the access-key header is required; the secret key is never sent. Restart Codex after saving so it reconnects and discovers the 32 NotDory tools.
 
 If your Codex build only speaks the stdio MCP transport, bridge to the HTTP endpoint with a generic remote-MCP shim:
 
-```json
-{
-  "mcpServers": {
-    "notdory": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://127.0.0.1:8720/mcp", "--header", "x-access-key: notdorydefaultkey"]
-    }
-  }
-}
+```toml
+[mcp_servers.notdory]
+command = "npx"
+args = ["-y", "mcp-remote", "http://127.0.0.1:8720/mcp", "--header", "x-access-key: notdorydefaultkey"]
 ```
 
 Prefer the direct HTTP entry when your Codex version supports it; the bridge is only a fallback.

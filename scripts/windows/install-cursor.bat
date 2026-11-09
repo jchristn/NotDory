@@ -10,5 +10,6 @@ if not "%~1"=="" set "NOTDORY_ACCESS_KEY=%~1"
 if "%NOTDORY_CURSOR_CONFIG%"=="" set "NOTDORY_CURSOR_CONFIG=%USERPROFILE%\.cursor\mcp.json"
 set "NOTDORY_CONFIG=%NOTDORY_CURSOR_CONFIG%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=$env:NOTDORY_CONFIG; $d=Split-Path -Parent $p; if(-not (Test-Path $d)){ New-Item -ItemType Directory -Force -Path $d | Out-Null }; $raw=''; if(Test-Path $p){ $raw=Get-Content -Raw -Path $p }; if([string]::IsNullOrWhiteSpace($raw)){ $root=[PSCustomObject]@{} } else { $root=$raw | ConvertFrom-Json }; if($null -eq $root.mcpServers){ $root | Add-Member -NotePropertyName mcpServers -NotePropertyValue ([PSCustomObject]@{}) -Force }; $h=[PSCustomObject]@{ 'x-access-key'=$env:NOTDORY_ACCESS_KEY }; $entry=[PSCustomObject]@{ url=$env:NOTDORY_MCP_URL; headers=$h }; $root.mcpServers | Add-Member -NotePropertyName notdory -NotePropertyValue $entry -Force; [IO.File]::WriteAllText($p, ($root | ConvertTo-Json -Depth 20)); Write-Host ('Added notdory to ' + $p)"
+if errorlevel 1 exit /b 1
 echo Restart Cursor to pick up the change (Settings -^> MCP).
 endlocal

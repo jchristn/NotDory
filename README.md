@@ -132,7 +132,7 @@ token; the **secret key is never sent** and never leaves your machine. The local
 `notdorydefaultkey`; create a real one in the dashboard under **Credentials** and use a least-privilege key.
 
 The quickest way is the ready-made installers in `scripts/` — one per harness, for `windows`, `macos`,
-and `linux`. Each takes the access key as its first argument (or reads `NOTDORY_ACCESS_KEY`), writes a
+`linux`, `wsl` (WSL 1) and `wsl2` (WSL 2; see `scripts/README.md` for the WSL notes). Each takes the access key as its first argument (or reads `NOTDORY_ACCESS_KEY`), writes a
 `notdory` entry into that client's config, backs up the existing file, and leaves everything else intact.
 Run the one for your OS; the examples below use `linux` (swap in `macos/…` or `windows\…\*.bat`).
 
@@ -142,7 +142,7 @@ Run the one for your OS; the examples below use `linux` (swap in `macos/…` or 
 | Harness | Install (Linux/macOS) | Windows | Client config it writes |
 |---|---|---|---|
 | **Claude Code** | `sh scripts/linux/install-claude.sh <accessKey>` | `scripts\windows\install-claude.bat <accessKey>` | `claude mcp add --scope user` (`~/.claude.json`) plus a SessionStart hook (`~/.claude/settings.json`) that loads each project's memory before the first turn |
-| **Codex** | `sh scripts/linux/install-codex.sh <accessKey>` | `scripts\windows\install-codex.bat <accessKey>` | `~/.codex/config.json` |
+| **Codex** | `sh scripts/linux/install-codex.sh <accessKey>` | `scripts\windows\install-codex.bat <accessKey>` | `~/.codex/config.toml` |
 | **Cursor** | `sh scripts/linux/install-cursor.sh <accessKey>` | `scripts\windows\install-cursor.bat <accessKey>` | `~/.cursor/mcp.json` |
 | **Gemini CLI** | `sh scripts/linux/install-gemini.sh <accessKey>` | `scripts\windows\install-gemini.bat <accessKey>` | `~/.gemini/settings.json` |
 | **Mux** | `sh scripts/linux/install-mux.sh <accessKey>` | `scripts\windows\install-mux.bat <accessKey>` | `~/.mux/mcp-servers.json` |
