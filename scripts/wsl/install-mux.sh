@@ -1,40 +1,164 @@
-#!/usr/bin/env sh
-# Connect Mux to the NotDory MCP server by writing ~/.mux/mcp-servers.json inside WSL. Usage: install-mux.sh [ACCESS_KEY]
-# WSL 1 counterpart of scripts/linux/install-mux.sh. Same config edit as Linux; WSL 1 shares localhost with Windows.
-set -eu
-SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-REPO_ROOT="$(CDPATH='' cd -- "$SCRIPT_DIR/../.." && pwd)"
+#!/usr/bin/env bash
+# Connect Mux to the NotDory MCP server: writes a notdory object in the servers array (transport http, origin url, mcpPath, bearer auth) of Mux's mcp-servers.json.
+# Config: ${MUX_CONFIG_DIR:-~/.mux}/mcp-servers.json
+# Idempotent: an existing 'notdory' entry is replaced; every other server is kept.
+# Authenticates with the credential ACCESS KEY only: Claude Code, Codex, Cursor and the Gemini CLI
+# send it in the x-access-key header; Mux sends it as a bearer token (Authorization: Bearer <key>),
+# as docs/INSTRUCTIONS_FOR_MUX.md describes. The secret key is never sent. The access key is a
+# capability token, so use a least-privilege credential.
+# WSL 1 version: configures Mux inside this distro (not on Windows). For Mux on Windows, run
+# scripts\windows\install-mux.bat from Windows.
+# WSL 1 shares localhost with Windows, so 127.0.0.1 also reaches a server running on Windows.
+# Usage: scripts/wsl/install-mux.sh [ACCESS_KEY]
+#   ACCESS_KEY            overrides NOTDORY_ACCESS_KEY (default: notdorydefaultkey)
+#   NOTDORY_MCP_URL       server URL; Mux stores its origin and path (default: http://127.0.0.1:8720/mcp)
+#   NOTDORY_MCP_BASE_URL  server origin, path /mcp (overrides NOTDORY_MCP_URL)
+#   NOTDORY_MUX_CONFIG    config file (default: as above)
+# Requires python3.
+if [ -z "${BASH_VERSION:-}" ]; then exec bash "$0" "$@"; fi
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC2034 # not every script needs REPO_ROOT
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+die() { echo "Error: $*" >&2; exit 1; }
+
 # shellcheck disable=SC2034 # read by _wsl-common.sh
 WSL_FLAVOR=wsl
+# shellcheck source=_wsl-common.sh
 . "$SCRIPT_DIR/_wsl-common.sh"
 wsl_require
 wsl_sanitize_path
 wsl_check_repo "$REPO_ROOT"
 
-wsl_require_cmd python3 "Install it inside WSL (for example: sudo apt install python3)."
-
-# WSL 1 shares localhost with Windows, so the default 127.0.0.1 endpoint reaches a server on either side.
-
-# This script only writes Mux's WSL-side config; it never runs mux. Say so when mux is missing here.
-if ! command -v mux >/dev/null 2>&1; then
-  if PATH="$WSL_ORIGINAL_PATH" command -v mux >/dev/null 2>&1 || PATH="$WSL_ORIGINAL_PATH" command -v mux.exe >/dev/null 2>&1; then
-    wsl_log "Note: mux is only installed on the Windows side, and Windows Mux reads %USERPROFILE%\.mux\mcp-servers.json."
-    wsl_log "      For Windows Mux, run scripts\\windows\\install-mux.bat from Windows instead."
-  else
-    wsl_log "Note: mux is not installed in this distro yet (install it with the Mux repo's install-tool.sh for WSL, or dotnet tool install -g Mux.Cli). Writing the config anyway."
-  fi
+usage() { awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; }
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+    -?*) die "Unknown option: $1 (see --help)" ;;
+esac
+[ "$#" -le 1 ] || die "Unexpected argument: $2 (usage: install-mux.sh [ACCESS_KEY])"
+TOKEN="${1:-${NOTDORY_ACCESS_KEY:-notdorydefaultkey}}"
+wsl_require_cmd python3 "Install Python 3 inside WSL (for example: sudo apt install python3)."
+CONFIG="${NOTDORY_MUX_CONFIG:-${MUX_CONFIG_DIR:-$HOME/.mux}/mcp-servers.json}"
+# The same rule as the Windows scripts: http:// or https://, a host, and no whitespace.
+URL_RE='^https?://[^/?#[:space:]]+[^[:space:]]*$'
+check_url() { [[ "$1" =~ $URL_RE ]] || die "'$1' is not an http(s) URL."; }
+BASE_URL="${NOTDORY_MCP_BASE_URL:-}"
+if [ -n "${NOTDORY_MCP_URL:-}" ] || [ -n "$BASE_URL" ]; then
+    URL="${NOTDORY_MCP_URL:-http://127.0.0.1:8720/mcp}"
+else
+    # WSL 1 shares localhost with Windows, so wsl_resolve_local_url leaves the URL unchanged here.
+    URL="$(wsl_resolve_local_url "http://127.0.0.1:8720/mcp")"
 fi
+check_url "$URL"
+[ -z "$BASE_URL" ] || check_url "$BASE_URL"
+wsl_log "This configures Mux inside this WSL distro. For Mux on Windows, run scripts\\windows\\install-mux.bat from Windows."
 
-# Mux reads mcp-servers.json from $MUX_CONFIG_DIR when that is set, otherwise from ~/.mux.
-if [ -z "${NOTDORY_MUX_CONFIG:-}" ] && [ -n "${MUX_CONFIG_DIR:-}" ]; then
-  NOTDORY_MUX_CONFIG="$MUX_CONFIG_DIR/mcp-servers.json"
-  export NOTDORY_MUX_CONFIG
-fi
-if command -v mux >/dev/null 2>&1; then
-  case "$(command -v mux)" in
-    "$HOME/.dotnet/tools/"*) ;;
-    *) wsl_log "Note: using mux at $(command -v mux) (not the dotnet global tool in ~/.dotnet/tools)." ;;
-  esac
-fi
-
-wsl_run "$SCRIPT_DIR/../linux/install-mux.sh" "$@"
+python3 - install "$CONFIG" notdory "$BASE_URL" "$URL" bearer "" "$TOKEN" <<'PY'
+import json, os, re, sys, tempfile
+def fail(msg):
+    print("Error: " + msg, file=sys.stderr)
+    sys.exit(1)
+def mode_of(path, default):
+    try:
+        return os.stat(path).st_mode & 0o7777
+    except FileNotFoundError:
+        return default
+def write_atomic(path, text, new_mode=0o600, force_mode=None):
+    """Replaces the file in one step. Follows a symlinked config and keeps the file's mode."""
+    path = os.path.realpath(path)
+    folder = os.path.dirname(path) or "."
+    os.makedirs(folder, exist_ok=True)
+    mode = force_mode if force_mode is not None else mode_of(path, new_mode)
+    fd, tmp = tempfile.mkstemp(prefix="." + os.path.basename(path) + ".", suffix=".tmp", dir=folder)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+def read_text(path):
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        return f.read()
+def check_case(obj, key, where, path):
+    for k in obj:
+        if k != key and k.lower() == key.lower():
+            fail("%s of %s has a key '%s' that differs from '%s' only in case; rename or remove it, then run this again. The file was left unchanged." % (where, path, k, key))
+def load(path):
+    """The config as a dict; {} when the file is missing or empty. Never guesses at a broken file."""
+    if not os.path.exists(path):
+        return {}
+    text = read_text(path)
+    if not text.strip():
+        return {}
+    try:
+        cfg = json.loads(text)
+    except ValueError as e:
+        fail("%s is not valid JSON (%s). Fix or move it, then run this again; it was left unchanged." % (path, e))
+    if not isinstance(cfg, dict):
+        fail("%s does not contain a JSON object; it was left unchanged." % path)
+    return cfg
+def save(path, cfg):
+    write_atomic(path, json.dumps(cfg, indent=2) + "\n")
+action, path, name, base, url, auth_type, hname, token = sys.argv[1:9]
+if action != "remove":
+    if base:
+        base, mcp_path = base.rstrip("/"), "/mcp"
+    else:
+        m = re.match(r"(https?://[^/?#]+)([^?#]*)(\?[^#]*)?", url)
+        base = m.group(1)
+        mcp_path = (m.group(2) if m.group(2) not in ("", "/") else "/mcp") + (m.group(3) or "")
+def servers_of(cfg):
+    check_case(cfg, "servers", "The top-level object", path)
+    servers = cfg.get("servers")
+    if servers is None:
+        return None
+    if not isinstance(servers, list):
+        fail("servers in %s is not a JSON array; it was left unchanged." % path)
+    return servers
+def is_ours(server):
+    return isinstance(server, dict) and server.get("name") == name
+cfg = load(path)
+servers = servers_of(cfg)
+messages = []
+present = servers is not None and any(is_ours(s) for s in servers)
+if action in ("remove", "reinstall"):
+    if present:
+        cfg["servers"] = servers = [s for s in servers if not is_ours(s)]
+        save(path, cfg)
+        messages.append("Removed '%s' from %s." % (name, path))
+    else:
+        messages.append("No '%s' entry in %s; %s." % (name, path, "nothing to remove" if action == "remove" else "continuing"))
+if action in ("install", "reinstall"):
+    if auth_type == "bearer":
+        auth = {"type": "bearer", "bearerToken": token, "apiKeyHeader": "X-API-Key", "apiKeyValue": ""}
+    elif auth_type == "apikey":
+        auth = {"type": "apikey", "bearerToken": "", "apiKeyHeader": hname, "apiKeyValue": token}
+    else:
+        auth = {"type": "none", "bearerToken": "", "apiKeyHeader": "X-API-Key", "apiKeyValue": ""}
+    entry = {"name": name, "transport": "http", "command": "", "args": [], "env": {}, "url": base, "mcpPath": mcp_path, "auth": auth}
+    if servers is None:
+        servers = cfg["servers"] = []
+    # Replace an existing entry in place (dropping any duplicates); otherwise append.
+    kept, replaced = [], False
+    for s in servers:
+        if is_ours(s):
+            if not replaced:
+                kept.append(entry)
+                replaced = True
+        else:
+            kept.append(s)
+    if not replaced:
+        kept.append(entry)
+    cfg["servers"] = kept
+    save(path, cfg)
+    if present and action == "install":
+        messages.append("Replaced the existing '%s' entry in %s (%s)." % (name, path, base + mcp_path))
+    else:
+        messages.append("Added '%s' to %s (%s)." % (name, path, base + mcp_path))
+print("\n".join(messages))
+PY
+echo "Restart Mux to pick up the change."

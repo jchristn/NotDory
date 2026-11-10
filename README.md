@@ -133,7 +133,8 @@ token; the **secret key is never sent** and never leaves your machine. The local
 
 The quickest way is the ready-made installers in `scripts/` — one per harness, for `windows`, `macos`,
 `linux`, `wsl` (WSL 1) and `wsl2` (WSL 2; see `scripts/README.md` for the WSL notes). Each takes the access key as its first argument (or reads `NOTDORY_ACCESS_KEY`), writes a
-`notdory` entry into that client's config, backs up the existing file, and leaves everything else intact.
+`notdory` entry into that client's config (replacing an existing one), and leaves everything else intact.
+`reinstall-*` redoes it and `remove-*` undoes it, on every OS.
 Run the one for your OS; the examples below use `linux` (swap in `macos/…` or `windows\…\*.bat`).
 
 > The `<accessKey>` below is your credential access key. It is optional — omit it to use the

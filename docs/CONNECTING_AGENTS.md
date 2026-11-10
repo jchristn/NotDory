@@ -141,7 +141,8 @@ secret key never leaves your machine. Add a `notdory` entry to Mux's `mcp-server
 }
 ```
 
-Point Mux at this file with `--mcp-config`, or use the `scripts/*/install-mux.*` helper.
+Mux reads this file from its config directory (`~/.mux/mcp-servers.json`, or `$MUX_CONFIG_DIR/mcp-servers.json`);
+the `scripts/*/install-mux.*` helper writes the entry there for you.
 Because the access key alone authenticates, it is a **capability token** — scope it
 least-privilege. See [INSTRUCTIONS_FOR_MUX.md](INSTRUCTIONS_FOR_MUX.md) for the full Mux
 walkthrough.
